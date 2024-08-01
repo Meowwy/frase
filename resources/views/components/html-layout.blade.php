@@ -18,6 +18,7 @@
         </div>
         <div class="space-x-6 font-bold">
             <a href="/">About</a>
+            <a href="/">Plans</a>
         </div>
 
         @auth
