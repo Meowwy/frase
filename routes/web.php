@@ -17,3 +17,7 @@ Route::get('/register', function () {
 Route::get('/setLearning', function () {
     return view('set-learning');
 });
+
+Route::get('/learning', function () {
+    return view('learning');
+});
