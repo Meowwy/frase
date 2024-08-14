@@ -9,7 +9,10 @@ export default {
     theme: {
     extend: {
         colors: {
-            "black": '#060606'
+            "black": '#060606',
+            orange: {
+                800: '#ff6f61',
+            },
         },
         fontFamily: {
             "hanken-grotesk": ["Hanken Grotesk", "sans-serif"]
@@ -19,6 +22,11 @@ export default {
         }
     },
   },
+    variants:{
+        extend: {
+            borderColor: ['hover'],
+        }
+    },
   plugins: [],
 }
 
