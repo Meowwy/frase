@@ -11,7 +11,7 @@
             <x-forms.option>Czech</x-forms.option>
             <x-forms.option>Finish</x-forms.option>
         </x-forms.select>
-        <x-forms.input label="What is your native language? (or a language, that are you fluent enough)" name="nativeLanguage" placeholder="For example: Czech"/>
+        <x-forms.input label="What is your native language? (or a language, that you are fluent enough)" name="nativeLanguage" placeholder="For example: Czech"/>
         <x-forms.input label="Password" name="password" type="password"/>
         <x-forms.input label="Password Confirmation" name="password_confirmation" type="password"/>
 

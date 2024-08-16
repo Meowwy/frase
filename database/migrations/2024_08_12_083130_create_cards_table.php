@@ -15,6 +15,7 @@ return new class extends Migration
         Schema::create('cards', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(User::class, 'user_id');
+            $table->integer('level');
             $table->string('phrase');
             $table->string('translation');
             $table->string('example_sentence');

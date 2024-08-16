@@ -12,7 +12,6 @@ class AI extends Model
 
     public static function getContentForCard(string $phrase): string
     {
-        //dispatch(function () use ($phrase) {
         logger('Obtaining data for ' . $phrase);
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
@@ -20,7 +19,7 @@ class AI extends Model
             "messages" => [
                 [
                     "role" => "system",
-                    "content" => "You will generate content based on the phrase given and the native and target language of the user."
+                    "content" => "Generate content based on the phrase given and the native and target language of the user."
                 ],
                 [
                     "role" => "user",
@@ -41,7 +40,7 @@ class AI extends Model
                                 ],
                                 "question" => [
                                     "type" => "string",
-                                    "description" => "Create a short question in the target language that should prompt the user to remember the phrase given. Make it conversational and concise. Use simple language so even non-native speaker will understand it."
+                                    "description" => "Create a short question in the native language that should prompt the user to remember the phrase given. Make it conversational and concise."
                                 ],
                                 "translation" => [
                                     "type" => "string",
@@ -50,7 +49,7 @@ class AI extends Model
                                 "definition" => [
                                     "type" => "string",
                                     "description" => "Write a short definition for the phrase given in the target language."
-                                ],
+                                ]
                             ],
                             "required" => ["sentence", "question", "translation", "definition"],
                             "additionalProperties" => false
@@ -61,9 +60,9 @@ class AI extends Model
 
         if($response->json('choices.0.message.refusal') != null) {
             //handle this situation
+            return '';
         }
 
         return $response->json('choices.0.message.content');
-        //});
     }
 }

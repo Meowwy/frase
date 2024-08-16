@@ -1,13 +1,13 @@
-
+@props(['cards', 'cardCount'])
 <x-html-layout>
     <div class="flex justify-center items-center">
         <div class="flex-col items-center">
             <div class="flashcard" id="flashcard">
                 <div class="front" id="front">
-                    Chemistry Topic 1
+                    No cards loaded.
                 </div>
                 <div class="back" id="back">
-                    Information about Chemistry Topic 1
+                    No cards loaded.
                 </div>
             </div>
             <div class="navigationStyle flex justify-center">
@@ -21,20 +21,23 @@
     </div>
 
     <div class="flex justify-center gap-2 items-center mt-6">
-        <x-number-display id="unseenInfo" number="5" text="unseen"></x-number-display>
+        <x-number-display id="unseenInfo" number="{{$cardCount}}" text="unseen"></x-number-display>
         <x-number-display id="wrongInfo" number="0"  text="wrong"></x-number-display>
         <x-number-display id="correctInfo" number="0"  text="correct"></x-number-display>
     </div>
 
     <script>
-        let cards = [
+        /*let cards = [
             { id:"1", front: "First", back: "Atoms consist of a nucleus containing protons and neutrons, surrounded by electrons in shells." },
             { id:"2", front: "Second", back: "A table of the chemical elements arranged in order of atomic number." },
             { id:"3", front: "Third", back: "Atoms combine by sharing or transferring electrons to achieve stability." },
             { id:"4", front: "Forth", back: "A mole is a unit that measures the amount of substance, containing Avogadro's number of particles." },
             { id:"5", front: "Fifth", back: "Acids donate protons (H+), while bases accept protons." }
-        ];
-        let initialLength = 5;
+        ];*/
+
+        {!! $cards !!};
+
+        let initialLength = {{ $cardCount }};
         let results = [];
         let currentIndex = 0;
         let allCardsShown = false;
@@ -75,6 +78,10 @@
         });
 
         wrongBtn.addEventListener('click', () => {
+            results.push({
+                id: cards[currentIndex].id,
+                result: 0
+            });
             if(allCardsShown === false){
                 currentNumber = parseInt(wrongInfo.innerText);
                 currentNumber++;
@@ -126,7 +133,22 @@
         });
 
         function end(){
-            //
+            jQuery.ajax({
+                url: "{{ url('saveLearning') }}",
+                type: 'POST',
+                data: {
+                    results: results,
+                    _token: "{{ csrf_token() }}"
+                },
+
+                success: function (response) {
+                    toastr.success("Results saved successfully.");
+                    // Optionally, you can reset a form or do other things here
+                },
+                error: function (xhr) {
+                    alert('An error occurred: ' + xhr.responseJSON.error);
+                }
+            });
         }
 
         updateFlashcard(currentIndex);

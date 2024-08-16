@@ -16,15 +16,9 @@ class CardController extends Controller
      */
     public function index()
     {
-        return view('cards');
-    }
+        $cards = Auth::user()->cards;
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
+        return view('cards.index', ['cards' => $cards]);
     }
 
     /**
@@ -56,10 +50,6 @@ class CardController extends Controller
 
         return response(200);
 
-    }
-
-    public function saveAjax(StoreCardRequest $request){
-        dd(request('capturedWord'));
     }
 
     /**

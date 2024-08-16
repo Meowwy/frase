@@ -28,18 +28,27 @@ class CreateCardJob implements ShouldQueue
     public function handle(): void
     {
         $content = AI::getContentForCard($this->phrase);
+        if($content === ''){
+            logger('The model refused to create the card for '.$this->phrase);
+            return;
+        }
         $output = json_decode($content);
 
         $user = User::find($this->userId);
 
-        $user->cards()->create([
-            'phrase' => $this->phrase,
-            'translation' => $output->translation,
-            'example_sentence' => $output->sentence,
-            'question' => $output->question,
-            'definition' => $output->definition,
-            'next_study_at' => now()
-        ]);
-        logger('Card has been created');
+        try {
+            $user->cards()->create([
+                'phrase' => $this->phrase,
+                'translation' => $output->translation,
+                'example_sentence' => $output->sentence,
+                'question' => $output->question,
+                'definition' => $output->definition,
+                'next_study_at' => now()
+            ]);
+            logger('Card has been created for '.$this->phrase);
+        } catch(\Exception $e) {
+            logger($e->getMessage());
+        }
+
     }
 }
