@@ -51,4 +51,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Card::class);
     }
+
+    public function themes()
+    {
+        return $this->hasMany(Theme::class);
+    }
 }

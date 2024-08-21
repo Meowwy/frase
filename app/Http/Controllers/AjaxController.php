@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\CreateCardJob;
 use App\Models\Card;
 use App\Models\Learning;
+use App\Models\Theme;
 use Illuminate\Http\Request;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
@@ -41,17 +42,19 @@ class AjaxController extends Controller
 
     public function saveLearning(Request $request){
         // Validate the incoming request
-        $validatedData = $request->validate([
-            'results' => ['required', 'array']
-        ]);
+        $results = json_decode($request->input('results'), true);
 
-        foreach ($validatedData['results'] as $resultData) {
-            $card = Card::find($resultData['id']);
-            $card->next_study_at = Learning::getNextStudyDay($card->level, $resultData['result']);
-            $resultData['result'] === 1 ? $card->level++ : $card->level = 1;
+        foreach ($results as $r) {
+            $card = Card::find($r['id']);
+            $card->next_study_at = Learning::getNextStudyDay($card->level, $r['result']);
+            $r['result'] === 1 ? $card->level++ : $card->level = 1;
             $card->save();
         }
 
         return redirect('/completeLearning');
+    }
+
+    public function saveThemes(Request $request){
+
     }
 }

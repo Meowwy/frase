@@ -10,7 +10,7 @@ class AI extends Model
 {
     use HasFactory;
 
-    public static function getContentForCard(string $phrase): string
+    public static function getContentForCard(string $phrase, string $themes): string
     {
         logger('Obtaining data for ' . $phrase);
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
@@ -19,7 +19,7 @@ class AI extends Model
             "messages" => [
                 [
                     "role" => "system",
-                    "content" => "Generate content based on the phrase given and the native and target language of the user."
+                    "content" => "Generate content for a flashcard based on the phrase given and the native and target language of the user."
                 ],
                 [
                     "role" => "user",
@@ -40,18 +40,22 @@ class AI extends Model
                                 ],
                                 "question" => [
                                     "type" => "string",
-                                    "description" => "Create a short question in the native language that should prompt the user to remember the phrase given. Make it conversational and concise."
+                                    "description" => "Create a short question in the target language that should prompt the user to remember the phrase given. Make it conversational and concise."
                                 ],
                                 "translation" => [
                                     "type" => "string",
-                                    "description" => "Translate the phrase into the native language, if possible with 2 different alternatives separated by a semicolon"
+                                    "description" => "Translate the phrase into the native language, if possible with 2 different alternatives separated by a semicolon."
                                 ],
                                 "definition" => [
                                     "type" => "string",
                                     "description" => "Write a short definition for the phrase given in the target language."
+                                ],
+                                "theme" => [
+                                    "type" => "string",
+                                    "description" => "Choose the most suitable theme for the phrase given from these themes: {{$themes}}. If the expression doesn't fit into any theme or there are no themes, write miscellaneous. Write the exact word from the list."
                                 ]
                             ],
-                            "required" => ["sentence", "question", "translation", "definition"],
+                            "required" => ["sentence", "question", "translation", "definition", "theme"],
                             "additionalProperties" => false
                         ]
                     ]

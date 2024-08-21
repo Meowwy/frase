@@ -1,3 +1,4 @@
+@props(['themes'])
 <x-html-layout>
     @guest
         <section class="mb-7">
@@ -26,7 +27,7 @@
                 <x-card-text heading="Learning in context" text="Frase will expose you to words or phrases in ways it is easier to remember by making connection."></x-card-text>
                 <x-card-text heading="Building strong vocabulary base for the life we live" text="A lot of us use non-native language every day. Making a little effort to improve each day will have huge impact over time."></x-card-text>
                 <x-card-text heading="Not only a storage" text="Frase is not only for storage, its main purpose is to teach you the expressions you saved so you can use them without hesitation in real life."></x-card-text>
-                <x-card-text heading="Active learning that is also fun" text="In Frase you actively interact with your vocabulary base by various learning options, which offer a unique and engaging way to get the knowledge to your long term memory."></x-card-text>
+                <x-card-text heading="Active learning that is also fun" text="In Frase you actively interact with your vocabulary base by various learning methods, which offer a unique and engaging way to get the knowledge to your long term memory."></x-card-text>
 
 
             </div>
@@ -59,15 +60,19 @@
 
         <section>
             <x-section-heading>Themes</x-section-heading>
+            @if(!$themes)
+                <div>
+                    <p>You haven't decided how you are going to organize your vocabulary base, yet.</p>
+                </div>
+            @endif
+
             <div class="grid lg:grid-cols-3 gap-8 mt-6">
-                <x-theme-card></x-theme-card>
-                <x-theme-card></x-theme-card>
-                <x-theme-card></x-theme-card>
-                <x-theme-card></x-theme-card>
-                <x-theme-card></x-theme-card>
-                <x-theme-card></x-theme-card>
-                <x-theme-card></x-theme-card>
-                <x-theme-card></x-theme-card>
+                @auth
+                    @foreach($themes as $theme)
+                        <x-theme-card :theme="$theme"/>
+                    @endforeach
+                @endauth
+
 
             </div>
         </section>

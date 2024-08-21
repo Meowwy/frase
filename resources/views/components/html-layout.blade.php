@@ -28,7 +28,7 @@
                 <p>{{Auth::user()->username}}'s page</p>
             </div>
             <div class="space-x-6 font-bold flex">
-                <a href="/jobs/create">Account settings</a>
+                <a href="/profile">Account settings</a>
                 <form method="post" action="/logout">
                     @csrf
                     @method('delete')

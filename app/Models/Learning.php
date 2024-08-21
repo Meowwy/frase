@@ -17,12 +17,14 @@ class Learning extends Model
 
             if ($dueCardsCount > 20) {
                 $cards = Auth::user()->cards()
+                    ->with('theme:name')
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->limit(15)
                     ->get();
                 session(['more_cards_available' => true]);
             } else {
                 $cards = Auth::user()->cards()
+                    ->with('theme:name')
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->get();
                 session(['more_cards_available' => false]);
@@ -53,6 +55,7 @@ class Learning extends Model
                     'id' => $card->id,
                     'front' => $front,
                     'back' => $card->phrase,
+                    'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }
             $cardsForJS = "let cards = " .json_encode($cards).";";

@@ -26,13 +26,9 @@ class CardController extends Controller
      */
     public function store(StoreCardRequest $request)
     {
-        //dd(request('capturedWord'));
         $request->validate([
-            'capturedWord' => 'required|string'
+            'capturedWord' => ['required', 'string', 'regex:/^[^0-9]*$/']
         ]);
-
-        // Extract the captured word
-        $capturedWord = $request->input('capturedWord');
 
         $userId = Auth::id();
         $phrase = request('capturedWord');

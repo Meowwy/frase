@@ -5,6 +5,8 @@ use App\Http\Controllers\CardController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TagController;
+use App\Http\Controllers\ThemeController;
+use App\Http\Controllers\UserController;
 use App\Jobs\CreateCardJob;
 use App\Models\Card;
 use App\Models\Learning;
@@ -14,7 +16,20 @@ use Illuminate\Support\Facades\Route;
 use function Pest\Laravel\get;
 
 Route::get('/', function () {
-    return view('index');
+    If(!Auth::check()) {
+        return view('index');
+    }
+    // Retrieve themes with counts for the authenticated user
+    $themes = Auth::user()->themes()
+        ->withCount([
+            'cards as total_cards_count',
+            'cards as due_cards_count' => function ($query) {
+                $query->whereDate('next_study_at', '<=', now()->toDateString());
+            }
+        ])
+        ->get();
+    // Format the data as an array of theme info
+    return view('index',['themes' => $themes]);
 });
 
 /*Route::get('/test', function () {
@@ -32,16 +47,17 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/setLearning', function () {
-        return view('learning.set');
-    });
+    Route::get('/profile', [UserController::class, 'index']);
 
     Route::get('/learning', function () {
         return view('learning.index');
     });
     Route::get('/filterCardsForLearning/{filter}', [Learning::class, 'setLearning']);
+    Route::get('/setLearning', function () {
+        return view('learning.set');
+    });
     Route::get('/startLearning/{mode}', [Learning::class, 'startLearning']);
-    Route::post('/saveLearning', [AjaxController::class, 'saveLearning']);
+    Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
     Route::get('/completeLearning', function (){
         return view('learning.complete');
     });
@@ -51,6 +67,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
 
     Route::get('cards/{tag:name}', TagController::class);
+
+    Route::get('/themes/manage', [ThemeController::class, 'create']);
+    Route::post('/saveThemes', [ThemeController::class, 'store'])->name('saveThemes');
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
 

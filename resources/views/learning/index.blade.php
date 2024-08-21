@@ -2,6 +2,9 @@
 <x-html-layout>
     <div class="flex justify-center items-center">
         <div class="flex-col items-center">
+            <div class="flex justify-center mb-4">
+                <span id="themeName" class="text-lg mr-1 font-bold bg-orange-800 text-white rounded-full px-3 py-1"></span>
+            </div>
             <div class="flashcard" id="flashcard">
                 <div class="front" id="front">
                     No cards loaded.
@@ -25,6 +28,14 @@
         <x-number-display id="wrongInfo" number="0"  text="wrong"></x-number-display>
         <x-number-display id="correctInfo" number="0"  text="correct"></x-number-display>
     </div>
+    <div>
+        <x-forms.button id="exitBtn">Save and quit</x-forms.button>
+    </div>
+    <div>
+        <x-forms.form id="resultsForm" method="POST" action="/saveLearning">
+            <input id="resultsInput" type="hidden" name="results">
+        </x-forms.form>
+    </div>
 
     <script>
         /*let cards = [
@@ -44,11 +55,13 @@
         let currentNumber = 0;
 
         const flashcard = document.getElementById('flashcard');
+        const themeName = document.getElementById('themeName');
         const front = document.getElementById('front');
         const back = document.getElementById('back');
         const wrongBtn = document.getElementById('wrongBtn');
         const correctBtn = document.getElementById('correctBtn');
         const flipBtn = document.getElementById('flipBtn');
+        const exitBtn = document.getElementById('exitBtn');
 
         const unseenInfo = document.getElementById('unseen');
         const wrongInfo = document.getElementById('wrong');
@@ -57,12 +70,12 @@
 
 
         function updateFlashcard(index) {
+            flashcard.classList.remove('is-flipped');
             front.textContent = cards[index].front;
-            back.textContent = cards[index].back;
+            themeName.textContent = cards[index].theme
             wrongBtn.classList.add('hidden');
             correctBtn.classList.add('hidden');
             flipBtn.classList.remove('hidden');
-            flashcard.classList.remove('is-flipped');
             currentNumber = parseInt(unseenInfo.innerText);
             if(currentNumber !== 0){
                 currentNumber--;
@@ -71,6 +84,7 @@
         }
 
         flashcard.addEventListener('click', () => {
+            back.textContent = cards[currentIndex].back;
             flashcard.classList.toggle('is-flipped');
             flipBtn.classList.add('hidden');
             wrongBtn.classList.remove('hidden');
@@ -78,10 +92,12 @@
         });
 
         wrongBtn.addEventListener('click', () => {
-            results.push({
-                id: cards[currentIndex].id,
-                result: 0
-            });
+            if(!results.some(r => r.id === cards[currentIndex].id)) {
+                results.push({
+                    id: cards[currentIndex].id,
+                    result: 0
+                });
+            }
             if(allCardsShown === false){
                 currentNumber = parseInt(wrongInfo.innerText);
                 currentNumber++;
@@ -99,10 +115,13 @@
         });
 
         correctBtn.addEventListener('click', () => {
-            results.push({
-                id: cards[currentIndex].id,
-                result: 1
-            });
+            if(!results.some(r => r.id === cards[currentIndex].id)){
+                results.push({
+                    id: cards[currentIndex].id,
+                    result: 1
+                });
+            }
+
             cards.splice(currentIndex, 1);
             if(cards.length === 0){
                 end();
@@ -126,29 +145,20 @@
         });
 
         flipBtn.addEventListener('click', () => {
+            back.textContent = cards[currentIndex].back;
             flashcard.classList.toggle('is-flipped');
             flipBtn.classList.add('hidden');
             wrongBtn.classList.remove('hidden');
             correctBtn.classList.remove('hidden');
         });
 
-        function end(){
-            jQuery.ajax({
-                url: "{{ url('saveLearning') }}",
-                type: 'POST',
-                data: {
-                    results: results,
-                    _token: "{{ csrf_token() }}"
-                },
+        exitBtn.addEventListener('click', () => {
+            end();
+        });
 
-                success: function (response) {
-                    toastr.success("Results saved successfully.");
-                    // Optionally, you can reset a form or do other things here
-                },
-                error: function (xhr) {
-                    alert('An error occurred: ' + xhr.responseJSON.error);
-                }
-            });
+        function end(){
+            document.getElementById('resultsInput').value = JSON.stringify(results);
+            document.getElementById('resultsForm').submit();
         }
 
         updateFlashcard(currentIndex);
