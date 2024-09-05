@@ -43,8 +43,9 @@ class CardController extends Controller
         return view('cards.index', ['cards' => $cards, 'themes' => $themesArray]);
     }
 
-    public function themeFilter($themeName)
+    public function themeFilter(\Illuminate\Http\Request $request)
     {
+        $themeName = $request->get('themeSelect');
         if($themeName === 'All themes'){
             $cards = Auth::user()->cards()
                 ->with('theme:id,name')
@@ -57,7 +58,7 @@ class CardController extends Controller
                     $query->where('name', $themeName);
                 })
                 ->orderBy('created_at', 'desc')
-                ->paginate(3);
+                ->paginate(20);
         }
 
 
@@ -76,7 +77,7 @@ class CardController extends Controller
             ];
         })->toArray();
 
-        return view('cards.index', ['cards' => $cards, 'themes' => $themesArray]);
+        return view('cards.index', ['cards' => $cards, 'themes' => $themesArray, 'selectedTheme' => $themeName]);
     }
 
     /**

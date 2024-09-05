@@ -2,14 +2,20 @@
     @if(count($themes) > 0)
         <div>
             <div class="flex">
-                <x-forms.form id="themeForm">
+                <x-forms.form action="/cards/themeFilter" method="POST" id="themeForm">
                     <x-forms.select label="Select Theme" name="themeSelect" id="themeSelect">
-                        <x-forms.option>All themes</x-forms.option>
+                        <x-forms.option value="All themes">All themes</x-forms.option>
                         @foreach($themes as $theme)
-                            <x-forms.option>{{$theme['name']}}</x-forms.option>
+                            @if(isset($selectedTheme))
+                                @if($selectedTheme === $theme['name'])
+                                    <x-forms.option selected value="{{$theme['name']}}">{{$theme['name']}}</x-forms.option>
+                                    @continue
+                                @endif
+                            @endif
+                            <x-forms.option value="{{$theme['name']}}">{{$theme['name']}}</x-forms.option>
                         @endforeach
                     </x-forms.select>
-                    <x-forms.button-confirm type="button" onclick="submitForm()">Update</x-forms.button-confirm>
+                    <x-forms.button-confirm type="submit">Update</x-forms.button-confirm>
                 </x-forms.form>
 
             </div>
@@ -58,7 +64,7 @@
         </div>
     </div>
 
-        <script>
+        {{--<script>
             function submitForm() {
                 const form = document.getElementById('themeForm');
                 const selectedTheme = document.getElementById('themeSelect').value;
@@ -69,5 +75,5 @@
                 // Submit the form
                 form.submit();
             }
-        </script>
+        </script>--}}
 </x-html-layout>

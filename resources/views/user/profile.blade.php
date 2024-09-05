@@ -1,4 +1,10 @@
 <x-html-layout>
-    <x-section-heading>Your Profile</x-section-heading>
-    <a href="/themes/manage">Change themes</a>
+    <div>
+        <p class="text-5xl">{{Auth::user()->username}}</p>
+        <p class="text-lg">You can generate {{Auth::user()->currency_amount}} more cards.</p>
+    </div>
+    <br>
+    <a href="/themes/manage">
+        <x-forms.button>Change themes</x-forms.button>
+    </a>
 </x-html-layout>

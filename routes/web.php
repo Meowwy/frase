@@ -68,7 +68,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/cards', [CardController::class, 'index']);
-    Route::get('/cards/theme/{themeName}', [CardController::class, 'themeFilter']);
+    Route::post('/cards/themeFilter', [CardController::class, 'themeFilter']);
     Route::get('/cards/{card:id}', [CardController::class, 'edit']);
     //Route::post('/cards/{card:id}', [CardController::class, 'update']);
     Route::post('/cards/{card:id}', function (\Illuminate\Http\Request $request, Card $card) {

@@ -44,7 +44,7 @@
             <x-forms.form action="{{url('captureWordAjax')}}" method="post" id="addWord" class="mt-6">
                 <x-forms.input :label="false" name="capturedWord"
                                placeholder="Write a word or phrase in English"></x-forms.input>
-                <x-forms.button>Save</x-forms.button>
+                <x-forms.button>Add</x-forms.button>
             </x-forms.form>
         </section>
 
