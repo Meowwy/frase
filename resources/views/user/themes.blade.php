@@ -19,6 +19,10 @@
             </x-forms.form>
             <x-forms.button id="saveThemesBtn">Save themes</x-forms.button>
 
+            <x-forms.form id="generateThemesForm" method="POST" action="/generateThemes">
+                <x-forms.button id="saveThemesBtn">Generate themes with AI</x-forms.button>
+            </x-forms.form>
+
         </div>
 
     </section>

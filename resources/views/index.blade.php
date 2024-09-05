@@ -49,13 +49,28 @@
         </section>
 
         <section>
-            <x-section-heading>Due</x-section-heading>
-            <p class="mt-4 text-center">16 cards to learn</p>
-            <div>
-                <x-forms.form method="GET" action="/filterCardsForLearning/due" class="text-center">
-                    <x-forms.button-confirm>Learn due cards</x-forms.button-confirm>
-                </x-forms.form>
+            <x-section-heading>Navigation</x-section-heading>
+            <div class="flex">
+                <div>
+                    @if($dueCount === 0)
+                        <p class="mt-4 text-center">Nothing to learn for today!</p>
+                    @else
+                        <p class="mt-4 text-center">{{$dueCount}} cards to learn</p>
+                        <x-forms.form method="GET" action="/filterCardsForLearning/due" class="text-center">
+                            <x-forms.button-confirm>Learn due cards</x-forms.button-confirm>
+                        </x-forms.form>
+                    @endif
+                    <div>
+
+                    </div>
+                </div>
+                <div>
+                    <x-panel>
+                        <a href="/cards">Show all cards</a>
+                    </x-panel>
+                </div>
             </div>
+
         </section>
 
         <section>

@@ -45,7 +45,7 @@
         @endguest
     </nav>
 
-    <main class="mt-10 max-w-[986px] mx-auto">
+    <main class="mt-10 max-w-[1140px] mx-auto">
         {{$slot}}
     </main>
 </div>

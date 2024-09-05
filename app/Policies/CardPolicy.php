@@ -37,7 +37,9 @@ class CardPolicy
      */
     public function update(User $user, Card $card): bool
     {
-        //
+        // Ensure the user owns the card
+        //return $user->id === $card->user_id;
+        return $user->cards()->where('id', $card->id)->exists();
     }
 
     /**

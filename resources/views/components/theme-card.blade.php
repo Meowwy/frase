@@ -12,9 +12,10 @@
         </div>
     </div>
     <div class="flex flex-col justify-end">
-        <x-forms.form action="/listCards" class="">
+        <a href="/cards/theme/{{$theme->name}}">
             <x-forms.button-small>Show cards</x-forms.button-small>
-        </x-forms.form>
+        </a>
+
         <x-forms.form action="/setLearning" class="">
             <x-forms.button-confirm>Learn due</x-forms.button-confirm>
         </x-forms.form>

@@ -19,6 +19,11 @@ Route::get('/', function () {
     If(!Auth::check()) {
         return view('index');
     }
+
+    $totalDueCards = Auth::user()->cards()
+        ->whereDate('next_study_at', '<=', now()->toDateString())
+        ->count();
+
     // Retrieve themes with counts for the authenticated user
     $themes = Auth::user()->themes()
         ->withCount([
@@ -29,7 +34,7 @@ Route::get('/', function () {
         ])
         ->get();
     // Format the data as an array of theme info
-    return view('index',['themes' => $themes]);
+    return view('index',['themes' => $themes, 'dueCount' => $totalDueCards]);
 });
 
 /*Route::get('/test', function () {
@@ -63,6 +68,28 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/cards', [CardController::class, 'index']);
+    Route::get('/cards/theme/{themeName}', [CardController::class, 'themeFilter']);
+    Route::get('/cards/{card:id}', [CardController::class, 'edit']);
+    //Route::post('/cards/{card:id}', [CardController::class, 'update']);
+    Route::post('/cards/{card:id}', function (\Illuminate\Http\Request $request, Card $card) {
+        $validatedData = $request->validate([
+            'phrase' => ['required', 'string'],
+            'definition' => ['required', 'string'],
+            'translation' => ['required', 'string'],
+            'question' => ['required', 'string'],
+            'example_sentence' => ['required', 'string'],
+            'id' => ['required'],
+            'theme_id' => ['required']
+        ]);
+        if($validatedData['theme_id'] === '-1'){
+            $validatedData['theme_id'] = null;
+        }
+        // Update the card with the validated data
+        $card->update($validatedData);
+
+        // Redirect back with a success message
+        return redirect('/');
+    });
 
     Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
 
@@ -70,6 +97,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/themes/manage', [ThemeController::class, 'create']);
     Route::post('/saveThemes', [ThemeController::class, 'store'])->name('saveThemes');
+    Route::post('/generateThemes', [ThemeController::class, 'generate'])->name('generate');
+
+    Route::post('/test',[CardController::class, 'show']);
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
 

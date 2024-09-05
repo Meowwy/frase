@@ -43,7 +43,7 @@ class CreateCardJob implements ShouldQueue
             $themeString = '';
         }
 
-        $content = AI::getContentForCard($this->phrase, $themeString);
+        $content = AI::getContentForCard($this->phrase, $themeString, $user->target_language, $user->native_language);
         if($content === ''){
             logger('The model refused to create the card for '.$this->phrase);
             return;
@@ -54,7 +54,7 @@ class CreateCardJob implements ShouldQueue
             $selectedTheme = $themes->firstWhere('name', $output->theme);
 
             $user->cards()->create([
-                'phrase' => $this->phrase,
+                'phrase' => $output->phrase,
                 'theme_id' => ($selectedTheme ? $selectedTheme->id : null),
                 'level' => 1,
                 'translation' => $output->translation,

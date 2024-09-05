@@ -17,14 +17,14 @@ class Learning extends Model
 
             if ($dueCardsCount > 20) {
                 $cards = Auth::user()->cards()
-                    ->with('theme:name')
+                    ->with('theme:id,name')
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->limit(15)
                     ->get();
                 session(['more_cards_available' => true]);
             } else {
                 $cards = Auth::user()->cards()
-                    ->with('theme:name')
+                    ->with('theme:id,name')
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->get();
                 session(['more_cards_available' => false]);
@@ -67,6 +67,7 @@ class Learning extends Model
                     'id' => $card->id,
                     'front' => $card->question,
                     'back' => $card->phrase,
+                    'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }
             $cardsForJS = "let cards = " .json_encode($cards).";";
@@ -77,6 +78,7 @@ class Learning extends Model
                     'id' => $card->id,
                     'front' => $card->translation,
                     'back' => $card->phrase,
+                    'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }
             $cardsForJS = "let cards = " .json_encode($cards).";";
@@ -87,6 +89,7 @@ class Learning extends Model
                     'id' => $card->id,
                     'front' => $card->definition,
                     'back' => $card->phrase,
+                    'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }
             $cardsForJS = "let cards = " .json_encode($cards).";";

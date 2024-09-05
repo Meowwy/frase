@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AI;
 use App\Models\Theme;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -74,12 +76,17 @@ class ThemeController extends Controller
         return redirect('/profile');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Theme $theme)
-    {
-        //
+    public function generate(){
+        $phrases = Auth::user()->cards()
+            ->orderBy('created_at', 'desc')
+            ->limit(100)
+            ->pluck('phrase');
+
+// Convert the collection of phrases into a semicolon-separated string
+        $phraseString = $phrases->implode('; ');
+        $themes = AI::generateThemes($phraseString, Auth::user()->target_language);
+
+        dd($themes);
     }
 
     /**
