@@ -4,7 +4,11 @@
         <div class="container mx-auto p-6">
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-3xl font-bold">Manage Themes</h2>
+                <div>
+                    <h2 class="text-3xl font-bold">Manage Themes</h2>
+                    <p>Define themes that will be automatically assigned to cards.</p>
+                </div>
+
                 <button class="bg-blue-500 text-white rounded-full px-4 py-2 hover:bg-blue-600" id="addThemeBtn">Add New
                     Theme
                 </button>
@@ -19,11 +23,14 @@
             </x-forms.form>
             <x-forms.button id="saveThemesBtn">Save themes</x-forms.button>
 
-            <x-forms.form id="generateThemesForm" method="POST" action="/generateThemes">
+            {{--<x-forms.form id="generateThemesForm" method="POST" action="/generateThemes">
                 <x-forms.button id="saveThemesBtn">Generate themes with AI</x-forms.button>
-            </x-forms.form>
+            </x-forms.form>--}}
 
         </div>
+        <p class="bg-yellow-100 text-yellow-800 border border-yellow-300 p-4 rounded-md">
+            Keep in mind that changing themes won't affect existing cards.
+        </p>
 
     </section>
 

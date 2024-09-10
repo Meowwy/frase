@@ -24,6 +24,9 @@ Route::get('/', function () {
         ->whereDate('next_study_at', '<=', now()->toDateString())
         ->count();
 
+    $totalCards = Auth::user()->cards()
+        ->count();
+
     // Retrieve themes with counts for the authenticated user
     $themes = Auth::user()->themes()
         ->withCount([
@@ -34,7 +37,7 @@ Route::get('/', function () {
         ])
         ->get();
     // Format the data as an array of theme info
-    return view('index',['themes' => $themes, 'dueCount' => $totalDueCards]);
+    return view('index',['themes' => $themes, 'dueCount' => $totalDueCards, 'totalCount' => $totalCards]);
 });
 
 /*Route::get('/test', function () {

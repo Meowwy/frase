@@ -1,0 +1,57 @@
+{
+    "name": "fly-apps/fly-laravel",
+    "description": "A cli tool for launching and deploying Laravel apps on Fly.io",
+    "keywords": ["framework", "laravel", "Fly.io", "console", "cli"],
+    "homepage": "https://github.com/fly-apps/fly-laravel",
+    "type": "project",
+    "license": "MIT",
+    "support": {
+        "issues": "https://github.com/fly-apps/fly-laravel/issues",
+        "source": "https://github.com/fly-apps/fly-laravel"
+    },
+    "authors": [
+        {
+            "name": "Johannes Werbrouck",
+            "email": "johannes@fly.io"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "guzzlehttp/guzzle": "^7.5",
+        "illuminate/http": "^10.0",
+        "illuminate/log": "^10.0",
+        "illuminate/view": "^10.0",
+        "nunomaduro/laravel-console-menu": "^3.4",
+        "nunomaduro/termwind": "^1.15.1",
+        "yosymfony/toml": "^1.0"
+    },
+    "require-dev": {
+        "laravel-zero/framework": "^10.0.2",
+        "laravel/pint": "^1.8",
+        "mockery/mockery": "^1.5.1",
+        "pestphp/pest": "^2.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "bin": ["builds/fly-laravel"]
+}

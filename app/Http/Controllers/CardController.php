@@ -85,6 +85,10 @@ class CardController extends Controller
      */
     public function store(StoreCardRequest $request)
     {
+        if(Auth::user()->currency_amount <= 0){
+            return redirect('/');
+        }
+
         $request->validate([
             'capturedWord' => ['required', 'string', 'regex:/^[^0-9]*$/']
         ]);

@@ -40,7 +40,7 @@
     @auth
 
         <section>
-            <x-section-heading>Capture</x-section-heading>
+            <x-section-heading>capture a term</x-section-heading>
             <x-forms.form action="{{url('captureWordAjax')}}" method="post" id="addWord" class="mt-6">
                 <x-forms.input :label="false" name="capturedWord"
                                placeholder="Write a word or phrase in English"></x-forms.input>
@@ -49,35 +49,51 @@
         </section>
 
         <section>
-            <x-section-heading>Navigation</x-section-heading>
-            <div class="flex">
-                <div>
+            <x-section-heading>quick navigation</x-section-heading>
+            <div class="flex items-center justify-center space-x-10 mt-6">
+                <x-panel>
                     @if($dueCount === 0)
-                        <p class="mt-4 text-center">Nothing to learn for today!</p>
+                        <div class="flex flex-col space-y-2">
+                            <p class="text-center">Nothing to learn for today!</p>
+                        </div>
                     @else
-                        <p class="mt-4 text-center">{{$dueCount}} cards to learn</p>
-                        <x-forms.form method="GET" action="/filterCardsForLearning/due" class="text-center">
-                            <x-forms.button-confirm>Learn due cards</x-forms.button-confirm>
-                        </x-forms.form>
+                        <div class="flex flex-col space-y-2">
+                            <p class="text-center">{{$dueCount}} cards to learn today</p>
+                            <x-forms.form method="GET" action="/filterCardsForLearning/due" class="text-center">
+                                <x-forms.button-confirm>Learn due cards</x-forms.button-confirm>
+                            </x-forms.form>
+                        </div>
+
                     @endif
                     <div>
 
                     </div>
-                </div>
-                <div>
+                </x-panel>
                     <x-panel>
-                        <a href="/cards">Show all cards</a>
+                        <div class="flex flex-col space-y-2">
+                            <p>You have saved {{$totalCount}} terms</p>
+                            <a href="/cards" class="flex flex-col items-center">
+                                <x-forms.button-confirm>Browse terms</x-forms.button-confirm>
+                            </a>
+                        </div>
+
                     </x-panel>
-                </div>
+
             </div>
 
         </section>
 
         <section>
-            <x-section-heading>Themes</x-section-heading>
-            @if(!$themes)
-                <div>
-                    <p>You haven't decided how you are going to organize your vocabulary base, yet.</p>
+            <x-section-heading>themes</x-section-heading>
+            @if(count($themes) === 0)
+                <div class="flex justify-center">
+                    <div class="flex flex-col items-center justify-center">
+                        <p>When you define themes, each term you add will be automatically assigned to a theme that is most appropriate.</p>
+                        <a href="/themes/manage">
+                            <x-forms.button>Define themes</x-forms.button>
+                        </a>
+                    </div>
+
                 </div>
             @endif
 

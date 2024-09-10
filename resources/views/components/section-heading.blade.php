@@ -1,6 +1,4 @@
-<div class="inline-flex items-center gap-x-2 mt-6">
-    <span class="w-4 h-4 bg-white inline-block"></span>
-
+<div class="flex items-center justify-center mt-6">
     <h3 class="font-bold text-2xl">{{ $slot }}</h3>
-
 </div>
+

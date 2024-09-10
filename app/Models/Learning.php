@@ -11,26 +11,59 @@ class Learning extends Model
 {
     public static function getCardsForLearning($filter){
         if($filter === 'due') {
-            $dueCardsCount = Auth::user()->cards()
-                ->whereDate('next_study_at', '<=', now()->toDateString())
-                ->count();
+            try {
+                $dueCardsCount = Auth::user()->cards()
+                    ->whereDate('next_study_at', '<=', now()->toDateString())
+                    ->count();
 
-            if ($dueCardsCount > 20) {
-                $cards = Auth::user()->cards()
-                    ->with('theme:id,name')
-                    ->whereDate('next_study_at', '<=', now()->toDateString())
-                    ->limit(15)
-                    ->get();
-                session(['more_cards_available' => true]);
-            } else {
-                $cards = Auth::user()->cards()
-                    ->with('theme:id,name')
-                    ->whereDate('next_study_at', '<=', now()->toDateString())
-                    ->get();
-                session(['more_cards_available' => false]);
+                if ($dueCardsCount > 20) {
+                    $cards = Auth::user()->cards()
+                        ->with('theme:id,name')
+                        ->whereDate('next_study_at', '<=', now()->toDateString())
+                        ->limit(15)
+                        ->get();
+                    session(['more_cards_available' => true]);
+                } else {
+                    $cards = Auth::user()->cards()
+                        ->with('theme:id,name')
+                        ->whereDate('next_study_at', '<=', now()->toDateString())
+                        ->get();
+                    session(['more_cards_available' => false]);
+                }
+            }catch (\Exception $exception){
+                $cards = [];
             }
-            return $cards;
-        }
+
+        }else{
+            try {
+                $theme = Theme::where('name', $filter)->first();
+                $dueCardsCount = Auth::user()->cards()
+                    ->where('theme_id', $theme->id)
+                    ->whereDate('next_study_at', '<=', now()->toDateString())
+                    ->count();
+
+                if ($dueCardsCount > 20) {
+                    $cards = Auth::user()->cards()
+                        ->with('theme:id,name')
+                        ->where('theme_id', $theme->id)
+                        ->whereDate('next_study_at', '<=', now()->toDateString())
+                        ->limit(15)
+                        ->get();
+                    session(['more_cards_available' => true]);
+                } else {
+                    $cards = Auth::user()->cards()
+                        ->with('theme:id,name')
+                        ->where('theme_id', $theme->id)
+                        ->whereDate('next_study_at', '<=', now()->toDateString())
+                        ->get();
+                    session(['more_cards_available' => false]);
+                }
+
+            }catch (\Exception $exception){
+                $cards = [];
+            }
+            }
+        return $cards;
     }
 
     public static function setLearning($filter){

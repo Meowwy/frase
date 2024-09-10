@@ -46,8 +46,28 @@ class ThemeController extends Controller
     {
         $updatedThemesString = $request->input('themes');
         $themes = json_decode($updatedThemesString, true);
+        $themesFromDatabase = Theme::where('user_id', Auth::id())
+            ->get(['id', 'name']); // Get only the id and name columns
+
+        $themesArray = $themesFromDatabase->map(function ($theme) {
+            return [
+                'id' => $theme->id,
+                'name' => $theme->name,
+            ];
+        })->toArray();
+
+        foreach ($themesArray as $theme) {
+            // Extract the IDs from the $themes array
+            $themeIds = array_column($themes, 'id');
+
+            // Check if the current theme's ID is in the list of IDs
+            if (!in_array($theme['id'], $themeIds)) {
+                $themeToDelete = Theme::find($theme['id']);
+                $themeToDelete->delete();
+            }
+        }
+
         if (json_last_error() === JSON_ERROR_NONE) {
-            // The JSON was decoded successfully, proceed with processing $themes
             foreach ($themes as $theme) {
                 // Extract the id and name from each theme object in the array
                 $themeId = $theme['id'];

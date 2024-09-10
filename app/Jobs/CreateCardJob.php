@@ -49,6 +49,11 @@ class CreateCardJob implements ShouldQueue
             return;
         }
         $output = json_decode($content);
+        $user->currency_amount = $user->currency_amount - 1;
+        if ($user->currency_amount < 0) {
+            $user->currency_amount = 0;
+        }
+        $user->save();
 
         try {
             $selectedTheme = $themes->firstWhere('name', $output->theme);
