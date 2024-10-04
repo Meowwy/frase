@@ -8,6 +8,7 @@ use App\Models\Card;
 use App\Http\Requests\StoreCardRequest;
 use App\Http\Requests\UpdateCardRequest;
 use App\Models\Theme;
+use App\Models\User;
 use Carbon\Carbon;
 use http\Env\Request;
 use Illuminate\Support\Facades\Auth;
@@ -99,7 +100,54 @@ class CardController extends Controller
             return redirect('/');
         }
 
-        CreateCardJob::dispatch($userId, $phrase);
+        //CreateCardJob::dispatch($userId, $phrase);
+        //obsah CreateCardJob
+        $user = Auth::user();
+
+        // Retrieve all themes of the authenticated user
+        $themes = $user->themes()->select('id', 'name')->get();
+
+
+        if(count($themes) !== 0){
+            $themeStrings = $themes->map(function ($theme) {
+                return "\"{$theme->name}\"";
+            });
+            $themeString = $themeStrings->implode(',');
+        }else{
+            $themeString = '';
+        }
+
+        $content = AI::getContentForCard($this->phrase, $themeString, $user->target_language, $user->native_language);
+        if(is_null($content)){
+            logger('The model refused to create the card for '.$this->phrase);
+            return;
+        }
+        logger($content);
+        $output = json_decode($content);
+        $user->currency_amount = $user->currency_amount - 1;
+        if ($user->currency_amount < 0) {
+            $user->currency_amount = 0;
+        }
+        $user->save();
+
+        try {
+            $selectedTheme = $themes->firstWhere('name', $output->theme);
+
+            $user->cards()->create([
+                'phrase' => $output->phrase,
+                'theme_id' => ($selectedTheme ? $selectedTheme->id : null),
+                'level' => 1,
+                'translation' => $output->translation,
+                'example_sentence' => $output->sentence,
+                'question' => $output->question,
+                'definition' => $output->definition,
+                'next_study_at' => now()
+            ]);
+            logger('Card has been created for '.$this->phrase);
+        } catch(\Exception $e) {
+            logger($e->getMessage());
+        }
+        //konec obsahu CreateCardJob
 
         //return redirect('/');
         /*return response()->json([
@@ -174,5 +222,45 @@ class CardController extends Controller
     public function destroy(Card $card)
     {
         //
+    }
+
+    /**
+     * Display a form to create a resource.
+     */
+    public function create()
+    {
+        $themes = Theme::where('user_id', Auth::id())
+            ->get(['id', 'name']); // Get only the id and name columns
+
+        $themesArray = $themes->map(function ($theme) {
+            return [
+                'id' => $theme->id,
+                'name' => $theme->name,
+            ];
+        })->toArray();
+        return view('cards.add', ['themes' => $themesArray]);
+    }
+
+    public function save(StoreCardRequest $request)
+    {
+
+        $request->validate([
+            'phrase' => ['required', 'string'],
+            'definition' => ['required', 'string']
+        ]);
+
+        $user = User::find($this->userId);
+
+        $user->cards()->create([
+            'phrase' => $request->phrase,
+            'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
+            'level' => 1,
+            'translation' => $request->translation,
+            'example_sentence' => $request->sentence,
+            'question' => $request->question,
+            'definition' => $request->definition,
+            'next_study_at' => now()
+        ]);
+        logger('Card has been created for '.$this->phrase);
     }
 }

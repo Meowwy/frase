@@ -28,7 +28,8 @@ class RegisteredUserController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'confirmed', Password::min(6)],
             'targetLanguage' => ['required', 'string', 'different:nativeLanguage'],
-            'nativeLanguage' => ['required', 'string']
+            'nativeLanguage' => ['required', 'string'],
+            'code' => ['required', 'string', 'in:delina']
         ]);
 
         $user = User::create([

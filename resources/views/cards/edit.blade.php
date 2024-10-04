@@ -22,4 +22,8 @@
         <x-forms.divider></x-forms.divider>
         <x-forms.button>Save</x-forms.button>
     </x-forms.form>
+    <x-forms.form method="post" action="/cards/{{$card->id}}/delete">
+        <input hidden value="{{$card->id}}" name="id"/>
+        <x-forms.button-small>Delete term</x-forms.button-small>
+    </x-forms.form>
 </x-html-layout>

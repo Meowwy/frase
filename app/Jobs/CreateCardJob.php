@@ -44,11 +44,12 @@ class CreateCardJob implements ShouldQueue
         }
 
         $content = AI::getContentForCard($this->phrase, $themeString, $user->target_language, $user->native_language);
-        if($content === ''){
+        if(is_null($content)){
             logger('The model refused to create the card for '.$this->phrase);
             return;
         }
-        $output = json_decode($content);
+        $cleanedContent = trim($content);
+        $output = json_decode($cleanedContent);
         $user->currency_amount = $user->currency_amount - 1;
         if ($user->currency_amount < 0) {
             $user->currency_amount = 0;

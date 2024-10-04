@@ -35,6 +35,7 @@ Route::get('/', function () {
                 $query->whereDate('next_study_at', '<=', now()->toDateString());
             }
         ])
+        ->orderBy('total_cards_count', 'desc')
         ->get();
     // Format the data as an array of theme info
     return view('index',['themes' => $themes, 'dueCount' => $totalDueCards, 'totalCount' => $totalCards]);
@@ -73,6 +74,37 @@ Route::middleware('auth')->group(function () {
     Route::get('/cards', [CardController::class, 'index']);
     Route::post('/cards/themeFilter', [CardController::class, 'themeFilter']);
     Route::get('/cards/{card:id}', [CardController::class, 'edit']);
+    Route::post('/cards/new', [CardController::class, 'save']);
+    Route::post('/cards/{card:id}/delete', function ($id){
+        $card = Auth::user()->cards()->find($id);
+        if ($card) {
+            // Delete the card
+            $card->delete();}
+        return redirect("/cards");
+    });
+    Route::post('/cards/new', function (\Illuminate\Http\Request $request){
+        $request->validate([
+            'phrase' => ['required', 'string'],
+            'definition' => ['required', 'string']
+        ]);
+
+        $user = Auth::user();
+
+        $user->cards()->create([
+            'phrase' => $request->phrase,
+            'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
+            'level' => 1,
+            'translation' => $request->translation,
+            'example_sentence' => $request->example_sentence,
+            'question' => $request->question,
+            'definition' => $request->definition,
+            'next_study_at' => now()
+        ]);
+        logger('Card has been created for '.$request->phrase);
+        return redirect('/');
+    });
+    Route::get('/add', [CardController::class, 'create']);
+
     //Route::post('/cards/{card:id}', [CardController::class, 'update']);
     Route::post('/cards/{card:id}', function (\Illuminate\Http\Request $request, Card $card) {
         $validatedData = $request->validate([

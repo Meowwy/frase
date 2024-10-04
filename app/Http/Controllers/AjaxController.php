@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CallAIJob;
 use App\Jobs\CreateCardJob;
+use App\Models\AI;
 use App\Models\Card;
 use App\Models\Learning;
 use App\Models\Theme;
@@ -29,8 +31,56 @@ class AjaxController extends Controller
             return redirect('/');
         }
 
-        CreateCardJob::dispatch($userId, $phrase);
+        //CreateCardJob::dispatch($userId, $phrase);
+        //CallAIJob::dispatch($userId, $phrase,$user->native_language,$user->target_language, $themeString);
+        //obsah CreateCardJob
+        $user = Auth::user();
+        // Retrieve all themes of the authenticated user
+        $themes = $user->themes()->select('id', 'name')->get();
 
+
+        if(count($themes) !== 0){
+            $themeStrings = $themes->map(function ($theme) {
+                return "\"{$theme->name}\"";
+            });
+            $themeString = $themeStrings->implode(',');
+        }else{
+            $themeString = '';
+        }
+        $content = AI::getContentForCard($request->capturedWord, $themeString, $user->target_language, $user->native_language);
+        if(is_null($content)){
+            logger('The model refused to create the card for '.$request->capturedWord);
+            //return;
+        }
+        try {
+            $cleanedContent = trim($content);
+            $output = json_decode($cleanedContent);
+            /*$user->currency_amount = $user->currency_amount - 1;
+            if ($user->currency_amount < 0) {
+                $user->currency_amount = 0;
+            }
+            $user->save();*/
+
+
+            $selectedTheme = $themes->firstWhere('name', $output->theme);
+
+            $user->cards()->create([
+                'phrase' => $output->phrase,
+                'theme_id' => ($selectedTheme ? $selectedTheme->id : null),
+                'level' => 1,
+                'translation' => $output->translation,
+                'example_sentence' => $output->sentence,
+                'question' => $output->question,
+                'definition' => $output->definition,
+                'next_study_at' => now()
+            ]);
+            logger('Card has been created for '.$output->phrase);
+        }catch (\Exception){
+
+            return redirect("/")->with('popup_message', 'There was an error while creating the card. Click OK to continue.');
+        }
+
+        //konec obsahu CreateCardJob
         return redirect('/');
         /*return response()->json([
             'success' => 'Word "' . $phrase . '" has been submitted successfully.',

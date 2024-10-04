@@ -1,7 +1,12 @@
 <x-html-layout>
     <x-page-heading>Register</x-page-heading>
 
+    <p class="bg-yellow-100 text-yellow-800 border border-yellow-300 p-4 rounded-md">
+        This app is in beta and doesn't yet work for general public.
+    </p>
+
     <x-forms.form method="post" action="/register" enctype="multipart/form-data">
+        <x-forms.input label="Code" name="code"/>
         <x-forms.input label="Username" name="username"/>
         <x-forms.input label="Email" name="email" type="email"/>
         <x-forms.select label="What language do you want to improve?" name="targetLanguage">
