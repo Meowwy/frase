@@ -40,9 +40,9 @@
         <section>
             <x-section-heading>capture a term</x-section-heading>
             <x-forms.form action="{{url('captureWordAjax')}}" method="post" id="addWord" class="mt-6">
-                <x-forms.input :label="false" name="capturedWord"
+                <x-forms.input :label="false" name="capturedWord" id="captureWord"
                                placeholder="Write a word or phrase in {{Auth::user()->target_language}}"></x-forms.input>
-                <x-forms.button>Add</x-forms.button>
+                <x-forms.button id="btnAdd">Add</x-forms.button>
             </x-forms.form>
         </section>
 
@@ -123,7 +123,6 @@
                         url: "{{url('captureWordAjax')}}",
                         data: jQuery('#addWord').serialize(),
                         type: post,
-
                         success: function (result) {
                             toastr.success("captured");
                             $('#addWord')[0].reset();
@@ -131,7 +130,6 @@
                         error: function (xhr) {
                             alert('An error occurred: ' + xhr.responseJSON.error);
                         }
-
                     })
                 })
             });

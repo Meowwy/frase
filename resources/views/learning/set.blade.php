@@ -3,7 +3,7 @@
     <x-panel class="w-48">
         <div class="py-8">
             <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                <a href="/startLearning/sentences" target="_blank">
+                <a href="/startLearning/sentences">
                     Sentences
                 </a>
             </h3>
@@ -14,7 +14,7 @@
     <x-panel class="w-48">
         <div class="py-8">
             <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                <a href="/startLearning/questions" target="_blank">
+                <a href="/startLearning/questions">
                     Questions
                 </a>
             </h3>
@@ -25,7 +25,7 @@
     <x-panel class="w-48">
         <div class="py-8">
             <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                <a href="/startLearning/words" target="_blank">
+                <a href="/startLearning/words">
                     Words
                 </a>
             </h3>
@@ -36,7 +36,7 @@
     <x-panel class="w-48">
         <div class="py-8">
             <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                <a href="/startLearning/definitions" target="_blank">
+                <a href="/startLearning/definitions">
                     Definitions
                 </a>
             </h3>

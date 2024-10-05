@@ -13,6 +13,11 @@
                     No cards loaded.
                 </div>
             </div>
+            <div>
+                <x-panel class="mb-6 cursor-pointer justify-center items-center" outline="orange" id="hint">
+                    <p id="hintText" class="text-sm text-center">Click to show hint.</p>
+                </x-panel>
+            </div>
             <div class="navigationStyle flex justify-center">
                 <button class="w-[300px]" id="flipBtn">Flip</button>
             </div>
@@ -62,6 +67,8 @@
         const correctBtn = document.getElementById('correctBtn');
         const flipBtn = document.getElementById('flipBtn');
         const exitBtn = document.getElementById('exitBtn');
+        const hintElement = document.getElementById('hint');
+        const hintText = document.getElementById('hintText');
 
         const unseenInfo = document.getElementById('unseen');
         const wrongInfo = document.getElementById('wrong');
@@ -81,6 +88,7 @@
                 currentNumber--;
                 unseenInfo.innerText = currentNumber.toString();
             }
+            hintText.textContent = 'Click to show hint.';
         }
 
         flashcard.addEventListener('click', () => {
@@ -90,6 +98,10 @@
             wrongBtn.classList.remove('hidden');
             correctBtn.classList.remove('hidden');
         });
+
+        hintElement.addEventListener('click', () => {
+            hintText.textContent = cards[currentIndex].hint;
+        })
 
         wrongBtn.addEventListener('click', () => {
             if(!results.some(r => r.id === cards[currentIndex].id)) {

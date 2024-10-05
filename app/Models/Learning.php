@@ -88,6 +88,7 @@ class Learning extends Model
                     'id' => $card->id,
                     'front' => $front,
                     'back' => $card->phrase,
+                    'hint' => $card->translation,
                     'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }
@@ -96,10 +97,12 @@ class Learning extends Model
 
         } elseif ($mode === 'questions'){
             foreach ($cardsForLearning as $index => $card) {
+                $hint = preg_replace('/\[.*?\]/', '...', $card->example_sentence);
                 $cards[] = [
                     'id' => $card->id,
                     'front' => $card->question,
                     'back' => $card->phrase,
+                    'hint' => $hint,
                     'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }
@@ -107,10 +110,12 @@ class Learning extends Model
             return view('learning.index', ['cards' => $cardsForJS, 'cardCount' => count($cards)]);
         } elseif ($mode === 'words'){
             foreach ($cardsForLearning as $index => $card) {
+                $hint = preg_replace('/\[.*?\]/', '...', $card->example_sentence);
                 $cards[] = [
                     'id' => $card->id,
                     'front' => $card->translation,
                     'back' => $card->phrase,
+                    'hint' => $hint,
                     'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }
@@ -122,6 +127,7 @@ class Learning extends Model
                     'id' => $card->id,
                     'front' => $card->definition,
                     'back' => $card->phrase,
+                    'hint' => $card->translation,
                     'theme' => $card->theme ? $card->theme->name : 'no theme',
                 ];
             }

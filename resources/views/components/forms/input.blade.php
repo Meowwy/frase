@@ -1,4 +1,4 @@
-@props(['label', 'name'])
+@props(['label', 'name', 'disabled' => "false"])
 
 @php
     $defaults = [
@@ -11,6 +11,8 @@
 @endphp
 
 <x-forms.field :$label :$name>
-    <input {{ $attributes($defaults) }}>
+    <input
+        @if($disabled !== "false") disabled @endif
+        {{ $attributes($defaults) }}>
 </x-forms.field>
 

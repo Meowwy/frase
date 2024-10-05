@@ -243,10 +243,13 @@ class CardController extends Controller
 
     public function save(StoreCardRequest $request)
     {
-
         $request->validate([
             'phrase' => ['required', 'string'],
-            'definition' => ['required', 'string']
+            'definition' => ['required', 'string'],
+            'translation' => ['required', 'string'],
+            'example_sentence' => ['required', 'string'],
+            'question' => ['required', 'string'],
+            'theme_id' => ['required']
         ]);
 
         $user = User::find($this->userId);

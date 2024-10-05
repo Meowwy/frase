@@ -82,7 +82,7 @@ class AI extends Model
                         "properties" => [
                             "sentence" => [
                                 "type" => "string",
-                                "description" => "Create a simple sentence in the target language that includes the term in square brackets. Ensure the context created by the sentence is accurate enough to allow the user to understand the meaning of the term even if the user doesn't know what the term means. Use easy language for non-native speakers."
+                                "description" => "Demonstrate an exemplary use of the term. Create a simple sentence in the target language that includes the term in square brackets. Ensure the context created by the sentence is accurate enough to allow the user to understand the meaning of the term. Use easy language for non-native speakers."
                             ],
                             "question" => [
                                 "type" => "string",
@@ -94,7 +94,7 @@ class AI extends Model
                             ],
                             "definition" => [
                                 "type" => "string",
-                                "description" => "Write a short definition for the term given in the target language."
+                                "description" => "Write a short definition for the term given in the target language. Don't mention the term."
                             ],
                             "theme" => [
                                 "type" => "string",
