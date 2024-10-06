@@ -98,6 +98,7 @@ class AjaxController extends Controller
             $card = Card::find($r['id']);
             $card->next_study_at = Learning::getNextStudyDay($card->level, $r['result']);
             $r['result'] === 1 ? $card->level++ : $card->level = 1;
+            $card->last_studied = now();
             $card->save();
         }
 

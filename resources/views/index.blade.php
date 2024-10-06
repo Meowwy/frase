@@ -41,7 +41,7 @@
             <x-section-heading>capture a term</x-section-heading>
             <x-forms.form action="{{url('captureWordAjax')}}" method="post" id="addWord" class="mt-6">
                 <x-forms.input :label="false" name="capturedWord" id="captureWord"
-                               placeholder="Write a word or phrase in {{Auth::user()->target_language}}"></x-forms.input>
+                               placeholder="Write a word or phrase in English"></x-forms.input>
                 <x-forms.button id="btnAdd">Add</x-forms.button>
             </x-forms.form>
         </section>

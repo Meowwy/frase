@@ -57,6 +57,8 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [UserController::class, 'index']);
+    Route::get('/profile/edit', [UserController::class, 'edit']);
+    Route::post('/profile/edit', [UserController::class, 'update']);
 
     Route::get('/learning', function () {
         return view('learning.index');
@@ -73,7 +75,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/cards', [CardController::class, 'index']);
     Route::post('/cards/themeFilter', [CardController::class, 'themeFilter']);
-    Route::get('/cards/{card:id}', [CardController::class, 'edit']);
+    Route::get('/cards/{card:id}', [CardController::class, 'show']);
+    Route::get('/cards/edit/{card:id}', [CardController::class, 'edit']);
     Route::post('/cards/new', [CardController::class, 'save']);
     Route::post('/cards/{card:id}/delete', function ($id){
         $card = Auth::user()->cards()->find($id);

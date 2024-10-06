@@ -164,7 +164,44 @@ class CardController extends Controller
      */
     public function show(Card $card)
     {
-        //
+        $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="text-gray-300 font-bold">$1</span>', $card->example_sentence);
+
+        $card->phraseCaps = ucfirst($card->phrase);
+
+        if (!is_null($card->theme_id)){
+            $theme = Theme::where('user_id', Auth::id())
+                ->where('id', $card->theme_id)
+                ->pluck('name')
+                ->first();
+        }else{
+            $theme = null;
+        }
+
+        if(!is_null($card->last_studied)){
+
+            // Assuming $card->last_studied is a date variable
+            $lastStudied = Carbon::parse($card->last_studied);
+
+// Format the date in the form of "1 January 2024"
+            $formattedDate = $lastStudied->format('j F Y');
+
+// Calculate the number of days since last studied
+            $daysAgo = floor($lastStudied->diffInDays(Carbon::now())) ;
+
+// Save the number of days to a new property
+            $card->last_studied_days = $daysAgo;
+
+// Save the string with "days ago (1 January 2024)"
+            $card->last_studied = $formattedDate;
+        }
+
+        $nextStudyAt = Carbon::parse($card->next_study_at);
+
+// Format the date in the form of "1 January 2024"
+        $card->next_study_at = $nextStudyAt->format('l j F Y');
+
+
+        return view('cards.show', ['card' => $card, 'theme' => $theme]);
     }
 
     /**

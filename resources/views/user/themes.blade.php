@@ -21,7 +21,13 @@
             <x-forms.form id="themesForm" method="POST" action="/saveThemes">
                 <input id="themesInput" type="hidden" name="themes">
             </x-forms.form>
-            <x-forms.button id="saveThemesBtn">Save themes</x-forms.button>
+            <div class="mt-3 space-x-2">
+                <x-forms.button id="saveThemesBtn">Save themes</x-forms.button>
+                <a href="/profile">
+                    <x-forms.button-small>Back to profile</x-forms.button-small>
+                </a>
+            </div>
+
 
             {{--<x-forms.form id="generateThemesForm" method="POST" action="/generateThemes">
                 <x-forms.button id="saveThemesBtn">Generate themes with AI</x-forms.button>

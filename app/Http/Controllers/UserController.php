@@ -14,7 +14,13 @@ class UserController extends Controller
      */
     public function index()
     {
-        return view('user.profile');
+        $themes = Theme::where('user_id', Auth::id())
+            ->get(['id', 'name']); // Get only the id and name columns
+
+        // Format the result as an array of associative arrays
+
+
+        return view('user.profile', ['themes' => $themes]);
     }
 
     /**
@@ -44,17 +50,31 @@ class UserController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
+    public function edit()
     {
-        //
+        return view('user.edit');
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request)
     {
-        //
+        // Step 1: Validate the request data
+        $validatedData = $request->validate([
+            'username' => ['required', 'string', 'max:50'],
+            'target_language' => ['required','string', 'max:50'],
+            'native_language' => ['required','string', 'max:50'],
+        ]);
+
+        // Step 2: Find the user by ID
+        $user = Auth::user();
+
+        // Step 3: Update the user's data with validated input
+        $user->update($validatedData);
+
+        // Step 4: Return a response
+        return redirect("/profile");
     }
 
     /**
