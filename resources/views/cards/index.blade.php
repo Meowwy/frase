@@ -47,11 +47,9 @@
                     @continue
                 @endif
 
-                <tr class="hover:bg-white/10">
+                <tr class="hover:bg-white/10 cursor-pointer" onclick="window.location='/cards/{{$card->id}}'">
                     <td class="px-6 py-2 whitespace-nowrap text-sm font-medium text-white">
-                        <a href="/cards/{{$card->id}}">
-                            {{$card->phrase}}
-                        </a>
+                        {{$card->phrase}}
                     </td>
                     <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300">{{$card->definition}}</td>
                     <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300">{{$card->theme ? $card->theme->name : 'no theme'}}</td>

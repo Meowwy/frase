@@ -19,7 +19,7 @@ class AjaxController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-            'capturedWord' => ["required", "string", "min:2"]
+            'capturedWord' => ["required", "string", "min:2", "max:30"]
         ]);
 
         // Extract the captured word

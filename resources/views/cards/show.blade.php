@@ -1,10 +1,10 @@
 @props(["card", "theme"])
 <x-html-layout>
-    <div class="max-w-4xl mx-auto p-6 bg-gray-100 shadow-lg rounded-lg">
+    <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg">
         <!-- Main Term Section -->
         <div class="mb-6 space-x-3">
-            <span class="text-4xl font-bold text-blue-900">{{$card->phrase}}</span>
-            <span class="text-xl font-light italic">{{$card->translation}}</span>
+            <span class="text-4xl font-bold">{{$card->phrase}}</span>
+            <span class="text-xl italic">{{$card->translation}}</span>
         </div>
 
         <!-- Definition Section -->
@@ -20,13 +20,13 @@
         <div class="mb-8">
             <ul class="list-disc list-outside pl-5">
                 <li class="ml-4">
-                    <p class="text-gray-400 font-light">
-                        • {!! $card->example_sentence !!}
+                    <p class="text-gray-400 font-medium">
+                        {!! $card->example_sentence !!}
                     </p>
                 </li>
                 <li class="ml-4">
-                    <p class="text-gray-400 font-light">
-                        • {{$card->question}} {{$card->phraseCaps}}.
+                    <p class="text-gray-400 font-medium">
+                        {{$card->question}} {{$card->phraseCaps}}.
                     </p>
                 </li>
             </ul>
@@ -57,9 +57,15 @@
                 </tr>
             </tbody>
         </table>
-        <a href="/cards">
-            <x-forms.button-small>Back to card list</x-forms.button-small>
-        </a>
+        <div class="flex flex-col space-y-4">
+            <a href="/cards/edit/{{$card->id}}">
+                <x-forms.button-confirm>Edit card</x-forms.button-confirm>
+            </a>
+            <a href="/cards">
+                <x-forms.button-small>Back to card list</x-forms.button-small>
+            </a>
+        </div>
+
     </div>
 
 </x-html-layout>

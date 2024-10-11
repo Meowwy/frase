@@ -14,7 +14,7 @@
                 </div>
             </div>
             <div>
-                <x-panel class="mb-6 cursor-pointer justify-center items-center" outline="orange" id="hint">
+                <x-panel class="mb-6 cursor-pointer justify-center items-center max-w-[300px]" outline="orange" id="hint">
                     <p id="hintText" class="text-sm text-center">Click to show hint.</p>
                 </x-panel>
             </div>
@@ -101,6 +101,7 @@
 
         hintElement.addEventListener('click', () => {
             hintText.textContent = cards[currentIndex].hint;
+
         })
 
         wrongBtn.addEventListener('click', () => {

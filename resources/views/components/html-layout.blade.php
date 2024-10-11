@@ -16,30 +16,42 @@
 </head>
 <body class="bg-black text-white font-lato pb-20">
 <div class="px-10">
-    <nav class="flex justify-between items-center py-4 border-b border-white/10">
-        <div>
+    <nav class="flex relative items-center py-4 border-b border-white/10">
+        <div class="flex-1">
             <a href="/">
                 <p>Frase</p>
             </a>
         </div>
 
-        @auth
-            <div class="space-x-6 font-bold flex">
-                <a href="/profile">{{Auth::user()->username}}'s Account Settings</a>
-                <form method="post" action="/logout">
-                    @csrf
-                    @method('delete')
-                    <button>Log Out</button>
-                </form>
-            </div>
-        @endauth
+        <div class="absolute left-1/2 transform -translate-x-1/2">
+            @auth
+            <form action="/search" method="get" id="searchForm">
+                <x-forms.input-search name="searchTerm"
+                               placeholder="Search for a term"></x-forms.input-search>
+            </form>
+            @endauth
+        </div>
 
-        @guest()
-            <div class="space-x-6 font-bold">
-                <a href="/register">Sign Up</a>
-                <a href="/login">Log In</a>
-            </div>
-        @endguest
+        <div class="flex flex-1 justify-end">
+            @auth
+                <div class="space-x-6 font-bold flex">
+                    <a href="/profile">{{Auth::user()->username}}'s Account Settings</a>
+                    <form method="post" action="/logout">
+                        @csrf
+                        @method('delete')
+                        <button>Log Out</button>
+                    </form>
+                </div>
+            @endauth
+
+            @guest()
+                <div class="space-x-6 font-bold">
+                    <a href="/register">Sign Up</a>
+                    <a href="/login">Log In</a>
+                </div>
+            @endguest
+        </div>
+
     </nav>
 
     <main class="mt-10 max-w-[1140px] mx-auto">

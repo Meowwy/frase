@@ -82,19 +82,19 @@ class AI extends Model
                         "properties" => [
                             "sentence" => [
                                 "type" => "string",
-                                "description" => "Demonstrate an exemplary use of the term. Create a simple sentence in the target language that includes the term in square brackets. Ensure the context created by the sentence is accurate enough to allow the user to understand the meaning of the term. Use easy language for non-native speakers."
+                                "description" => "Demonstrate an exemplary use of the term. Create a simple sentence in {{$targetLanguage}} language that includes the term in square brackets. Ensure the context created by the sentence is accurate enough to allow the user to understand the meaning of the term. Use easy language for non-native speakers."
                             ],
                             "question" => [
                                 "type" => "string",
-                                "description" => "Create a short question in the target language that should prompt the user to remember the term given. Make it conversational and concise."
+                                "description" => "Create a short question in {{$targetLanguage}} that should prompt the user to remember the term given. Make it conversational and concise."
                             ],
                             "translation" => [
                                 "type" => "string",
-                                "description" => "Translate the term into the native language, if possible with 2 different alternatives separated by a semicolon."
+                                "description" => "Translate the term into the native language ({{$nativeLanguage}}), if needed with 2 different alternatives separated by a semicolon."
                             ],
                             "definition" => [
                                 "type" => "string",
-                                "description" => "Write a short definition for the term given in the target language. Don't mention the term."
+                                "description" => "Write a short definition for the term given in {{$targetLanguage}}. Don't mention the term here."
                             ],
                             "theme" => [
                                 "type" => "string",

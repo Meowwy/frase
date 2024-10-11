@@ -3,6 +3,7 @@
 use App\Http\Controllers\AjaxController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\RegisteredUserController;
+use App\Http\Controllers\SeachController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
@@ -73,6 +74,8 @@ Route::middleware('auth')->group(function () {
         return view('learning.complete');
     });
 
+    Route::get('/search', [SeachController::class, 'index']);
+
     Route::get('/cards', [CardController::class, 'index']);
     Route::post('/cards/themeFilter', [CardController::class, 'themeFilter']);
     Route::get('/cards/{card:id}', [CardController::class, 'show']);
@@ -126,7 +129,7 @@ Route::middleware('auth')->group(function () {
         $card->update($validatedData);
 
         // Redirect back with a success message
-        return redirect('/');
+        return redirect('/cards/' . $card->id);
     });
 
     Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
