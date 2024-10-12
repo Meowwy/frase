@@ -19,11 +19,13 @@ class AjaxController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-            'capturedWord' => ["required", "string", "min:2", "max:30"]
+            'capturedWord' => ["required", "string", "min:2", "max:50"],
+            'context' => ["nullable", "string", "min:2", "max:250"]
         ]);
 
         // Extract the captured word
         $capturedWord = $request->input('capturedWord');
+        $context = $request->input('context');
 
         $userId = Auth::id();
         $phrase = request('capturedWord');
@@ -47,7 +49,11 @@ class AjaxController extends Controller
         }else{
             $themeString = '';
         }
-        $content = AI::getContentForCard($request->capturedWord, $themeString, $user->target_language, $user->native_language);
+        if(is_null($context)){
+            $content = AI::getContentForCard($capturedWord, $themeString, $user->target_language, $user->native_language);
+        }else{
+            $content = AI::getContentForCardWithContext($capturedWord, $themeString, $user->target_language, $user->native_language,$context);
+        }
         if(is_null($content)){
             logger('The model refused to create the card for '.$request->capturedWord);
             //return;

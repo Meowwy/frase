@@ -116,6 +116,67 @@ class AI extends Model
         //return $response;
     }
 
+    public static function getContentForCardWithContext(string $phrase, string $themes, string $targetLanguage, string $nativeLanguage, string $context)
+    {
+        logger('update 2');
+        logger('Obtaining data for ' . $phrase);
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+
+            "model" => "gpt-4o-2024-08-06",
+            "messages" => [
+                [
+                    "role" => "system",
+                    "content" => "Generate content for a flashcard based on the term given, the native and target language of the user and the context of the term."
+                ],
+                [
+                    "role" => "user",
+                    "content" => "Term: \"{{$phrase}}\" (correct the spelling if necessary) in this context: \"{{$context}}\"  Native language: \"{{$nativeLanguage}}\" Target language: \"{{$targetLanguage}}\""
+                ]
+            ],
+            "response_format" => [
+                "type" => "json_schema",
+                "json_schema" => [
+                    "name" => "get_information_for_card_with_context",
+                    "strict" => true,
+                    "schema" => [
+                        "type" => "object",
+                        "properties" => [
+                            "sentence" => [
+                                "type" => "string",
+                                "description" => "Create a simple sentence in {{$targetLanguage}} language using the term {{$phrase}} in square brackets. Base it on the context provided. Keep the language easy for non-native speakers."
+                            ],
+                            "question" => [
+                                "type" => "string",
+                                "description" => "In {{$targetLanguage}}, create a short, conversational question based on the context that prompts the user to recall the term."
+                            ],
+                            "translation" => [
+                                "type" => "string",
+                                "description" => "Translate the term into {{$nativeLanguage}} language, providing two alternatives if applicable, separated by a semicolon. Ensure the translation aligns with the given context."
+                            ],
+                            "definition" => [
+                                "type" => "string",
+                                "description" => "Provide a concise dictionary definition in {{$targetLanguage}} language for the term based on the given context. Do not include the term in the definition."
+                            ],
+                            "theme" => [
+                                "type" => "string",
+                                "description" => "Decide if the term fits info any of these categories: \"{{$themes}}\". If so, write the exact category name from the list. If not or there are no categories, write an empty string."
+                            ],
+                            "phrase" => [
+                                "type" => "string",
+                                "description" => "If the provided term is a single word, create a 2-3 word expression that includes the term and captures a general meaning relevant to the given context. The phrase should convey a broader meaning, like in a dictionary, rather than a specific subject. If there is already a phrase, keep it and only correct for misspelling if needed."
+                            ]
+                        ],
+                        "required" => ["sentence", "question", "translation", "definition", "theme", "phrase"],
+                        "additionalProperties" => false
+                    ]
+                ]
+            ]
+        ]);
+
+        return $response->json('choices.0.message.content');
+        //return $response;
+    }
+
     public static function generateThemes(string $phrases, string $targetLanguage)
     {
         logger('Generating themes.');
