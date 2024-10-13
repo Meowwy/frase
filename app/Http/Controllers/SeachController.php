@@ -22,6 +22,7 @@ class SeachController extends Controller
         $cards = Card::where('user_id', Auth::id())
             ->where('phrase', 'LIKE', '%' . $searchTerm . '%')
             ->orderByRaw("CASE WHEN phrase LIKE ? THEN 0 ELSE 1 END", ["$searchTerm%"])
+            ->limit(15)
             ->get();
 
         foreach ($cards as $card) {

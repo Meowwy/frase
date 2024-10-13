@@ -63,7 +63,7 @@ class Learning extends Model
                 $cards = [];
             }
             }
-        return $cards;
+        return $cards->shuffle();
     }
 
     public static function setLearning($filter){
@@ -134,10 +134,6 @@ class Learning extends Model
             $cardsForJS = "let cards = " .json_encode($cards).";";
             return view('learning.index', ['cards' => $cardsForJS, 'cardCount' => count($cards)]);
         }
-    }
-
-    public  static function saveLearning(){
-
     }
 
     public static function getNextStudyDay($level, $result)

@@ -136,6 +136,10 @@
                     })
                 })
             });
+
+            window.onload = function() {
+                document.getElementById('captureWord').focus();
+            };
         </script>
 
     @endauth
