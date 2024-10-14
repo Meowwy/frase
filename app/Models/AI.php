@@ -143,19 +143,19 @@ class AI extends Model
                         "properties" => [
                             "sentence" => [
                                 "type" => "string",
-                                "description" => "Create a simple sentence in {{$targetLanguage}} language using the term {{$phrase}} in square brackets. Base it on the context provided. Keep the language easy for non-native speakers."
+                                "description" => "Make up a simple sentence in {{$targetLanguage}} language using the term {{$phrase}}. Enclose the term in square brackets []. Keep the meaning of the term the same as in the context. Keep the language easy for non-native speakers."
                             ],
                             "question" => [
                                 "type" => "string",
-                                "description" => "In {{$targetLanguage}}, create a short, conversational question based on the context that prompts the user to recall the term."
+                                "description" => "In {{$targetLanguage}}, create a short, conversational question that imitate a situation that should prompt the user to recall the term. It must have a simple answer - the term."
                             ],
                             "translation" => [
                                 "type" => "string",
-                                "description" => "Translate the term into {{$nativeLanguage}} language, providing two alternatives if applicable, separated by a semicolon. Ensure the translation aligns with the given context."
+                                "description" => "Translate the term into {{$nativeLanguage}} language, providing two alternatives if applicable, separated by a semicolon. Ensure the translation is also a phrase that aligns with the meaning of the term in the context."
                             ],
                             "definition" => [
                                 "type" => "string",
-                                "description" => "Provide a concise dictionary definition in {{$targetLanguage}} language for the term based on the given context. Do not include the term in the definition."
+                                "description" => "Provide a concise dictionary definition in {{$targetLanguage}} language for the term based on the context. Do not include the term in the definition."
                             ],
                             "theme" => [
                                 "type" => "string",
@@ -163,7 +163,7 @@ class AI extends Model
                             ],
                             "phrase" => [
                                 "type" => "string",
-                                "description" => "If the provided term is a single word, create a 2-3 word expression that includes the term and captures a general meaning relevant to the given context. The phrase should convey a broader meaning, like in a dictionary, rather than a specific subject. If there is already a phrase, keep it and only correct for misspelling if needed."
+                                "description" => "Create a 2-4 word expression that must include the term and capture a general meaning relevant to the context. The phrase should convey an abstract, broader meaning, like in a dictionary, rather than a specific subject. Use base forms of the words."
                             ]
                         ],
                         "required" => ["sentence", "question", "translation", "definition", "theme", "phrase"],
