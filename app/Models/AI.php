@@ -82,23 +82,23 @@ class AI extends Model
                         "properties" => [
                             "sentence" => [
                                 "type" => "string",
-                                "description" => "Demonstrate an exemplary use of the term. Create a simple sentence in {{$targetLanguage}} language that includes the term in square brackets. Ensure the context created by the sentence is accurate enough to allow the user to understand the meaning of the term. Use easy language for non-native speakers."
+                                "description" => "Make up a simple sentence in {{$targetLanguage}} language using the term {{$phrase}}. Enclose the term in square brackets []. Keep the language easy for non-native speakers."
                             ],
                             "question" => [
                                 "type" => "string",
-                                "description" => "Create a short question in {{$targetLanguage}} that should prompt the user to remember the term given. Make it conversational and concise."
+                                "description" => "In {{$targetLanguage}}, create a short, conversational question that imitate a situation that should prompt the user to recall the term. It must have a simple answer - the term."
                             ],
                             "translation" => [
                                 "type" => "string",
-                                "description" => "Translate the term into the native language ({{$nativeLanguage}}), if needed with 2 different alternatives separated by a semicolon."
+                                "description" => "Translate the term into {{$nativeLanguage}} language, providing two alternatives if applicable, separated by a semicolon."
                             ],
                             "definition" => [
                                 "type" => "string",
-                                "description" => "Write a short definition for the term given in {{$targetLanguage}}. Don't mention the term here."
+                                "description" => "Provide a concise dictionary definition in {{$targetLanguage}} language for the term. Do not include the term in the definition."
                             ],
                             "theme" => [
                                 "type" => "string",
-                                "description" => "Decide if the term fits info any of these categories: \"{{$themes}}\". If so, write the exact category name from the list. If not or there are no categories, write an empty string."
+                                "description" => "Pick a broad category for the term, here is inspiration: \"{{$themes}}\". Pick one category (write the exact thing from the list) or create a new one if all of them aren't applicable."
                             ],
                             "phrase" => [
                                 "type" => "string",
@@ -159,7 +159,7 @@ class AI extends Model
                             ],
                             "theme" => [
                                 "type" => "string",
-                                "description" => "Decide if the term fits info any of these categories: \"{{$themes}}\". If so, write the exact category name from the list. If not or there are no categories, write an empty string."
+                                "description" => "Pick a broad category for the term, here is inspiration: \"{{$themes}}\". Pick one category (write the exact thing from the list) or create a new one if all of them aren't applicable."
                             ],
                             "phrase" => [
                                 "type" => "string",

@@ -41,14 +41,15 @@ class AjaxController extends Controller
         $themes = $user->themes()->select('id', 'name')->get();
 
 
-        if(count($themes) !== 0){
-            $themeStrings = $themes->map(function ($theme) {
+        if (count($themes) !== 0) {
+            $themeStrings = $themes->take(20)->map(function ($theme) {
                 return "\"{$theme->name}\"";
             });
             $themeString = $themeStrings->implode(',');
-        }else{
-            $themeString = '';
+        } else {
+            $themeString = 'no categories defined';
         }
+
         if(is_null($context)){
             $content = AI::getContentForCard($capturedWord, $themeString, $user->target_language, $user->native_language);
         }else{
@@ -67,18 +68,28 @@ class AjaxController extends Controller
             }
             $user->save();*/
 
+            $selectedTheme = $themes->firstWhere('name', strtolower($output->theme));
 
-            $selectedTheme = $themes->firstWhere('name', $output->theme);
+            $recentThemeId = null;
+
+            if(is_null($selectedTheme)){
+                Auth::user()->themes()->create([
+                    'name' => strtolower($output->theme)
+                ]);
+                $recentThemeId = Auth::user()->themes()
+                    ->orderBy('created_at', 'desc')
+                    ->value('id');
+            }
 
             $user->cards()->create([
                 'phrase' => $output->phrase,
-                'theme_id' => ($selectedTheme ? $selectedTheme->id : null),
+                'theme_id' => ($selectedTheme ? $selectedTheme->id : $recentThemeId),
                 'level' => 1,
                 'translation' => $output->translation,
                 'example_sentence' => $output->sentence,
                 'question' => $output->question,
                 'definition' => $output->definition,
-                'next_study_at' => now()
+                'next_study_at' => now()->addDays(1)
             ]);
             logger('Card has been created for '.$output->phrase);
         }catch (\Exception){

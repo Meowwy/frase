@@ -52,7 +52,7 @@ class ThemeController extends Controller
         $themesArray = $themesFromDatabase->map(function ($theme) {
             return [
                 'id' => $theme->id,
-                'name' => $theme->name,
+                'name' => strtolower($theme->name),
             ];
         })->toArray();
 
