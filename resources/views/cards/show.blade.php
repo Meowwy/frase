@@ -39,21 +39,26 @@
             <tr>
                 <th class="px-4 py-3 text-xl">Last studied</th>
                 <th class="px-4 py-3 text-xl">Level</th>
-                <th class="px-4 py-3 text-xl">Next study on</th>
+                <th class="px-4 py-3 text-xl">Next study scheduled on</th>
             </tr>
             </thead>
             <tbody class="divide-y divide-gray-700">
                 <tr class="">
                     <td class="px-4 py-2 text-center">
                         @if(is_null($card->last_studied))
-                            <span>Not studied</span>
+                            <span class="text-xl">Not studied</span>
+                        @elseif($card->last_studied_days == 0)
+                            <span class="text-xl">Today</span>
+                        @elseif($card->last_studied_days == 1)
+                            <span class="text-xl">{{$card->last_studied_days}} day ago</span>
+                            <span class="text-sm"> ({{$card->last_studied}})</span>
                         @else
                             <span class="text-xl">{{$card->last_studied_days}} days ago</span>
                             <span class="text-sm"> ({{$card->last_studied}})</span>
                         @endif
                     </td>
-                    <td class="px-4 py-2 text-center">{{$card->level}}</td>
-                    <td class="px-4 py-2 text-center">{{$card->next_study_at}}</td>
+                    <td class="px-4 py-2 text-center text-xl">{{$card->level}}</td>
+                    <td class="px-4 py-2 text-center text-xl">{{$card->next_study_at}}</td>
                 </tr>
             </tbody>
         </table>

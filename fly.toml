@@ -4,7 +4,7 @@
 #
 
 app = 'frase'
-primary_region = 'ewr'
+primary_region = 'waw'
 console_command = 'php /var/www/html/artisan tinker'
 
 [build]
@@ -22,10 +22,6 @@ console_command = 'php /var/www/html/artisan tinker'
   QUEUE_CONNECTION = 'database'
   SESSION_DRIVER = 'cookie'
   SESSION_SECURE_COOKIE = 'true'
-
-[processes]
-  app = ''
-  worker = 'php artisan queue:work'
 
 [[mounts]]
   source = 'storage_dir'

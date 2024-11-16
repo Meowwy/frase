@@ -29,7 +29,7 @@
     </div>
 
     <div class="flex justify-center gap-2 items-center mt-6">
-        <x-number-display id="unseenInfo" number="{{$cardCount}}" text="unseen"></x-number-display>
+        <x-number-display id="unseenInfo" number="{{$cardCount}}" text="queue"></x-number-display>
         <x-number-display id="wrongInfo" number="0"  text="wrong"></x-number-display>
         <x-number-display id="correctInfo" number="0"  text="correct"></x-number-display>
     </div>
@@ -70,7 +70,7 @@
         const hintElement = document.getElementById('hint');
         const hintText = document.getElementById('hintText');
 
-        const unseenInfo = document.getElementById('unseen');
+        const unseenInfo = document.getElementById('queue');
         const wrongInfo = document.getElementById('wrong');
         const correctInfo = document.getElementById('correct');
 

@@ -90,7 +90,7 @@ Route::middleware('auth')->group(function () {
     });
     Route::post('/cards/new', function (\Illuminate\Http\Request $request){
         $request->validate([
-            'phrase' => ['required', 'string'],
+            'phrase' => ['required', 'string', 'max:40', 'min:2'],
             'definition' => ['required', 'string']
         ]);
 

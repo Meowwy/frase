@@ -73,12 +73,15 @@ class AjaxController extends Controller
             $recentThemeId = null;
 
             if(is_null($selectedTheme)){
-                Auth::user()->themes()->create([
-                    'name' => strtolower($output->theme)
-                ]);
-                $recentThemeId = Auth::user()->themes()
-                    ->orderBy('created_at', 'desc')
-                    ->value('id');
+                $themeCount = Auth::user()->themes()->count();
+                if($themeCount < 20){
+                    Auth::user()->themes()->create([
+                        'name' => strtolower($output->theme)
+                    ]);
+                    $recentThemeId = Auth::user()->themes()
+                        ->orderBy('created_at', 'desc')
+                        ->value('id');
+                }
             }
 
             $user->cards()->create([

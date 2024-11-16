@@ -12,6 +12,8 @@ use App\Models\User;
 use Carbon\Carbon;
 use http\Env\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use function PHPUnit\Framework\isEmpty;
 
 class CardController extends Controller
 {
@@ -91,7 +93,7 @@ class CardController extends Controller
         }
 
         $request->validate([
-            'capturedWord' => ['required', 'string', 'regex:/^[^0-9]*$/']
+            'capturedWord' => ['required', 'string', 'max:40', 'regex:/^[^0-9]*$/']
         ]);
 
         $userId = Auth::id();
@@ -104,7 +106,7 @@ class CardController extends Controller
         //obsah CreateCardJob
         $user = Auth::user();
 
-        // Retrieve all themes of the authenticated user
+            // Retrieve all themes of the authenticated user
         $themes = $user->themes()->select('id', 'name')->get();
 
 
@@ -186,7 +188,7 @@ class CardController extends Controller
             $formattedDate = $lastStudied->format('j F Y');
 
 // Calculate the number of days since last studied
-            $daysAgo = floor($lastStudied->diffInDays(Carbon::now())) ;
+            $daysAgo = floor($lastStudied->diffInDays(Carbon::now()));
 
 // Save the number of days to a new property
             $card->last_studied_days = $daysAgo;
