@@ -88,6 +88,7 @@ class CardController extends Controller
      */
     public function store(StoreCardRequest $request)
     {
+        /*this method is unused, the functionality is in the Ajax controller*/
         if(Auth::user()->currency_amount <= 0){
             return redirect('/');
         }

@@ -92,7 +92,7 @@ class AjaxController extends Controller
                 'example_sentence' => $output->sentence,
                 'question' => $output->question,
                 'definition' => $output->definition,
-                'next_study_at' => now()->addDays(1)
+                'next_study_at' => now()
             ]);
             logger('Card has been created for '.$output->phrase);
         }catch (\Exception){
