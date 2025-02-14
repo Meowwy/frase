@@ -8,6 +8,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WordboxController;
 use App\Jobs\CreateCardJob;
 use App\Models\Card;
 use App\Models\Learning;
@@ -38,8 +39,14 @@ Route::get('/', function () {
         ])
         ->orderBy('total_cards_count', 'desc')
         ->get();
+
+    $wordboxes = Auth::user()->wordboxes()
+        ->select('id', 'name', 'description')
+        ->withCount('cards')
+        ->get();
+
     // Format the data as an array of theme info
-    return view('index',['themes' => $themes, 'dueCount' => $totalDueCards, 'totalCount' => $totalCards]);
+    return view('index',['themes' => $themes, 'dueCount' => $totalDueCards, 'totalCount' => $totalCards, 'wordboxes' => $wordboxes]);
 });
 
 /*Route::get('/test', function () {
@@ -141,6 +148,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/generateThemes', [ThemeController::class, 'generate'])->name('generate');
 
     Route::post('/test',[CardController::class, 'show']);
+
+    /*Route::get('/wordbox', function (){
+        return view('wordbox.index');
+    });*/
+    Route::post('wordbox/new', [WordboxController::class, 'store']);
+    Route::get('wordbox/{id}', [WordboxController::class, 'show'])->name('wordbox.show');
+
+
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
 

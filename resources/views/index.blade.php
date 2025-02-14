@@ -1,4 +1,4 @@
-@props(['themes'])
+@props(['themes', 'wordboxes'])
 <x-html-layout>
     @guest
         <section class="mb-7">
@@ -40,7 +40,7 @@
 
     @auth
         <section>
-            <x-section-heading>capture a term</x-section-heading>
+            <x-section-heading>capture a term into Frase</x-section-heading>
             <x-forms.form action="{{url('captureWordAjax')}}" method="post" id="addWord" class="mt-6">
                     <x-forms.input :label="false" name="capturedWord" id="captureWord"
                                    placeholder="Word or phrase in English" class="flex-grow w-full min-w-[300px]"></x-forms.input>
@@ -96,6 +96,49 @@
                 </x-panel>
 
             </div>
+
+        </section>
+
+        <section>
+            <x-section-heading>wordboxes</x-section-heading>
+            <x-panel>
+                <div class="flex">
+                    <!-- Left Section (1/4 width) -->
+                    <div class="w-1/4 p-6 flex flex-col justify-center">
+                        <h2 class="text-lg font-bold mb-2">Create Wordbox</h2>
+                        <p class="text-sm mb-4">
+                            Wordboxes let you create separate decks of learning cards.
+                        </p>
+                        <a href="/">
+                            <x-forms.button>Create a wordbox</x-forms.button>
+                        </a>
+                    </div>
+
+                    <!-- Right Section (3/4 width) -->
+                    <div class="w-3/4 p-6">
+                        <h2 class="text-lg font-bold mb-4">Your worboxes</h2>
+                        <div class="grid grid-cols-3 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                @foreach($wordboxes as $wordbox)
+                                    <div class="bg-white/10 p-4 rounded-lg flex flex-col justify-between h-full w-full min-w-[300px]">
+                                        <div>
+                                            <h3 class="text-xl font-bold mb-2">{{ $wordbox->name }}</h3>
+                                            <p class="text-sm">{{ $wordbox->description }}</p>
+                                            <p class="text-sm mt-2">Cards: {{ $wordbox->cards_count }}</p>
+                                        </div>
+                                        <a href="/wordbox/{{ $wordbox->id }}" class="mt-4">
+                                            <x-forms.button>View Details</x-forms.button>
+                                        </a>
+                                    </div>
+                                @endforeach
+                            </div>
+
+
+
+                        </div>
+                    </div>
+                </div>
+            </x-panel>
 
         </section>
 

@@ -23,4 +23,9 @@ class Card extends Model
     public function theme(){
         return $this->belongsTo(Theme::class);
     }
+
+    public function wordbox()
+    {
+        return $this->belongsToMany(Wordbox::class, 'wordbox_card', 'card_id', 'wordbox_id');
+    }
 }

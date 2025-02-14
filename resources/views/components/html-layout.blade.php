@@ -1,3 +1,4 @@
+@props(['maxWidth' => 'max-w-[1140px]'])
 <!doctype html>
 <html lang="en">
 <head>
@@ -54,7 +55,7 @@
 
     </nav>
 
-    <main class="mt-10 max-w-[1140px] mx-auto">
+    <main class="mt-10 mx-auto {{ $maxWidth }}">
         {{$slot}}
     </main>
 </div>

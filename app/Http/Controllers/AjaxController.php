@@ -84,7 +84,7 @@ class AjaxController extends Controller
                 }
             }
 
-            $user->cards()->create([
+            $newlyInsertedCard = $user->cards()->create([
                 'phrase' => $output->phrase,
                 'theme_id' => ($selectedTheme ? $selectedTheme->id : $recentThemeId),
                 'level' => 1,
@@ -100,8 +100,19 @@ class AjaxController extends Controller
             return redirect("/")->with('popup_message', 'There was an error while creating the card. Click OK to continue.');
         }
 
+        $wordbox = $user->wordboxes()->find($request->wordbox_id);
+        if ($wordbox) {
+            $wordbox->cards()->attach($newlyInsertedCard->id);
+        }
+
         //konec obsahu CreateCardJob
-        return redirect('/');
+        if($request->wordbox_id){
+            return redirect()->route('wordbox.show', ['id' => $wordbox->id]);
+        }
+        else{
+            return redirect('/');
+        }
+
         /*return response()->json([
             'success' => 'Word "' . $phrase . '" has been submitted successfully.',
             'capturedWord' => $phrase

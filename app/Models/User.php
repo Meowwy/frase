@@ -56,4 +56,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Theme::class);
     }
+
+    public function wordboxes()
+    {
+        return $this->hasMany(Wordbox::class);
+    }
 }
