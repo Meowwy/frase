@@ -47,7 +47,12 @@ class WordboxController extends Controller
             ->cards()
             ->get();
 
-        return view('wordbox.index', ['cards' => $cards, 'wordboxId' => $id]);
+        $wordbox = Auth::user()->wordboxes()->where('id', $id)->first();
+
+        if(!$wordbox){
+            return redirect('/');
+        }
+        return view('wordbox.index', ['cards' => $cards, 'wordboxId' => $id, 'wordbox' => $wordbox]);
     }
 
     /**

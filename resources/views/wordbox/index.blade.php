@@ -1,4 +1,3 @@
-@props(['cards'])
 <x-html-layout maxWidth="max-w-[2100px]">
     <div class="container mx-auto p-6">
         <div class="flex gap-6">
@@ -23,7 +22,7 @@
                 <!-- Wordbox Summary -->
                 <x-panel>
                     <h2 class="text-lg font-bold mb-2">Wordbox Summary</h2>
-                    <textarea class="w-full p-3 border border-gray-300 rounded-lg" placeholder="Enter summary of your wordbox..."></textarea>
+                    <p class="w-full p-3 border border-gray-300 rounded-lg" placeholder="Enter summary of your wordbox..."></p>
                 </x-panel>
 
                 <!-- AI Tasks -->
@@ -36,44 +35,54 @@
                 </x-panel>
 
                 <!-- Learning Options -->
-                <div class="flex flex-wrap justify-center gap-4">
+                <h2>Learn through...</h2>
+                <div class="flex flex-wrap justify-center gap-2">
                     <x-panel class="w-48">
-                        <div class="py-8">
+                        <div class="py-2">
                             <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/sentences">Sentences</a>
+                                <a href="/startLearning/{{ $wordbox->id }}/sentences">Sentences</a>
                             </h3>
-                            <p class="text-sm mt-4">Recall the word from an English sentence with a blank.</p>
+                            <p class="text-sm mt-2">Recall the word from an English sentence with a blank.</p>
                         </div>
                     </x-panel>
                     <x-panel class="w-48">
-                        <div class="py-8">
+                        <div class="py-2">
                             <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/questions">Questions</a>
+                                <a href="/startLearning/{{ $wordbox->id }}/questions">Questions</a>
                             </h3>
-                            <p class="text-sm mt-4">Recall the word when asked about it.</p>
+                            <p class="text-sm mt-2">Recall the word when asked about it.</p>
                         </div>
                     </x-panel>
                     <x-panel class="w-48">
-                        <div class="py-8">
+                        <div class="py-2">
                             <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/words">Words</a>
+                                <a href="/startLearning/{{ $wordbox->id }}/words">Words</a>
                             </h3>
-                            <p class="text-sm mt-4">Recall the English translation from the Czech word.</p>
+                            <p class="text-sm mt-2">Recall the English translation from the Czech word.</p>
                         </div>
                     </x-panel>
                     <x-panel class="w-48">
-                        <div class="py-8">
+                        <div class="py-2">
                             <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/definitions">Definitions</a>
+                                <a href="/startLearning/{{ $wordbox->id }}/definitions">Definitions</a>
                             </h3>
-                            <p class="text-sm mt-4">Recall the English translation from an English definition.</p>
+                            <p class="text-sm mt-2">Recall the English translation from an English definition.</p>
                         </div>
                     </x-panel>
                 </div>
             </div>
 
             <!-- Right Column: Cards Table -->
-            <div class="w-2/3">
+            <div class="w-2/3 space-y-4">
+                <x-panel>
+                    <div class="flex justify-between w-full">
+                        <h1 class="text-3xl">{{$wordbox->name}}</h1>
+                        <x-forms.button-small>
+                            Edit wordbox
+                        </x-forms.button-small>
+                    </div>
+
+                </x-panel>
                 <x-panel>
                     <table class="min-w-full divide-y divide-gray-700 bg-white/5">
                         <thead>

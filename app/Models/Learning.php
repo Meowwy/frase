@@ -34,7 +34,18 @@ class Learning extends Model
                 $cards = [];
             }
 
-        }else{
+        } elseif (is_numeric($filter)){
+            try {
+                $cards = Auth::user()->wordboxes()
+                    ->where('id', $filter)
+                    ->firstOrFail()
+                    ->cards()
+                    ->with('theme:id,name')
+                    ->get();
+            }catch (\Exception $exception){
+                $cards = [];
+            }
+        } else{
             try {
                 $theme = Theme::where('name', $filter)->first();
                 $dueCardsCount = Auth::user()->cards()
@@ -72,9 +83,16 @@ class Learning extends Model
         return redirect('/setLearning');
     }
 
-    public static function startLearning($mode){
+    public static function startLearning($wbid,$mode){
+        if($wbid != 0){
+            $hasWordbox = Auth::user()->wordboxes()->where('id', $wbid)->first();
+            if($hasWordbox){
+                session(['learning_filter' => $wbid]);
+            }else{
+                abort(403, 'Unauthorized action.');
+            }
+        }
         if (!session()->has('learning_filter')) {
-            //inform user
             return redirect('/');
         }
         session(['learning_mode' => $mode]);

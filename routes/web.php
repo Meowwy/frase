@@ -75,7 +75,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/setLearning', function () {
         return view('learning.set');
     });
-    Route::get('/startLearning/{mode}', [Learning::class, 'startLearning']);
+    Route::get('/startLearning/{wbid}/{mode}', [Learning::class, 'startLearning']);
     Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
     Route::get('/completeLearning', function (){
         return view('learning.complete');
