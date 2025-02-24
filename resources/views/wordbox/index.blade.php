@@ -15,7 +15,7 @@
                             <x-forms.button id="btnAdd">Add</x-forms.button>
                             <p id="info_creatingCard" class="hidden ml-3 font-bold">Creating card... Please wait</p>
                         </div>
-                        <x-forms.input type="hidden" :label="false" name="wordbox_id" value="{{ $wordboxId }}" />
+                        <x-forms.input type="hidden" :label="false" name="wordbox_id" value="{{ $wordbox->id }}" />
                     </x-forms.form>
                 </x-panel>
 
@@ -77,9 +77,12 @@
                 <x-panel>
                     <div class="flex justify-between w-full">
                         <h1 class="text-3xl">{{$wordbox->name}}</h1>
-                        <x-forms.button-small>
-                            Edit wordbox
-                        </x-forms.button-small>
+                        <a href="{{ $wordbox->id }}/edit">
+                            <x-forms.button-small>
+                                Edit wordbox
+                            </x-forms.button-small>
+                        </a>
+
                     </div>
 
                 </x-panel>

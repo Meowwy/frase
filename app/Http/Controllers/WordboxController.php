@@ -52,7 +52,7 @@ class WordboxController extends Controller
         if(!$wordbox){
             return redirect('/');
         }
-        return view('wordbox.index', ['cards' => $cards, 'wordboxId' => $id, 'wordbox' => $wordbox]);
+        return view('wordbox.index', ['cards' => $cards, 'wordbox' => $wordbox]);
     }
 
     /**
@@ -60,15 +60,71 @@ class WordboxController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        $cards = Auth::user()->wordboxes()
+            ->where('id', $id)
+            ->firstOrFail()
+            ->cards()
+            ->get();
+
+        $wordbox = Auth::user()->wordboxes()->where('id', $id)->first();
+
+        if(!$wordbox){
+            return redirect('/');
+        }
+        return view('wordbox.edit', ['cards' => $cards, 'wordbox' => $wordbox]);
     }
+
+    /**
+     * Update name.
+     */
+    public function updateName(Request $request, string $id)
+    {
+        // Validate the input
+        $request->validate([
+            'name' => 'required|string|max:50',
+        ]);
+
+        // Find the wordbox that belongs to the authenticated user
+        $wordbox = Auth::user()->wordboxes()->where('id', $id)->firstOrFail();
+
+        // Update the name
+        $wordbox->update([
+            'name' => $request->input('name'),
+        ]);
+
+        // Redirect back with success message
+        return redirect()->back()->with('success', 'Wordbox name updated successfully.');
+    }
+
 
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, string $id)
     {
-        //
+        $updatedCardsString = $request->input('cards');
+        $themes = json_decode($updatedCardsString, true);
+        //todo upravit to pro kartičky
+        $cardsFromDatabase = Theme::where('user_id', Auth::id())
+            ->get(['id', 'name']); // Get only the id and name columns
+
+        $themesArray = $cardsFromDatabase->map(function ($theme) {
+            return [
+                'id' => $theme->id,
+                'name' => strtolower($theme->name),
+            ];
+        })->toArray();
+
+        foreach ($themesArray as $theme) {
+            // Extract the IDs from the $themes array
+            $themeIds = array_column($themes, 'id');
+
+            // Check if the current theme's ID is in the list of IDs
+            if (!in_array($theme['id'], $themeIds)) {
+                $themeToDelete = Theme::find($theme['id']);
+                $themeToDelete->delete();
+            }
+        }
     }
 
     /**

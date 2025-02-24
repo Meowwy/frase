@@ -154,6 +154,9 @@ Route::middleware('auth')->group(function () {
     });*/
     Route::post('wordbox/new', [WordboxController::class, 'store']);
     Route::get('wordbox/{id}', [WordboxController::class, 'show'])->name('wordbox.show');
+    Route::get('wordbox/{id}/edit', [WordboxController::class, 'edit'])->name('wordbox.edit');
+
+    Route::patch('/wordbox/{id}', [WordboxController::class, 'updateName']);
 
 
 });
