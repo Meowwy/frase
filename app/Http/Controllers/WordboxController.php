@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Card;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -103,29 +104,31 @@ class WordboxController extends Controller
     public function update(Request $request, string $id)
     {
         $updatedCardsString = $request->input('cards');
-        $themes = json_decode($updatedCardsString, true);
-        //todo upravit to pro kartičky
-        $cardsFromDatabase = Theme::where('user_id', Auth::id())
-            ->get(['id', 'name']); // Get only the id and name columns
+        $updatedCardIds = collect(json_decode($updatedCardsString, true))->pluck('id')->toArray();
 
-        $themesArray = $cardsFromDatabase->map(function ($theme) {
-            return [
-                'id' => $theme->id,
-                'name' => strtolower($theme->name),
-            ];
-        })->toArray();
+        $user = Auth::user();
 
-        foreach ($themesArray as $theme) {
-            // Extract the IDs from the $themes array
-            $themeIds = array_column($themes, 'id');
+        // Ensure the wordbox belongs to the authenticated user
+        $wordbox = $user->wordboxes()->where('id', $id)->firstOrFail();
 
-            // Check if the current theme's ID is in the list of IDs
-            if (!in_array($theme['id'], $themeIds)) {
-                $themeToDelete = Theme::find($theme['id']);
-                $themeToDelete->delete();
-            }
+        // Get currently mapped card IDs in the wordbox
+        $existingCardIds = $wordbox->cards()->pluck('cards.id')->toArray();
+
+        // Determine cards to remove (exist in DB but not in updated list)
+        $cardsToRemove = array_diff($existingCardIds, $updatedCardIds);
+        foreach ($cardsToRemove as $cardId) {
+            $wordbox->cards()->detach($cardId);
         }
+
+        // Determine new cards to add (exist in updated list but not in DB)
+        $cardsToAdd = array_diff($updatedCardIds, $existingCardIds);
+        foreach ($cardsToAdd as $cardId) {
+            $wordbox->cards()->attach($cardId);
+        }
+
+        return redirect()->route('wordbox.show', ['id' => $id]);
     }
+
 
     /**
      * Remove the specified resource from storage.

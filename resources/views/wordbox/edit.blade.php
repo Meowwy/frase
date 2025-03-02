@@ -25,7 +25,7 @@
             <ul id="cardList" class="space-y-4">
 
             </ul>
-            <x-forms.form id="cardsForm" method="POST" action="/saveCards">
+            <x-forms.form id="cardsForm" method="POST" action="/saveCards/{{$wordbox->id}}">
                 <input id="cardsInput" type="hidden" name="cards">
             </x-forms.form>
             <div class="mt-3 space-x-2">
