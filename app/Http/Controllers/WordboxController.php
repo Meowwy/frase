@@ -104,7 +104,11 @@ class WordboxController extends Controller
     public function update(Request $request, string $id)
     {
         $updatedCardsString = $request->input('cards');
-        $updatedCardIds = collect(json_decode($updatedCardsString, true))->pluck('id')->toArray();
+        $updatedCardIds = collect(json_decode($updatedCardsString, true))
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->toArray();
 
         $user = Auth::user();
 
@@ -128,7 +132,6 @@ class WordboxController extends Controller
 
         return redirect()->route('wordbox.show', ['id' => $id]);
     }
-
 
     /**
      * Remove the specified resource from storage.

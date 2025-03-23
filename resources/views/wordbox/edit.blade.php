@@ -1,3 +1,4 @@
+@props(['foundCards' => [], 'searchTermWb' => ''])
 <x-html-layout>
     <x-forms.form method="post" action="/wordbox/{{$wordbox->id}}">
         @csrf
@@ -21,7 +22,7 @@
                 </button>
             </div>
 
-            <!-- Themes List -->
+            <!-- Card List -->
             <ul id="cardList" class="space-y-4">
 
             </ul>
@@ -30,19 +31,44 @@
             </x-forms.form>
             <div class="mt-3 space-x-2">
                 <x-forms.button id="saveCardsBtn">Save cards</x-forms.button>
-                <a href="/profile">
+                <a href="/wordbox/{{$wordbox->id}}">
                     <x-forms.button-small>Back to wordbox</x-forms.button-small>
                 </a>
             </div>
         </div>
 
     </section>
+    <section>
+        <h2 class="text-3xl font-bold">Add Existing Cards</h2>
+        <div class="">
+                <form action="/searchWordbox/{{$wordbox->id}}" method="get" id="searchForm">
+                    <x-forms.input-search name="searchTerm" placeholder="Search for a card"></x-forms.input-search>
+                    <button type="submit">Search</button>
+                </form>
+        </div>
+        @if(isset($foundCards))
+        <div class="mb-4">
+            <p class="text-center text-4xl">"{{$searchTermWb}}"</p>
+        </div>
+
+        @if(count($foundCards) == 0)
+            <p class="text-center">No results</p>
+        @endif
+        <div class="mt-4 space-y-2">
+            @foreach($foundCards as $card)
+                <x-card-wordbox :card="$card" data-id="{{$card->id}}"></x-card-wordbox>
+            @endforeach
+        </div>
+        @endif
+    </section>
 
     <script>
         let cards = [];
+        let foundCards = [];
 
         function createArray() {
             cards = @json($cards);
+            foundCards = @json($foundCards);
         }
 
         function refreshCards() {
@@ -86,25 +112,49 @@
                 // Append list item to the list
                 cardList.appendChild(li);
             });
-
-
         }
 
-        document.getElementById('addCardBtn').addEventListener('click', function () {
+        document.addEventListener("DOMContentLoaded", function () {
+            /* Add a event for an ADD button */
+            document.querySelectorAll("[id^='card-']").forEach(button => {
+                button.addEventListener("click", function () {
+                    let cardId = this.id.replace("card-", ""); // Extract the numeric card ID
+                    let phrase = this.dataset.phrase; // Get phrase from data attribute
+                    let translation = this.dataset.translation; // Get translation from data attribute
+                    addCard(cardId, phrase, translation);
+                });
+            });
+
+            let searchForm = document.getElementById("searchForm");
+            searchForm.addEventListener("submit", function (event) {
+                event.preventDefault(); // Prevent immediate form submission
+
+                saveAndExit().then(() => {
+                    searchForm.submit(); // Submit the form after saveCards() completes
+                }).catch(error => {
+                    console.error("Error saving cards:", error);
+                    searchForm.submit(); // Proceed even if saveCards() fails
+                });
+            });
+        });
+
+
+        function addCard(id, phrase, translation) {
             // Add a new card object with
             cards.push({
-                id: null,
-                name: ''
+                id: id,
+                phrase: phrase,
+                translation: translation
             });
 
             // Refresh the list to include the new theme
             refreshCards();
 
             console.log('card added');
-        });
+        };
 
         document.getElementById('saveCardsBtn').addEventListener('click', function () {
-            saveCards();
+            saveAndExit();
         });
 
         function deleteCard(id) {
@@ -120,20 +170,13 @@
             refreshCards();
         }
 
-
-        function saveCards() {
+        function saveAndExit() {
             console.log('saveCards started');
-            /*let themesToSave = [];
-            const themeInputs = document.querySelectorAll('#themeList input[type="text"]');
-            themeInputs.forEach(function (input) {
-                themesToSave.push( input.value);
-            });*/
             document.getElementById('cardsInput').value = JSON.stringify(cards);
             document.getElementById('cardsForm').submit();
         }
 
         createArray();
         refreshCards();
-
     </script>
 </x-html-layout>

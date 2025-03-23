@@ -82,6 +82,8 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/search', [SeachController::class, 'index']);
+    Route::get('/searchWordbox/{wbid}', [SeachController::class, 'searchWordbox'])->name('seachWordbox');
+
 
     Route::get('/cards', [CardController::class, 'index']);
     Route::post('/cards/themeFilter', [CardController::class, 'themeFilter']);
