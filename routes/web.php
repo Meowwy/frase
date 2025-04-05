@@ -167,11 +167,9 @@ Route::middleware('auth')->group(function () {
 
 
     // BONUSY
-    Route::get('/kresleni', function (){
+    Route::get('kresleni', function (){
         return view('kresleni.index');
     });
-    )
-
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
 
