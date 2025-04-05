@@ -175,3 +175,7 @@ Route::get('/kresleni', function (){
 Route::get('/kresleni2', function (){
     return view('kresleni.index2');
 });
+
+Route::get('/kresleni3', function (){
+    return view('kresleni.index3');
+});

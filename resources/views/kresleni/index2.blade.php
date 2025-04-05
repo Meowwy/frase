@@ -165,6 +165,7 @@ background: #e67e22;
 <button onclick="regenerateItem()" id="regenerate-btn" class="hidden">Vygenerovat novou výzvu</button>
 <div id="result"></div>
 <div class="controls">
+    <p>Kdo to uhodl</p>
 <div class="guess-select" id="guess-select"></div>
 <button onclick="confirmGuess()" id="confirm-btn" disabled>Potvrdit výběr</button>
 </div>
