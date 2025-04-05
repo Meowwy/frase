@@ -164,13 +164,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/wordbox/{wbid}/gapfill/{gapFillId}', [GapFillController::class, 'show'])->name('gapfill.show');
     Route::get('/wordbox/{wbid}/gapfill/generate', [GapFillController::class, 'generate'])->name('gapfill.generate');
 
-
-
-    // BONUSY
-    Route::get('kresleni', function (){
-        return view('kresleni.index');
-    });
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
 
+    // BONUSY
+Route::get('/kresleni', function (){
+    return view('kresleni.index');
+});
 
+Route::get('/kresleni2', function (){
+    return view('kresleni.index2');
+});
