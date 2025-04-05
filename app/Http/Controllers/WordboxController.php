@@ -140,4 +140,32 @@ class WordboxController extends Controller
     {
         //
     }
+
+    // WordboxController.php
+
+    public function generateGapFill(Wordbox $wordbox)
+    {
+        $cards = $wordbox->cards;
+        if ($cards->count() < 3) {
+            return back()->with('error', 'You need at least 3 cards in the wordbox to generate a gap-fill exercise.');
+        }
+
+        $phrases = implode(', ', $cards->pluck('phrase')->toArray());
+        $targetLanguage = auth()->user()->target_language;
+
+        $result = AI::generateTextWithGaps($phrases, $targetLanguage, $wordbox->name);
+
+        if ($result) {
+            // Directly return the generated data to the view
+            return view('gapfill.show', [
+                'textWithGaps' => $result['text_with_gaps'],
+                'usedWords' => $result['used_words'],
+                'wordbox' => $wordbox,
+            ]);
+        } else {
+            return back()->with('error', 'Failed to generate gap-fill exercise.');
+        }
+    }
+
+
 }

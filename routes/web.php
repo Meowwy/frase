@@ -9,10 +9,12 @@ use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WordboxController;
+use App\Http\Controllers\GapFillController;
 use App\Jobs\CreateCardJob;
 use App\Models\Card;
 use App\Models\Learning;
 use App\Models\User;
+use App\Models\Wordbox;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use function Pest\Laravel\get;
@@ -158,9 +160,17 @@ Route::middleware('auth')->group(function () {
     Route::get('wordbox/{id}', [WordboxController::class, 'show'])->name('wordbox.show');
     Route::get('wordbox/{id}/edit', [WordboxController::class, 'edit'])->name('wordbox.edit');
     Route::post('/saveCards/{id}', [WordboxController::class, 'update'])->name('saveCards');
-
     Route::patch('/wordbox/{id}', [WordboxController::class, 'updateName']);
+    Route::get('/wordbox/{wbid}/gapfill/{gapFillId}', [GapFillController::class, 'show'])->name('gapfill.show');
+    Route::get('/wordbox/{wbid}/gapfill/generate', [GapFillController::class, 'generate'])->name('gapfill.generate');
 
+
+
+    // BONUSY
+    Route::get('/kresleni', function (){
+        return view('kresleni.index');
+    });
+    )
 
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);

@@ -29,10 +29,19 @@
                 <x-panel>
                     <h2 class="text-lg font-bold mb-2">AI Tasks</h2>
                     <div class="flex space-x-3">
-                        <x-forms.button>Task 1</x-forms.button>
-                        <x-forms.button>Task 2</x-forms.button>
+                        <a href="{{ route('gapfill.generate', ['wbid' => $wordbox->id]) }}">
+                            <x-forms.button>Generate Gap-Fill</x-forms.button>
+                        </a>
+                        <a href="#ai-task-2">
+                            <x-forms.button>Task 2</x-forms.button>
+                        </a>
+                    </div>
+                    <div id="ai-task-2" class="mt-4">
+                        <!-- Content for Task 2 will go here -->
+                        <p>This is the content for Task 2. You can add more elements here.</p>
                     </div>
                 </x-panel>
+
 
                 <!-- Learning Options -->
                 <h2>Learn through...</h2>
