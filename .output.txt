@@ -1,0 +1,246 @@
+
+    Directory: C:\Users\kolec\Herd\frase\app
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        12.08.2024     10:31                Http
+d-----        04.10.2024     11:56                Jobs
+d-----        27.03.2025     18:44                Models
+d-----        05.09.2024     14:48                Policies
+d-----        05.09.2024     14:37                Providers
+    Directory: C:\Users\kolec\Herd\frase\app\Http
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        27.03.2025     18:42                Controllers
+d-----        15.08.2024     13:48                Requests
+    Directory: C:\Users\kolec\Herd\frase\app\Http\Controllers
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        14.02.2025     19:50           4827 AjaxController.php
+-a----        01.12.2024     19:34           9762 CardController.php
+-a----        16.07.2024      7:39             77 Controller.php
+-a----        29.03.2025      9:41           1941 GapFillController.php
+-a----        04.10.2024     12:11           1411 RegisteredUserController.php
+-a----        14.03.2025     20:10           2864 SeachController.php
+-a----        12.08.2024     10:21           1040 SessionController.php
+-a----        15.08.2024     13:56           1190 TagController.php
+-a----        19.10.2024     18:56           3833 ThemeController.php
+-a----        06.10.2024     11:19           1855 UserController.php
+-a----        27.03.2025     21:10           4635 WordboxController.php
+    Directory: C:\Users\kolec\Herd\frase\app\Http\Requests
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        12.08.2024     10:31            553 StoreCardRequest.php
+-a----        15.08.2024     13:48            552 StoreTagRequest.php
+-a----        12.08.2024     10:31            554 UpdateCardRequest.php
+-a----        15.08.2024     13:48            553 UpdateTagRequest.php
+    Directory: C:\Users\kolec\Herd\frase\app\Jobs
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        04.10.2024     11:56           5002 CallAIJob.php
+-a----        04.10.2024     10:37           2276 CreateCardJob.php
+-a----        22.08.2024     14:26           1181 CreateThemesJob.php
+    Directory: C:\Users\kolec\Herd\frase\app\Models
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        26.03.2025     20:17          14135 AI.php
+-a----        14.02.2025     18:41            588 Card.php
+-a----        27.03.2025     20:57            262 GapFillExercise.php
+-a----        19.02.2025     19:27           6514 Learning.php
+-a----        15.08.2024     13:56            260 Tag.php
+-a----        21.08.2024     19:44            372 Theme.php
+-a----        14.02.2025     17:51           1263 User.php
+-a----        14.02.2025     18:43            427 Wordbox.php
+    Directory: C:\Users\kolec\Herd\frase\app\Policies
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        05.09.2024     14:48           1333 CardPolicy.php
+-a----        15.08.2024     13:48           1179 TagPolicy.php
+    Directory: C:\Users\kolec\Herd\frase\app\Providers
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        05.09.2024     14:37            411 AppServiceProvider.php
+    Directory: C:\Users\kolec\Herd\frase\database
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        16.08.2024     17:22                factories
+d-----        14.02.2025     17:41                migrations
+d-----        15.08.2024     14:31                seeders
+-a----        16.07.2024      7:39             10 .gitignore
+-a----        15.02.2026     11:26         217088 database.sqlite
+    Directory: C:\Users\kolec\Herd\frase\database\factories
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        16.08.2024     17:22            757 CardFactory.php
+-a----        15.08.2024     13:48            408 TagFactory.php
+-a----        12.08.2024     11:10           1202 UserFactory.php
+    Directory: C:\Users\kolec\Herd\frase\database\migrations
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        12.08.2024     10:47           1618 0001_01_01_000000_create_user
+                                                  s_table.php
+-a----        16.07.2024      7:39            849 0001_01_01_000001_create_cach
+                                                  e_table.php
+-a----        16.07.2024      7:39           1812 0001_01_01_000002_create_jobs
+                                                  _table.php
+-a----        10.09.2024     11:29           1133 2024_08_12_083130_create_card
+                                                  s_table.php
+-a----        15.08.2024     13:56            571 2024_08_15_114847_create_tags
+                                                  _table.php
+-a----        15.08.2024     14:00            735 2024_08_15_115737_card_tag.ph
+                                                  p
+-a----        20.08.2024     10:13            699 2024_08_19_181436_theme.php
+-a----        14.02.2025     17:33            702 2025_02_12_185036_wordbox.php
+-a----        14.02.2025     17:41            656 2025_02_14_163519_wordbox_car
+                                                  d_mapping.php
+    Directory: C:\Users\kolec\Herd\frase\database\seeders
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        12.08.2024     10:31            265 CardSeeder.php
+-a----        15.08.2024     14:31            705 DatabaseSeeder.php
+-a----        15.08.2024     13:48            264 TagSeeder.php
+    Directory: C:\Users\kolec\Herd\frase\resources
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        03.08.2024     11:04                css
+d-----        31.07.2024     10:08                images
+d-----        31.07.2024     10:18                js
+d-----        05.04.2025      8:39                views
+    Directory: C:\Users\kolec\Herd\frase\resources\css
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        03.08.2024     11:04           1654 app.css
+    Directory: C:\Users\kolec\Herd\frase\resources\images
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        31.07.2024     10:04          73751 logo_guestScreen.jpg
+    Directory: C:\Users\kolec\Herd\frase\resources\js
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        31.07.2024     10:18             65 app.js
+-a----        16.07.2024      7:39            127 bootstrap.js
+    Directory: C:\Users\kolec\Herd\frase\resources\views
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        16.11.2024      8:27                auth
+d-----        30.01.2026     18:09                cards
+d-----        23.03.2025      9:09                components
+d-----        27.03.2025     20:53                gapfill
+d-----        05.04.2025     10:58                kresleni
+d-----        19.02.2025     19:14                learning
+d-----        13.10.2024     16:45                search
+d-----        16.11.2024      8:36                user
+d-----        04.09.2024     10:27                vendor
+d-----        23.03.2025     10:19                wordbox
+-a----        14.02.2025     20:13          10420 index.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\auth
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        31.07.2024     11:16            334 login.blade.php
+-a----        16.11.2024      8:27           1393 register.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\cards
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        30.01.2026     18:09            878 add.blade.php
+-a----        12.10.2024      9:18           1693 edit.blade.php
+-a----        11.10.2024      8:23           3381 index.blade.php
+-a----        26.10.2024     17:33           3091 show.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\components
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        11.10.2024      9:09                forms
+-a----        03.08.2024     12:01            174 card-small.blade.php
+-a----        16.08.2024     18:55            403 card-text.blade.php
+-a----        23.03.2025      9:09            718 card-wordbox.blade.php
+-a----        11.10.2024     10:37            515 card.blade.php
+-a----        14.02.2025     19:10           2579 html-layout.blade.php
+-a----        02.08.2024     14:11            363 number-display.blade.php
+-a----        01.08.2024      9:10             63 page-heading.blade.php
+-a----        03.08.2024     11:32            353 panel.blade.php
+-a----        10.09.2024      9:45            112 section-heading.blade.php
+-a----        31.07.2024     11:43            380 tag.blade.php
+-a----        10.09.2024     10:48           1240 theme-card.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\components\forms
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        01.08.2024     10:09            160 button-confirm.blade.php
+-a----        11.10.2024      8:10            158 button-delete.blade.php
+-a----        10.09.2024     10:26            174 button-small.blade.php
+-a----        05.10.2024      9:50            231 button.blade.php
+-a----        26.07.2024      8:47            407 checkbox.blade.php
+-a----        26.07.2024      8:47             67 divider.blade.php
+-a----        26.07.2024      8:47            106 error.blade.php
+-a----        26.07.2024      8:47            222 field.blade.php
+-a----        26.07.2024      8:47            236 form.blade.php
+-a----        11.10.2024      9:09            351 input-search.blade.php
+-a----        05.10.2024      9:50            427 input.blade.php
+-a----        26.07.2024      8:47            205 label.blade.php
+-a----        05.09.2024     15:22            142 option.blade.php
+-a----        26.07.2024      8:47            323 select.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\gapfill
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        05.04.2025      8:39           4659 show.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\kresleni
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        05.04.2025      8:39          13785 index.blade.php
+-a----        05.04.2025     10:59          17770 index2.blade.php
+-a----        05.04.2025     11:18          20421 index3.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\learning
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        04.10.2024     14:06            649 complete.blade.php
+-a----        26.10.2024     17:27           7184 index.blade.php
+-a----        19.02.2025     19:14           1679 set.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\search
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        13.10.2024     16:45            358 index.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\user
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        06.10.2024     10:58            476 edit.blade.php
+-a----        16.11.2024      8:36           1652 profile.blade.php
+-a----        06.10.2024     11:39           4956 themes.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\vendor
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        04.09.2024     11:20                pagination
+    Directory: C:\Users\kolec\Herd\frase\resources\views\vendor\pagination
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        04.09.2024     10:27           2084 bootstrap-4.blade.php
+-a----        04.09.2024     10:27           4288 bootstrap-5.blade.php
+-a----        04.09.2024     10:27           1864 default.blade.php
+-a----        04.09.2024     10:27           1682 semantic-ui.blade.php
+-a----        04.09.2024     10:27           1053 simple-bootstrap-4.blade.php
+-a----        04.09.2024     10:27           1172 simple-bootstrap-5.blade.php
+-a----        04.09.2024     10:27            773 simple-default.blade.php
+-a----        04.09.2024     11:11           2082 simple-tailwind.blade.php
+-a----        04.09.2024     11:20           8539 tailwind.blade.php
+    Directory: C:\Users\kolec\Herd\frase\resources\views\wordbox
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        23.03.2025     10:19           6836 edit.blade.php
+-a----        29.03.2025      9:36           6695 index.blade.php
+    Directory: C:\Users\kolec\Herd\frase\routes
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        08.01.2026     16:47            210 api.php
+-a----        16.07.2024      7:39            220 console.php
+-a----        29.05.2025     19:32           7345 web.php
+    Directory: C:\Users\kolec\Herd\frase\tests
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        28.07.2024     16:00                Feature
+d-----        28.07.2024     16:00                Unit
+-a----        28.07.2024     16:01           1573 Pest.php
+-a----        16.07.2024      7:39            142 TestCase.php
+    Directory: C:\Users\kolec\Herd\frase\tests\Feature
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        28.07.2024     16:01            129 ExampleTest.php
+    Directory: C:\Users\kolec\Herd\frase\tests\Unit
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----        28.07.2024     16:01             81 ExampleTest.php

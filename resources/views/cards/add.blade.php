@@ -16,5 +16,6 @@
         </x-forms.select>
         <x-forms.divider></x-forms.divider>
         <x-forms.button>Save term</x-forms.button>
+
     </x-forms.form>
 </x-html-layout>

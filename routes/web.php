@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AjaxController;
 use App\Http\Controllers\CardController;
+use App\Http\Controllers\GapFillController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\SeachController;
 use App\Http\Controllers\SessionController;
@@ -9,18 +10,18 @@ use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WordboxController;
-use App\Http\Controllers\GapFillController;
-use App\Jobs\CreateCardJob;
 use App\Models\Card;
 use App\Models\Learning;
 use App\Models\User;
 use App\Models\Wordbox;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
 use function Pest\Laravel\get;
 
 Route::get('/', function () {
-    If(!Auth::check()) {
+    if (! Auth::check()) {
         return view('index');
     }
 
@@ -37,7 +38,7 @@ Route::get('/', function () {
             'cards as total_cards_count',
             'cards as due_cards_count' => function ($query) {
                 $query->whereDate('next_study_at', '<=', now()->toDateString());
-            }
+            },
         ])
         ->orderBy('total_cards_count', 'desc')
         ->get();
@@ -48,7 +49,7 @@ Route::get('/', function () {
         ->get();
 
     // Format the data as an array of theme info
-    return view('index',['themes' => $themes, 'dueCount' => $totalDueCards, 'totalCount' => $totalCards, 'wordboxes' => $wordboxes]);
+    return view('index', ['themes' => $themes, 'dueCount' => $totalDueCards, 'totalCount' => $totalCards, 'wordboxes' => $wordboxes]);
 });
 
 /*Route::get('/test', function () {
@@ -79,30 +80,31 @@ Route::middleware('auth')->group(function () {
     });
     Route::get('/startLearning/{wbid}/{mode}', [Learning::class, 'startLearning']);
     Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
-    Route::get('/completeLearning', function (){
+    Route::get('/completeLearning', function () {
         return view('learning.complete');
     });
 
     Route::get('/search', [SeachController::class, 'index']);
     Route::get('/searchWordbox/{wbid}', [SeachController::class, 'searchWordbox'])->name('seachWordbox');
 
-
     Route::get('/cards', [CardController::class, 'index']);
     Route::post('/cards/themeFilter', [CardController::class, 'themeFilter']);
     Route::get('/cards/{card:id}', [CardController::class, 'show']);
     Route::get('/cards/edit/{card:id}', [CardController::class, 'edit']);
     Route::post('/cards/new', [CardController::class, 'save']);
-    Route::post('/cards/{card:id}/delete', function ($id){
+    Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
         if ($card) {
             // Delete the card
-            $card->delete();}
-        return redirect("/cards");
+            $card->delete();
+        }
+
+        return redirect('/cards');
     });
-    Route::post('/cards/new', function (\Illuminate\Http\Request $request){
+    Route::post('/cards/new', function (\Illuminate\Http\Request $request) {
         $request->validate([
             'phrase' => ['required', 'string', 'max:40', 'min:2'],
-            'definition' => ['required', 'string']
+            'definition' => ['required', 'string'],
         ]);
 
         $user = Auth::user();
@@ -115,14 +117,15 @@ Route::middleware('auth')->group(function () {
             'example_sentence' => $request->example_sentence,
             'question' => $request->question,
             'definition' => $request->definition,
-            'next_study_at' => now()
+            'next_study_at' => now(),
         ]);
         logger('Card has been created for '.$request->phrase);
+
         return redirect('/');
     });
     Route::get('/add', [CardController::class, 'create']);
 
-    //Route::post('/cards/{card:id}', [CardController::class, 'update']);
+    // Route::post('/cards/{card:id}', [CardController::class, 'update']);
     Route::post('/cards/{card:id}', function (\Illuminate\Http\Request $request, Card $card) {
         $validatedData = $request->validate([
             'phrase' => ['required', 'string'],
@@ -131,16 +134,16 @@ Route::middleware('auth')->group(function () {
             'question' => ['required', 'string'],
             'example_sentence' => ['required', 'string'],
             'id' => ['required'],
-            'theme_id' => ['required']
+            'theme_id' => ['required'],
         ]);
-        if($validatedData['theme_id'] === '-1'){
+        if ($validatedData['theme_id'] === '-1') {
             $validatedData['theme_id'] = null;
         }
         // Update the card with the validated data
         $card->update($validatedData);
 
         // Redirect back with a success message
-        return redirect('/cards/' . $card->id);
+        return redirect('/cards/'.$card->id);
     });
 
     Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
@@ -151,7 +154,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/saveThemes', [ThemeController::class, 'store'])->name('saveThemes');
     Route::post('/generateThemes', [ThemeController::class, 'generate'])->name('generate');
 
-    Route::post('/test',[CardController::class, 'show']);
+    Route::post('/test', [CardController::class, 'show']);
 
     /*Route::get('/wordbox', function (){
         return view('wordbox.index');
@@ -167,15 +170,24 @@ Route::middleware('auth')->group(function () {
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
 
-    // BONUSY
-Route::get('/kresleni', function (){
+Route::post('/addWordAPI', function (Request $request) {
+    /*return response('', 204)
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');*/
+    dd('worked');
+
+});
+
+// BONUSY
+Route::get('/kresleni', function () {
     return view('kresleni.index');
 });
 
-Route::get('/kresleni2', function (){
+Route::get('/kresleni2', function () {
     return view('kresleni.index2');
 });
 
-Route::get('/kresleni3', function (){
+Route::get('/kresleni3', function () {
     return view('kresleni.index3');
 });
