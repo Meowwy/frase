@@ -10,6 +10,14 @@ This is a language learning app that allows users to save words and phrases for 
 - **Frontend**: Tailwind CSS 3, Blade Components, jQuery (for Ajax), Vite
 - **Database**: SQLite (default)
 
+## Core guidelines
+- All the code that you will write needs to follow the laravel best practices, standards and primarily be consistent. 
+- Although if you find some code that not adheres modern laravel conventions, suggest to change it so it is correct.
+- When creating solutions always look for the most efficient way to solve the problem, do not overcomplicate the code.
+- Always document any changes did to the application architecture here in this AGENT.md file for future reference. This file is supposed to hold the current architecture of the application and also as a guideline for future contributions so they are consistent with the conventions.
+- Stick to the current naming conventions and patterns.
+- You don't have to run "npm run build" after implementing new features, because I use hot reload and can see changes in the dev environment.
+
 ## Application Architecture
 
 ### Routing

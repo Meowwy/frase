@@ -109,38 +109,43 @@
                         <p class="text-sm mb-4">
                             Wordboxes let you create separate decks of learning cards.
                         </p>
-                        <a href="/">
-                            <x-forms.button>Create a wordbox</x-forms.button>
-                        </a>
+                        <x-forms.button onclick="openModal('create-wordbox')">Create a wordbox</x-forms.button>
                     </div>
 
                     <!-- Right Section (3/4 width) -->
-                    <div class="w-3/4 p-6">
-                        <h2 class="text-lg font-bold mb-4">Your worboxes</h2>
-                        <div class="grid grid-cols-3 gap-6">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                @foreach($wordboxes as $wordbox)
-                                    <div class="bg-white/10 p-4 rounded-lg flex flex-col justify-between h-full w-full min-w-[300px]">
-                                        <div>
-                                            <h3 class="text-xl font-bold mb-2">{{ $wordbox->name }}</h3>
-                                            <p class="text-sm">{{ $wordbox->description }}</p>
-                                            <p class="text-sm mt-2">Cards: {{ $wordbox->cards_count }}</p>
-                                        </div>
-                                        <a href="/wordbox/{{ $wordbox->id }}" class="mt-4">
-                                            <x-forms.button>View Details</x-forms.button>
-                                        </a>
+                    <div class="w-3/4 p-6 overflow-hidden">
+                        <h2 class="text-lg font-bold mb-4">Your wordboxes</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            @foreach($wordboxes as $wordbox)
+                                <div class="bg-white/10 p-4 rounded-lg flex flex-col justify-between h-full border border-white/10 hover:border-blue-500 transition-colors">
+                                    <div>
+                                        <h3 class="text-xl font-bold mb-2 truncate" title="{{ $wordbox->name }}">{{ $wordbox->name }}</h3>
+                                        <p class="text-sm text-white/70 line-clamp-2 mb-2">{{ $wordbox->description }}</p>
+                                        <p class="text-xs font-semibold text-blue-400 uppercase tracking-wider">Cards: {{ $wordbox->cards_count }}</p>
                                     </div>
-                                @endforeach
-                            </div>
-
-
-
+                                    <a href="/wordbox/{{ $wordbox->id }}" class="mt-4">
+                                        <x-forms.button class="w-full">View Details</x-forms.button>
+                                    </a>
+                                </div>
+                            @endforeach
                         </div>
                     </div>
                 </div>
             </x-panel>
 
         </section>
+
+        <x-modal name="create-wordbox" title="Create New Wordbox">
+            <x-forms.form action="/wordbox/new" method="POST">
+                <x-forms.input label="Name" name="name" placeholder="e.g. Travel Vocabulary" required />
+                <x-forms.textarea label="Description" name="description" placeholder="Optional description of this wordbox..." />
+
+                <div class="flex justify-end gap-x-2">
+                    <x-forms.button type="button" class="bg-gray-600 hover:bg-gray-500" onclick="closeModal('create-wordbox')">Cancel</x-forms.button>
+                    <x-forms.button>Create Wordbox</x-forms.button>
+                </div>
+            </x-forms.form>
+        </x-modal>
 
         <section>
             <x-section-heading>themes</x-section-heading>

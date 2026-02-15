@@ -3,9 +3,26 @@
         <div class="flex gap-6">
             <!-- Left Column -->
             <div class="w-1/3 space-y-6">
+                <!-- Wordbox Info Panel -->
+                <x-panel>
+                    <div class="w-full">
+                        <div class="flex justify-between items-start mb-4">
+                            <h1 class="text-3xl font-bold">{{$wordbox->name}}</h1>
+                            <a href="{{ $wordbox->id }}/edit">
+                                <x-forms.button-small>Edit</x-forms.button-small>
+                            </a>
+                        </div>
+                        <p class="text-white/70">{{ $wordbox->description }}</p>
+                        <div class="mt-4 pt-4 border-t border-white/10 flex justify-between text-sm">
+                            <span class="text-white/50">Total Cards</span>
+                            <span class="font-bold text-blue-400">{{ $cards->count() }}</span>
+                        </div>
+                    </div>
+                </x-panel>
+
                 <!-- New Card Input -->
                 <x-panel>
-                    <h2 class="text-lg font-bold mb-2">Add New Card</h2>
+                    <h2 class="text-lg font-bold mb-4">Quick Add Card</h2>
                     <x-forms.form action="{{ url('captureWordAjax') }}" method="post" id="addWord">
                         <x-forms.input :label="false" name="capturedWord" id="captureWord"
                                        placeholder="Word or phrase in English" class="flex-grow w-full min-w-[300px]"></x-forms.input>
@@ -19,26 +36,35 @@
                     </x-forms.form>
                 </x-panel>
 
-                <!-- Wordbox Summary -->
-                <x-panel>
+                <!-- Wordbox Summary (Coming Soon) -->
+                <x-panel class="opacity-50">
                     <h2 class="text-lg font-bold mb-2">Wordbox Summary</h2>
-                    <p class="w-full p-3 border border-gray-300 rounded-lg" placeholder="Enter summary of your wordbox..."></p>
+                    <p class="text-sm text-white/50 italic">AI-generated summary of this wordbox's content will appear here.</p>
                 </x-panel>
 
                 <!-- AI Tasks -->
                 <x-panel>
-                    <h2 class="text-lg font-bold mb-2">AI Tasks</h2>
-                    <div class="flex space-x-3">
-                        <a href="{{ route('gapfill.generate', ['wbid' => $wordbox->id]) }}">
-                            <x-forms.button>Generate Gap-Fill</x-forms.button>
-                        </a>
-                        <a href="#ai-task-2">
-                            <x-forms.button>Task 2</x-forms.button>
-                        </a>
-                    </div>
-                    <div id="ai-task-2" class="mt-4">
-                        <!-- Content for Task 2 will go here -->
-                        <p>This is the content for Task 2. You can add more elements here.</p>
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        AI Learning Tools
+                    </h2>
+
+                    <div class="space-y-4">
+                        <div class="p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors group">
+                            <h3 class="font-bold text-lg mb-1">Gap-Fill Exercise</h3>
+                            <p class="text-sm text-white/50 mb-4">Generate a dynamic text with blanks based on the cards in this wordbox.</p>
+                            <a href="{{ route('gapfill.generate', ['wbid' => $wordbox->id]) }}" class="inline-block">
+                                <x-forms.button class="text-sm px-4 py-2">Generate Now</x-forms.button>
+                            </a>
+                        </div>
+
+                        <div class="p-4 bg-white/5 border border-white/10 rounded-xl opacity-50 cursor-not-allowed">
+                            <h3 class="font-bold text-lg mb-1">Contextual Story</h3>
+                            <p class="text-sm text-white/50 mb-2">Create a short story using all your words to see them in action.</p>
+                            <span class="text-xs font-bold uppercase tracking-wider text-blue-400">Coming Soon</span>
+                        </div>
                     </div>
                 </x-panel>
 
@@ -84,37 +110,32 @@
             <!-- Right Column: Cards Table -->
             <div class="w-2/3 space-y-4">
                 <x-panel>
-                    <div class="flex justify-between w-full">
-                        <h1 class="text-3xl">{{$wordbox->name}}</h1>
-                        <a href="{{ $wordbox->id }}/edit">
-                            <x-forms.button-small>
-                                Edit wordbox
-                            </x-forms.button-small>
-                        </a>
-
-                    </div>
-
-                </x-panel>
-                <x-panel>
-                    <table class="min-w-full divide-y divide-gray-700 bg-white/5">
-                        <thead>
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Term</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Definition</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Translation</th>
-                        </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-700">
-                        @foreach ($cards as $card)
-                            <tr class="hover:bg-white/10 cursor-pointer" onclick="window.location='/cards/{{ $card->id }}'">
-                                <td class="px-6 py-2 whitespace-nowrap text-sm font-medium text-white">{{ $card->phrase }}</td>
-                                <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300">{{ $card->definition }}</td>
-                                <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300">{{ $card->translation }}</td>
+                    <div class="w-full">
+                        <table class="min-w-full divide-y divide-white/10">
+                            <thead>
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Term</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Definition</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Translation</th>
                             </tr>
-                        @endforeach
-                        </tbody>
-                    </table>
-
+                            </thead>
+                            <tbody class="divide-y divide-white/5">
+                            @forelse ($cards as $card)
+                                <tr class="hover:bg-white/5 cursor-pointer transition-colors" onclick="window.location='/cards/{{ $card->id }}'">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">{{ $card->phrase }}</td>
+                                    <td class="px-6 py-4 text-sm text-white/70">{{ $card->definition }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-white/70">{{ $card->translation }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="3" class="px-6 py-10 text-center text-white/30">
+                                        No cards found in this wordbox.
+                                    </td>
+                                </tr>
+                            @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </x-panel>
             </div>
         </div>

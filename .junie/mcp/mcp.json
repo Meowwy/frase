@@ -6,6 +6,15 @@
                 "C:\\Users\\kolec\\Herd\\frase\\artisan",
                 "boost:mcp"
             ]
+        },
+        "herd": {
+            "command": "C:\\Users\\kolec\\.config\\herd\\bin\\php84\\php.exe",
+            "args": [
+                "C:/Users/kolec/.config/herd/bin/herd-mcp.phar"
+            ],
+            "env": {
+                "SITE_PATH": "C:\\Users\\kolec\\Herd\\frase"
+            }
         }
     }
 }

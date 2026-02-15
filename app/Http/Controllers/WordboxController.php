@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreWordboxRequest;
 use App\Models\Card;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,13 +28,12 @@ class WordboxController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store()
+    public function store(StoreWordboxRequest $request)
     {
-        $wordbox = Auth::user()->wordboxes()->create([
-            'name'        => 'unnamed',
-            'description' => '',
-            'exam_text'   => '',
+        $wordbox = Auth::user()->wordboxes()->create($request->validated() + [
+            'exam_text' => '',
         ]);
+
         return redirect()->route('wordbox.show', ['id' => $wordbox->id]);
     }
 
@@ -50,9 +50,10 @@ class WordboxController extends Controller
 
         $wordbox = Auth::user()->wordboxes()->where('id', $id)->first();
 
-        if(!$wordbox){
+        if (! $wordbox) {
             return redirect('/');
         }
+
         return view('wordbox.index', ['cards' => $cards, 'wordbox' => $wordbox]);
     }
 
@@ -69,9 +70,10 @@ class WordboxController extends Controller
 
         $wordbox = Auth::user()->wordboxes()->where('id', $id)->first();
 
-        if(!$wordbox){
+        if (! $wordbox) {
             return redirect('/');
         }
+
         return view('wordbox.edit', ['cards' => $cards, 'wordbox' => $wordbox]);
     }
 
@@ -96,7 +98,6 @@ class WordboxController extends Controller
         // Redirect back with success message
         return redirect()->back()->with('success', 'Wordbox name updated successfully.');
     }
-
 
     /**
      * Update the specified resource in storage.
@@ -166,6 +167,4 @@ class WordboxController extends Controller
             return back()->with('error', 'Failed to generate gap-fill exercise.');
         }
     }
-
-
 }
