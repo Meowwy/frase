@@ -8,6 +8,6 @@ if($outline == 'blue'){
 }
 
 @endphp
-<div {{$attributes->merge(['class' => "bg-white/5 rounded-xl flex border border-transparent $hover group transition-colors duration-300"])}}>
+<div {{$attributes->merge(['class' => "bg-white/5 rounded-xl flex flex-col border border-transparent $hover group transition-colors duration-300"])}}>
     {{$slot}}
 </div>

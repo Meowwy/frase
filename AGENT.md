@@ -29,7 +29,10 @@ This is a language learning app that allows users to save words and phrases for 
 ### Controllers & Logic
 - Controllers often handle validation manually within methods using `$request->validate()` or Form Requests (e.g., `StoreCardRequest`).
 - Some business logic is contained within models (e.g., `AI`, `Learning`).
+### AI Integration
 - AI integration (OpenAI/LLM) is encapsulated in the `App\Models\AI` model.
+- **Gap-Fill Exercises**: Dynamic learning exercises are generated using `GenerateGapFillJob`. Exercises are stored in the `gap_fill_exercises` table and include a text with numbered placeholders `[n]` and a JSON mapping of answers.
+- **Background Processing**: Time-consuming AI tasks use Laravel's queue system (`GenerateGapFillJob`). UI feedback for pending tasks is handled via AJAX polling (`gap-fill.status` route).
 
 ### Models & Database
 - Eloquent models are stored in `app/Models`.

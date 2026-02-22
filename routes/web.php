@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\AjaxController;
 use App\Http\Controllers\CardController;
-use App\Http\Controllers\GapFillController;
+use App\Http\Controllers\GapFillExerciseController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\SeachController;
 use App\Http\Controllers\SessionController;
@@ -164,9 +164,17 @@ Route::middleware('auth')->group(function () {
     Route::get('wordbox/{id}/edit', [WordboxController::class, 'edit'])->name('wordbox.edit');
     Route::post('/saveCards/{id}', [WordboxController::class, 'update'])->name('saveCards');
     Route::patch('/wordbox/{id}', [WordboxController::class, 'updateName']);
-    Route::get('/wordbox/{wbid}/gapfill/{gapFillId}', [GapFillController::class, 'show'])->name('gapfill.show');
-    Route::get('/wordbox/{wbid}/gapfill/generate', [GapFillController::class, 'generate'])->name('gapfill.generate');
+    Route::get('/wordbox/{wordbox}/gapfill/generate', [GapFillExerciseController::class, 'store'])->name('gapfill.generate');
+    Route::get('/gap-fill/{exercise}', [GapFillExerciseController::class, 'show'])->name('gap-fill.show');
+    Route::get('/gap-fill/{exercise}/status', [GapFillExerciseController::class, 'status'])->name('gap-fill.status');
+    Route::get('/test/createdGapFill', function () {
+        $exercise = \App\Models\GapFillExercise::latest()->first();
+        if (! $exercise) {
+            return 'No exercise found';
+        }
 
+        return response()->json($exercise);
+    });
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
 

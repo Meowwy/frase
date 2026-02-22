@@ -1,65 +1,60 @@
 @props(['foundCards' => [], 'searchTermWb' => ''])
 <x-html-layout>
-    <div class="container mx-auto p-6">
-        <div class="flex flex-col lg:flex-row gap-8">
-            <!-- Left Column: Wordbox Info & Inventory -->
-            <div class="lg:w-1/2 space-y-6">
-                <x-panel>
-                    <h2 class="text-xl font-bold mb-4">Wordbox Settings</h2>
-                    <x-forms.form method="post" action="/wordbox/{{$wordbox->id}}" class="max-w-full">
-                        @csrf
-                        @method('PATCH')
-                        <input hidden value="{{$wordbox->id}}" name="id"/>
-                        <x-forms.input value="{{$wordbox->name}}" label="Name" name="name"/>
-                        <div class="flex justify-end mt-4">
-                            <x-forms.button>Save Settings</x-forms.button>
-                        </div>
-                    </x-forms.form>
-                </x-panel>
+    <div class="container mx-auto p-6 space-y-8">
+        <!-- Top Section: Wordbox Settings -->
+        <x-panel>
+            <h2 class="text-xl font-bold mb-4">Wordbox Settings</h2>
+            <x-forms.form method="post" action="/wordbox/{{$wordbox->id}}" class="max-w-full">
+                @csrf
+                @method('PATCH')
+                <input hidden value="{{$wordbox->id}}" name="id"/>
+                <x-forms.input value="{{$wordbox->name}}" label="Name" name="name"/>
+                <div class="flex justify-end mt-4">
+                    <x-forms.button>Save Settings</x-forms.button>
+                </div>
+            </x-forms.form>
+        </x-panel>
 
-                <x-panel>
-                    <div class="flex justify-between items-center mb-6">
-                        <div>
-                            <h2 class="text-xl font-bold">Inventory</h2>
-                            <p class="text-sm text-white/50">Cards currently in this wordbox.</p>
-                        </div>
-                        <a href="/wordbox/{{$wordbox->id}}">
-                            <x-forms.button-small>Back to wordbox</x-forms.button-small>
-                        </a>
-                    </div>
+        <!-- Search & Discovery (moved up) -->
+        <x-panel>
+            <h2 class="text-xl font-bold mb-4">Search & Discovery</h2>
+            <p class="text-sm text-white/50 mb-6">Find and add existing cards to this wordbox.</p>
 
-                    <!-- Card List -->
-                    <div id="cardList" class="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                        <!-- Inventory cards will appear here -->
-                    </div>
-
-                    <x-forms.form id="cardsForm" method="POST" action="/saveCards/{{$wordbox->id}}" class="hidden">
-                        <input id="cardsInput" type="hidden" name="cards">
-                    </x-forms.form>
-
-                    <div class="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
-                        <p class="text-sm text-white/50"><span id="cardCount">0</span> cards</p>
-                        <x-forms.button id="saveCardsBtn">Save Changes</x-forms.button>
-                    </div>
-                </x-panel>
+            <div id="searchContainer" class="w-full">
+                <x-forms.input-search id="ajaxSearchInput" name="searchTerm" placeholder="Type to search cards..." class="w-full"></x-forms.input-search>
             </div>
 
-            <!-- Right Column: Search & Discovery -->
-            <div class="lg:w-1/2 space-y-6">
-                <x-panel>
-                    <h2 class="text-xl font-bold mb-4">Search & Discovery</h2>
-                    <p class="text-sm text-white/50 mb-6">Find and add existing cards to this wordbox.</p>
-
-                    <div id="searchContainer" class="w-full">
-                        <x-forms.input-search id="ajaxSearchInput" name="searchTerm" placeholder="Type to search cards..." class="w-full"></x-forms.input-search>
-                    </div>
-
-                    <div id="searchResults" class="mt-6 space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                        <p class="text-center text-white/30 py-10">Start typing to find cards...</p>
-                    </div>
-                </x-panel>
+            <div id="searchResults" class="mt-6 space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                <p class="text-center text-white/30 py-10">Start typing to find cards...</p>
             </div>
-        </div>
+        </x-panel>
+
+        <!-- Inventory (Full Width) -->
+        <x-panel>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-xl font-bold">Inventory</h2>
+                    <p class="text-sm text-white/50">Cards currently in this wordbox.</p>
+                </div>
+                <a href="/wordbox/{{$wordbox->id}}">
+                    <x-forms.button-small>Back to wordbox</x-forms.button-small>
+                </a>
+            </div>
+
+            <!-- Card List -->
+            <div id="cardList" class="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                <!-- Inventory cards will appear here -->
+            </div>
+
+            <x-forms.form id="cardsForm" method="POST" action="/saveCards/{{$wordbox->id}}" class="hidden">
+                <input id="cardsInput" type="hidden" name="cards">
+            </x-forms.form>
+
+            <div class="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
+                <p class="text-sm text-white/50"><span id="cardCount">0</span> cards</p>
+                <x-forms.button id="saveCardsBtn">Save Changes</x-forms.button>
+            </div>
+        </x-panel>
     </div>
 
     <script>

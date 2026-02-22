@@ -55,9 +55,33 @@
                         <div class="p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors group">
                             <h3 class="font-bold text-lg mb-1">Gap-Fill Exercise</h3>
                             <p class="text-sm text-white/50 mb-4">Generate a dynamic text with blanks based on the cards in this wordbox.</p>
-                            <a href="{{ route('gapfill.generate', ['wbid' => $wordbox->id]) }}" class="inline-block">
-                                <x-forms.button class="text-sm px-4 py-2">Generate Now</x-forms.button>
-                            </a>
+                            <div class="flex flex-col gap-2">
+                            @if($wordbox->latestGapFillExercise)
+                                <a href="{{ route('gap-fill.show', $wordbox->latestGapFillExercise) }}" class="w-full">
+                                    <x-forms.button class="w-full bg-blue-600 hover:bg-blue-500">See Exercise</x-forms.button>
+                                </a>
+                                <div x-data="{ showForm: false }" class="mt-2">
+                                    <button @click="showForm = !showForm" class="text-xs text-blue-400 hover:text-blue-300 w-full text-center">
+                                        + Generate New Exercise
+                                    </button>
+                                    <div x-show="showForm" x-transition class="mt-4 pt-4 border-t border-white/5">
+                                        <form action="{{ route('gapfill.generate', $wordbox->id) }}" method="GET">
+                                            <div class="flex gap-2 mb-2">
+                                                <x-forms.input name="theme_preference" placeholder="Theme (optional, e.g. 'At the airport')" class="flex-grow !py-1 !px-2 text-xs" />
+                                            </div>
+                                            <x-forms.button class="text-sm px-4 py-2 w-full">Generate Now</x-forms.button>
+                                        </form>
+                                    </div>
+                                </div>
+                            @else
+                                <form action="{{ route('gapfill.generate', $wordbox->id) }}" method="GET">
+                                    <div class="flex gap-2 mb-2">
+                                        <x-forms.input name="theme_preference" placeholder="Theme (optional, e.g. 'At the airport')" class="flex-grow !py-1 !px-2 text-xs" />
+                                    </div>
+                                    <x-forms.button class="text-sm px-4 py-2 w-full">Generate Now</x-forms.button>
+                                </form>
+                            @endif
+                        </div>
                         </div>
 
                         <div class="p-4 bg-white/5 border border-white/10 rounded-xl opacity-50 cursor-not-allowed">

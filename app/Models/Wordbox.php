@@ -16,9 +16,13 @@ class Wordbox extends Model
         return $this->belongsToMany(Card::class, 'wordbox_card', 'wordbox_id', 'card_id');
     }
 
-
-    public function user()
+    public function gapFillExercises()
     {
-        return $this->belongsTo(User::class);
+        return $this->hasMany(GapFillExercise::class);
+    }
+
+    public function latestGapFillExercise()
+    {
+        return $this->hasOne(GapFillExercise::class)->latestOfMany();
     }
 }
