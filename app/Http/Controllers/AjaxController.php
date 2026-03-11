@@ -30,6 +30,9 @@ class AjaxController extends Controller
         $userId = Auth::id();
         $phrase = request('capturedWord');
         if (!request()->filled('capturedWord')) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'capturedWord is required'], 422);
+            }
             return redirect('/');
         }
 
@@ -96,7 +99,9 @@ class AjaxController extends Controller
             ]);
             logger('Card has been created for '.$output->phrase);
         }catch (\Exception){
-
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'There was an error while creating the card.'], 500);
+            }
             return redirect("/")->with('popup_message', 'There was an error while creating the card. Click OK to continue.');
         }
 
@@ -106,6 +111,10 @@ class AjaxController extends Controller
         }
 
         //konec obsahu CreateCardJob
+        if ($request->expectsJson()) {
+            return response()->json(['success' => 'Card for "' . $phrase . '" has been created successfully.']);
+        }
+
         if($request->wordbox_id){
             return redirect()->route('wordbox.show', ['id' => $wordbox->id]);
         }
