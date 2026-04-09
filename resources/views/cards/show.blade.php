@@ -1,4 +1,4 @@
-@props(["card", "theme"])
+@props(["card", "theme", "synonyms", "relatedTerms"])
 <x-html-layout>
     <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg">
         <!-- Main Term Section -->
@@ -33,6 +33,44 @@
 
 
         </div>
+
+        @if($synonyms->isNotEmpty() || $relatedTerms->isNotEmpty())
+            <div class="mb-8 space-y-4">
+                @if($synonyms->isNotEmpty())
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Synonyms</h3>
+                        <ul class="space-y-1">
+                            @foreach($synonyms as $synonym)
+                                <li>
+                                    <a href="/cards/{{ $synonym->synonymCard->id }}"
+                                       class="text-orange-400 hover:text-orange-300 hover:underline">
+                                        {{ $synonym->synonymCard->phrase }}
+                                        <span class="text-gray-500 text-sm ml-1">{{ $synonym->synonymCard->translation }}</span>
+                                    </a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                @if($relatedTerms->isNotEmpty())
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Related terms</h3>
+                        <ul class="space-y-1">
+                            @foreach($relatedTerms as $related)
+                                <li>
+                                    <a href="/cards/{{ $related->relatedCard->id }}"
+                                       class="text-orange-400 hover:text-orange-300 hover:underline">
+                                        {{ $related->relatedCard->phrase }}
+                                        <span class="text-gray-500 text-sm ml-1">{{ $related->relatedCard->translation }}</span>
+                                    </a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            </div>
+        @endif
 
         <table class="mb-4 table-auto text-left text-white max-w-2xl divide-gray-700 bg-white/5">
             <thead class="text-white">

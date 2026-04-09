@@ -11,6 +11,33 @@ class AI extends Model
 {
     use HasFactory;
 
+    public static function getEmbedding(string $text): ?array
+    {
+        $response = Http::withToken(config('services.openai.secret'))
+            ->post('https://api.openai.com/v1/embeddings', [
+                'model' => 'text-embedding-3-small',
+                'input' => $text,
+            ]);
+
+        if (! $response->successful()) {
+            Log::error('Embedding request failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return $response->json('data.0.embedding');
+    }
+
+    public static function cosineSimilarity(array $a, array $b): float
+    {
+        $dot = 0.0;
+        for ($i = 0, $n = count($a); $i < $n; $i++) {
+            $dot += $a[$i] * $b[$i];
+        }
+
+        return $dot;
+    }
+
     public static function test()
     {
         logger('update1');

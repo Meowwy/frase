@@ -1,6 +1,17 @@
 {
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:link.springer.com)",
+      "WebFetch(domain:pmc.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:www.dataquest.io)",
+      "WebFetch(domain:www.splitbrain.org)",
+      "Bash(php artisan:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "laravel-boost"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

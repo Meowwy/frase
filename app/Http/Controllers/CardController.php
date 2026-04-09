@@ -204,7 +204,15 @@ class CardController extends Controller
         $card->next_study_at = $nextStudyAt->format('l j F Y');
 
 
-        return view('cards.show', ['card' => $card, 'theme' => $theme]);
+        $synonyms = $card->synonyms()->with('synonymCard:id,phrase,translation')->get();
+        $relatedTerms = $card->relatedTerms()->with('relatedCard:id,phrase,translation')->get();
+
+        return view('cards.show', [
+            'card' => $card,
+            'theme' => $theme,
+            'synonyms' => $synonyms,
+            'relatedTerms' => $relatedTerms,
+        ]);
     }
 
     /**

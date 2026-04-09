@@ -10,6 +10,7 @@ use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WordboxController;
+use App\Jobs\GenerateEmbeddingJob;
 use App\Models\Card;
 use App\Models\Learning;
 use App\Models\User;
@@ -109,7 +110,7 @@ Route::middleware('auth')->group(function () {
 
         $user = Auth::user();
 
-        $user->cards()->create([
+        $card = $user->cards()->create([
             'phrase' => $request->phrase,
             'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
             'level' => 1,
@@ -119,6 +120,7 @@ Route::middleware('auth')->group(function () {
             'definition' => $request->definition,
             'next_study_at' => now(),
         ]);
+        GenerateEmbeddingJob::dispatch($card);
         logger('Card has been created for '.$request->phrase);
 
         return redirect('/');
@@ -147,6 +149,13 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
+
+    Route::get('/cards/{card}/synonyms', function (Card $card) {
+        return response()->json([
+            'synonyms' => $card->synonyms()->with('synonymCard:id,phrase,translation')->get(),
+            'related_terms' => $card->relatedTerms()->with('relatedCard:id,phrase,translation')->get(),
+        ]);
+    });
 
     Route::get('cards/{tag:name}', TagController::class);
 

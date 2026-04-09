@@ -11,6 +11,10 @@ class Card extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'embedding' => 'array',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -27,5 +31,15 @@ class Card extends Model
     public function wordbox()
     {
         return $this->belongsToMany(Wordbox::class, 'wordbox_card', 'card_id', 'wordbox_id');
+    }
+
+    public function synonyms()
+    {
+        return $this->hasMany(Synonym::class);
+    }
+
+    public function relatedTerms()
+    {
+        return $this->hasMany(RelatedTerm::class);
     }
 }

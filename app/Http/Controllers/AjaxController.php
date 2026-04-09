@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\CallAIJob;
 use App\Jobs\CreateCardJob;
+use App\Jobs\GenerateEmbeddingJob;
 use App\Models\AI;
 use App\Models\Card;
 use App\Models\Learning;
@@ -36,10 +37,14 @@ class AjaxController extends Controller
             return redirect('/');
         }
 
-        //CreateCardJob::dispatch($userId, $phrase);
-        //CallAIJob::dispatch($userId, $phrase,$user->native_language,$user->target_language, $themeString);
-        //obsah CreateCardJob
         $user = Auth::user();
+
+        if ($user->cards()->whereRaw('LOWER(phrase) = ?', [strtolower($phrase)])->exists()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'This phrase already exists in your cards.'], 409);
+            }
+            return redirect('/');
+        }
         // Retrieve all themes of the authenticated user
         $themes = $user->themes()->select('id', 'name')->get();
 
@@ -97,6 +102,7 @@ class AjaxController extends Controller
                 'definition' => $output->definition,
                 'next_study_at' => now()
             ]);
+            GenerateEmbeddingJob::dispatch($newlyInsertedCard);
             logger('Card has been created for '.$output->phrase);
         }catch (\Exception){
             if ($request->expectsJson()) {
