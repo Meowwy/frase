@@ -31,6 +31,8 @@ This is a language learning app that allows users to save words and phrases for 
 - Some business logic is contained within models (e.g., `AI`, `Learning`).
 ### AI Integration
 - AI integration (OpenAI/LLM) is encapsulated in the `App\Models\AI` model.
+- **Model & params**: Chat generation uses the `gpt-5.4-nano` model (defined in the `AI::MODEL` constant) via the Chat Completions endpoint with `reasoning_effort` set to `low` (the `AI::REASONING_EFFORT` constant). Embeddings still use `text-embedding-3-small`. Reasoning models reject `temperature`, so it is never sent. All structured responses use strict `json_schema` response formats.
+- **Prompt conventions**: Flashcard prompts keep the system message to the tutor's role/rules and the per-field instructions in the schema property descriptions. Two structural rules are enforced: the example sentence must contain the term wrapped in square brackets exactly once (`[term]`) so the learning blanking regex `/\[.*?\]/` works, and the generated question must read like a vocabulary test whose only correct answer is the term, without containing the term itself.
 - **Gap-Fill Exercises**: Dynamic learning exercises are generated using `GenerateGapFillJob`. Exercises are stored in the `gap_fill_exercises` table and include a text with numbered placeholders `[n]` and a JSON mapping of answers.
 - **Background Processing**: Time-consuming AI tasks use Laravel's queue system (`GenerateGapFillJob`). UI feedback for pending tasks is handled via AJAX polling (`gap-fill.status` route).
 

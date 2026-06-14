@@ -11,6 +11,18 @@ class AI extends Model
 {
     use HasFactory;
 
+    /**
+     * Chat model used for generating flashcard content.
+     * GPT-5.4 nano: fast and cheap, with reliable structured outputs.
+     */
+    private const MODEL = 'gpt-5.4-nano';
+
+    /**
+     * Reasoning effort for the chat model. "low" keeps latency/cost down
+     * while still letting the model craft good recall questions.
+     */
+    private const REASONING_EFFORT = 'low';
+
     public static function getEmbedding(string $text): ?array
     {
         $response = Http::withToken(config('services.openai.secret'))
@@ -90,15 +102,16 @@ class AI extends Model
         logger('Obtaining data for '.$phrase);
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
-            'model' => 'gpt-4o-2024-08-06',
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'Generate content for a flashcard based on the term given and the native and target language of the user.',
+                    'content' => 'You are a vocabulary tutor building flashcard content for a language learner. Follow every field rule exactly, especially the square-bracket formatting.',
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Term: \"{{$phrase}}\" (correct the spelling if necessary) Native language: \"{{$nativeLanguage}}\" Target language: \"{{$targetLanguage}}\"",
+                    'content' => "Term: \"{$phrase}\" (fix the spelling if it is wrong). Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
                 ],
             ],
             'response_format' => [
@@ -109,32 +122,32 @@ class AI extends Model
                     'schema' => [
                         'type' => 'object',
                         'properties' => [
+                            'phrase' => [
+                                'type' => 'string',
+                                'description' => 'The term provided by the user, corrected for spelling and in its base/dictionary form.',
+                            ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "Make up a simple sentence in {{$targetLanguage}} language using the term {{$phrase}}. Enclose the term in square brackets []. Keep the language easy for non-native speakers.",
+                                'description' => "One short, natural sentence in {$targetLanguage} whose context makes the term's meaning clear. Wrap the term in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
                             ],
                             'question' => [
                                 'type' => 'string',
-                                'description' => "In {{$targetLanguage}}, create a short, conversational question that imitate a situation that should prompt the user to recall the term. It must have a simple answer - the term.",
+                                'description' => "A short question in {$targetLanguage}, like a teacher testing vocabulary, whose single correct answer is the term itself. Unlike the definition, point to the typical usage of the term or a situation so it can be recalled. Never write the term (or an obvious form of it) in the question.",
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "Translate the term into {{$nativeLanguage}} language, providing two alternatives if applicable, separated by a semicolon.",
+                                'description' => "The term translated into {$nativeLanguage}. Give up to two common alternatives separated by a semicolon.",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "Provide a concise dictionary definition in {{$targetLanguage}} language for the term. Do not include the term in the definition.",
+                                'description' => "A concise dictionary-style definition of the term in {$targetLanguage}. Do not use the term itself in the definition.",
                             ],
                             'theme' => [
                                 'type' => 'string',
-                                'description' => "Pick a broad category for the term, here is inspiration: \"{{$themes}}\". Pick one category (write the exact thing from the list) or create a new one if all of them aren't applicable.",
-                            ],
-                            'phrase' => [
-                                'type' => 'string',
-                                'description' => 'Term provided by user, corrected for misspelling.',
+                                'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
                             ],
                         ],
-                        'required' => ['sentence', 'question', 'translation', 'definition', 'theme', 'phrase'],
+                        'required' => ['phrase', 'sentence', 'question', 'translation', 'definition', 'theme'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -151,15 +164,16 @@ class AI extends Model
         logger('Obtaining data for '.$phrase);
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
-            'model' => 'gpt-4o-2024-08-06',
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'Generate content for a flashcard based on the term given, the native and target language of the user and the context of the term.',
+                    'content' => 'You are a vocabulary tutor building flashcard content for a language learner. Keep the meaning of the term consistent with the supplied context. Follow every field rule exactly, especially the square-bracket formatting.',
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Term: \"{{$phrase}}\" (correct the spelling if necessary) in this context: \"{{$context}}\"  Native language: \"{{$nativeLanguage}}\" Target language: \"{{$targetLanguage}}\"",
+                    'content' => "Term: \"{$phrase}\" (fix the spelling if it is wrong), used in this context: \"{$context}\". Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
                 ],
             ],
             'response_format' => [
@@ -170,32 +184,32 @@ class AI extends Model
                     'schema' => [
                         'type' => 'object',
                         'properties' => [
+                            'phrase' => [
+                                'type' => 'string',
+                                'description' => 'A 2-4 word expression that includes the term and captures the broader, dictionary-like meaning it carries in the context (not the specific subject). Use base forms of the words.',
+                            ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "Make up a simple sentence in {{$targetLanguage}} language using the term {{$phrase}}. Enclose the term in square brackets []. Keep the meaning of the term the same as in the context. Keep the language easy for non-native speakers.",
+                                'description' => "One short, natural sentence in {$targetLanguage} whose context makes the term's meaning (as used in the supplied context) clear. Wrap the term in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
                             ],
                             'question' => [
                                 'type' => 'string',
-                                'description' => "In {{$targetLanguage}}, create a short, conversational question that imitate a situation that should prompt the user to recall the term. It must have a simple answer - the term.",
+                                'description' => "A short question in {$targetLanguage}, like a teacher testing vocabulary, whose single correct answer is the term itself. Unlike the definition, point to the typical usage of the term or a situation so it can be recalled. Never write the term (or an obvious form of it) in the question.",
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "Translate the term into {{$nativeLanguage}} language, providing two alternatives if applicable, separated by a semicolon. Ensure the translation is also a phrase that aligns with the meaning of the term in the context.",
+                                'description' => "The term translated into {$nativeLanguage}, matching its meaning in the context. Give up to two common alternatives separated by a semicolon.",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "Provide a concise dictionary definition in {{$targetLanguage}} language for the term based on the context. Do not include the term in the definition.",
+                                'description' => "A concise dictionary-style definition of the term in {$targetLanguage}, based on the context. Do not use the term itself in the definition.",
                             ],
                             'theme' => [
                                 'type' => 'string',
-                                'description' => "Pick a broad category for the term, here is inspiration: \"{{$themes}}\". Pick one category (write the exact thing from the list) or create a new one if all of them aren't applicable.",
-                            ],
-                            'phrase' => [
-                                'type' => 'string',
-                                'description' => 'Create a 2-4 word expression that must include the term and capture a general meaning relevant to the context. The phrase should convey an abstract, broader meaning, like in a dictionary, rather than a specific subject. Use base forms of the words.',
+                                'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
                             ],
                         ],
-                        'required' => ['sentence', 'question', 'translation', 'definition', 'theme', 'phrase'],
+                        'required' => ['phrase', 'sentence', 'question', 'translation', 'definition', 'theme'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -211,15 +225,16 @@ class AI extends Model
         logger('Generating themes.');
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
-            'model' => 'gpt-4o-2024-08-06',
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'Generate themes in the language given to help user group his phrases into meaningful decks..',
+                    'content' => 'You group a learner\'s vocabulary into a small set of meaningful theme decks. Write the theme names in the given language.',
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Phrases: \"{{$phrases}}\" Language: \"{{$targetLanguage}}\"",
+                    'content' => "Phrases: \"{$phrases}\". Language: \"{$targetLanguage}\".",
                 ],
             ],
             'response_format' => [
@@ -232,14 +247,14 @@ class AI extends Model
                         'properties' => [
                             'themes' => [
                                 'type' => 'array',
-                                'description' => 'Up to 10 themes that we can categorize the phrases so that each phrase belongs to one theme. ',
+                                'description' => 'Up to 10 broad themes that cover the phrases so each phrase fits into one theme.',
                                 'items' => [
                                     '$ref' => '#/$defs/theme',
                                 ],
                             ],
-                            'required' => ['themes'],
-                            'additionalProperties' => false,
                         ],
+                        'required' => ['themes'],
+                        'additionalProperties' => false,
                         '$defs' => [
                             'theme' => [
                                 'type' => 'string',
@@ -264,15 +279,16 @@ class AI extends Model
         $themePrompt = $themePreference ? " Theme preference: \"{$themePreference}\"." : '';
 
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
-            'model' => 'gpt-4o-2024-08-06',
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'You are a language learning expert. Create a coherent story using the provided phrases. Replace each phrase with a numbered placeholder like [1], [2]. Return a JSON object with the full text and a mapping of placeholders to the correct phrases.',
+                    'content' => 'You are a language learning expert. Write a short, coherent story in the target language that naturally uses every provided phrase. Replace each used phrase in the text with a numbered placeholder [1], [2], … (numbered in order of appearance) and return the mapping of each placeholder to the exact phrase it replaced.',
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Wordbox name: \"{$wordboxName}\". Target language: \"{$targetLanguage}\".{$themePrompt} Words/phrases to use: \"{$phrases}\". Create a short text in {$targetLanguage} with gaps using the phrases provided. Each gap should be replaced with [n] where n is the index starting from 1.",
+                    'content' => "Wordbox name: \"{$wordboxName}\". Target language: \"{$targetLanguage}\".{$themePrompt} Phrases to use: \"{$phrases}\". Write the story in {$targetLanguage}, replacing each phrase with its [n] placeholder.",
                 ],
             ],
             'response_format' => [
