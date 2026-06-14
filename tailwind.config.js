@@ -17,7 +17,7 @@ export default {
         },
         fontFamily: {
             "hanken-grotesk": ["Hanken Grotesk", "sans-serif"],
-            "lato": ["Lato", "sans-serif"]
+            "lato": ['"Twemoji Country Flags"', "Lato", "sans-serif"]
         },
         fontSize: {
             "2xs": "10px"
