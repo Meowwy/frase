@@ -14,6 +14,40 @@
     <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    {{-- Twemoji: Windows has no flag-emoji font, so render emoji as inline SVG images. --}}
+    <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@17.0.3/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <style>
+        img.emoji {
+            height: 1em;
+            width: 1em;
+            margin: 0 .05em 0 .1em;
+            vertical-align: -0.1em;
+            display: inline;
+        }
+    </style>
+    <script>
+        (function () {
+            if (typeof twemoji === 'undefined') { return; }
+
+            const opts = { folder: 'svg', ext: '.svg', className: 'emoji' };
+            const parse = (node) => { try { twemoji.parse(node, opts); } catch (e) {} };
+
+            document.addEventListener('DOMContentLoaded', function () {
+                parse(document.body);
+
+                // Language pickers/combos are built by JS after load, so re-parse new subtrees.
+                const observer = new MutationObserver(function (mutations) {
+                    for (const m of mutations) {
+                        m.addedNodes.forEach(function (n) {
+                            if (n.nodeType === 1 && n.tagName !== 'IMG') { parse(n); }
+                        });
+                    }
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
+            });
+        })();
+    </script>
 </head>
 <body class="bg-black text-white font-lato pb-20">
 <div class="px-10">
