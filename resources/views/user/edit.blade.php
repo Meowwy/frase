@@ -10,7 +10,7 @@
                     <span id="nativeLabel"><span class="text-white/40">Select your native language</span></span>
                     <span class="text-white/50 text-xs">▾</span>
                 </button>
-                <div id="nativeMenu" class="combo-menu hidden absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1"></div>
+                <div id="nativeMenu" class="combo-menu hidden absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1"></div>
             </div>
             <input type="hidden" name="native_language_id" id="nativeInput" value="{{ $nativeLanguageId }}">
         </div>
@@ -123,7 +123,7 @@
                                 <span>${lang ? esc(lang.flag + ' ' + lang.name) : '<span class="text-white/40">Select a language</span>'}</span>
                                 <span class="text-white/50 text-xs">▾</span>
                             </button>
-                            <div class="combo-menu hidden absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1"></div>
+                            <div class="combo-menu hidden absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1"></div>
                         </div>
                         ${count > 0 ? `<span class="text-xs text-white/50 whitespace-nowrap">${count} term${count > 1 ? 's' : ''}</span>` : ''}
                         <button type="button" class="remove-row text-xs px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors whitespace-nowrap">${count > 0 ? 'Hide' : '✕'}</button>
