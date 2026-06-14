@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('cards', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(User::class, 'user_id');
-            $table->foreignIdFor(Theme::class,'theme_id')
+            $table->foreignIdFor(Theme::class, 'theme_id')
                 ->nullable()
                 ->constrained()
                 ->onDelete('set null');

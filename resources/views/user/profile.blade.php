@@ -41,6 +41,32 @@
         </a>
     </div>
     <br>
+    <x-forms.divider></x-forms.divider>
+
+    <div class="space-y-3 flex flex-col">
+        <p class="text-2xl">Created wordboxes</p>
+        @php $langById = $languages->keyBy('id'); @endphp
+        @if($wordboxes->isEmpty())
+            <p class="text-sm text-white/50">You haven't created any wordboxes yet.</p>
+        @else
+            <ul class="space-y-1 max-w-2xl">
+                @foreach($wordboxes as $box)
+                    <li class="flex items-center justify-between bg-white/5 border border-white/10 px-3 py-2 rounded-lg">
+                        <span>{{ $box->name }}</span>
+                        <span class="text-xs text-white/40">{{ optional($langById->get($box->language_id))->flag }}</span>
+                    </li>
+                @endforeach
+            </ul>
+            @if($wordboxCount > 5)
+                <p class="text-xs text-white/40">+ {{ $wordboxCount - 5 }} more</p>
+            @endif
+        @endif
+        <a href="{{ route('wordboxes.order') }}">
+            <x-forms.button>Reorder wordboxes</x-forms.button>
+        </a>
+    </div>
+
+    <br>
     <a href="/">
         <x-forms.button-small>Back to main page</x-forms.button-small>
     </a>

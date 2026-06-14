@@ -23,10 +23,12 @@ class ThemeController extends Controller
      */
     public function create()
     {
+        $language = Auth::user()->currentSaveLanguage();
         $themes = Theme::where('user_id', Auth::id())
+            ->when($language, fn ($q) => $q->where('language_id', $language->id))
             ->get(['id', 'name']); // Get only the id and name columns
 
-// Format the result as an array of associative arrays
+        // Format the result as an array of associative arrays
         $themesArray = $themes->map(function ($theme) {
             return [
                 'id' => $theme->id,
@@ -34,8 +36,7 @@ class ThemeController extends Controller
             ];
         })->toArray();
 
-
-        //return view('user.settings', ['themes' => $uniqueTags->name]);
+        // return view('user.settings', ['themes' => $uniqueTags->name]);
         return view('user.themes', ['themes' => $themesArray]);
     }
 
@@ -44,9 +45,17 @@ class ThemeController extends Controller
      */
     public function store(Request $request)
     {
+        $language = Auth::user()->currentSaveLanguage();
+        if (! $language) {
+            return redirect('/profile/edit');
+        }
+
         $updatedThemesString = $request->input('themes');
         $themes = json_decode($updatedThemesString, true);
+        // Only consider themes of the current language so switching languages
+        // can never delete another language's themes.
         $themesFromDatabase = Theme::where('user_id', Auth::id())
+            ->where('language_id', $language->id)
             ->get(['id', 'name']); // Get only the id and name columns
 
         $themesArray = $themesFromDatabase->map(function ($theme) {
@@ -61,7 +70,7 @@ class ThemeController extends Controller
             $themeIds = array_column($themes, 'id');
 
             // Check if the current theme's ID is in the list of IDs
-            if (!in_array($theme['id'], $themeIds)) {
+            if (! in_array($theme['id'], $themeIds)) {
                 $themeToDelete = Theme::find($theme['id']);
                 $themeToDelete->delete();
             }
@@ -84,27 +93,32 @@ class ThemeController extends Controller
                     // If the id is not set, create a new theme in the database
                     Auth::user()->themes()->create([
                         'name' => $themeName,
+                        'language_id' => $language->id,
                     ]);
 
                 }
             }
         } else {
             // Handle JSON decode error
-            dd('JSON decoding failed: ' . json_last_error_msg());
+            dd('JSON decoding failed: '.json_last_error_msg());
         }
 
         return redirect('/profile');
     }
 
-    public function generate(){
+    public function generate()
+    {
+        $language = Auth::user()->currentSaveLanguage();
+
         $phrases = Auth::user()->cards()
+            ->when($language, fn ($q) => $q->where('language_id', $language->id))
             ->orderBy('created_at', 'desc')
             ->limit(100)
             ->pluck('phrase');
 
-// Convert the collection of phrases into a semicolon-separated string
+        // Convert the collection of phrases into a semicolon-separated string
         $phraseString = $phrases->implode('; ');
-        $themes = AI::generateThemes($phraseString, Auth::user()->target_language);
+        $themes = AI::generateThemes($phraseString, optional($language)->name ?? Auth::user()->target_language);
 
         dd($themes);
     }

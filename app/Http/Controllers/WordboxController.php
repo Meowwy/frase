@@ -30,8 +30,28 @@ class WordboxController extends Controller
      */
     public function store(StoreWordboxRequest $request)
     {
-        $wordbox = Auth::user()->wordboxes()->create($request->validated() + [
+        $user = Auth::user();
+
+        // Multi-language users pick the wordbox language in the modal; otherwise fall back to
+        // the current save language. Always validate the chosen language belongs to the user.
+        $language = null;
+        if ($request->filled('language_id')) {
+            $language = $user->languages()->whereKey($request->input('language_id'))->first();
+        }
+        $language ??= $user->currentSaveLanguage();
+
+        if (! $language) {
+            return redirect('/profile/edit');
+        }
+
+        $nextPosition = $user->wordboxes()
+            ->where('language_id', $language->id)
+            ->max('position') + 1;
+
+        $wordbox = $user->wordboxes()->create($request->safe()->only(['name', 'description']) + [
             'exam_text' => '',
+            'language_id' => $language->id,
+            'position' => $nextPosition,
         ]);
 
         return redirect()->route('wordbox.show', ['id' => $wordbox->id]);

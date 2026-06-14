@@ -20,12 +20,24 @@ class Card extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function tag(){
+    public function tag()
+    {
         return $this->hasMany(Tag::class);
     }
 
-    public function theme(){
+    public function theme()
+    {
         return $this->belongsTo(Theme::class);
+    }
+
+    public function language()
+    {
+        return $this->belongsTo(Language::class);
+    }
+
+    public function scopeForLanguage($query, $languageId)
+    {
+        return $query->where('language_id', $languageId);
     }
 
     public function wordbox()

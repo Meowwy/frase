@@ -37,7 +37,9 @@ class GenerateGapFillJob implements ShouldQueue
                 return;
             }
 
-            $targetLanguage = $user->target_language ?? 'English';
+            $targetLanguage = optional($wordbox->language)->name
+                ?? $user->target_language
+                ?? 'English';
 
             $result = AI::generateTextWithGaps(
                 $phrases,

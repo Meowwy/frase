@@ -16,6 +16,16 @@ class Wordbox extends Model
         return $this->belongsToMany(Card::class, 'wordbox_card', 'wordbox_id', 'card_id');
     }
 
+    public function language()
+    {
+        return $this->belongsTo(Language::class);
+    }
+
+    public function scopeForLanguage($query, $languageId)
+    {
+        return $query->where('language_id', $languageId);
+    }
+
     public function gapFillExercises()
     {
         return $this->hasMany(GapFillExercise::class);

@@ -49,8 +49,40 @@ Route::get('/', function () {
         ->withCount('cards')
         ->get();
 
-    // Format the data as an array of theme info
-    return view('index', ['themes' => $themes, 'dueCount' => $totalDueCards, 'totalCount' => $totalCards, 'wordboxes' => $wordboxes]);
+    // Save-destination picker data: target languages + this user's wordboxes grouped by language.
+    $targetLanguages = Auth::user()->languages()->orderBy('name')->get();
+    $wordboxesByLanguage = Auth::user()->wordboxes()
+        ->select('id', 'name', 'language_id', 'position')
+        ->orderBy('position')
+        ->orderBy('name')
+        ->get()
+        ->groupBy('language_id');
+
+    $saveLanguage = Auth::user()->currentSaveLanguage();
+    $saveLanguageId = $saveLanguage?->id;
+    $saveLanguageName = $saveLanguage?->name;
+    $saveWordboxId = session('capture_wordbox_id');
+    $saveTargetName = 'General vocabulary';
+    if ($saveWordboxId) {
+        $selectedBox = ($wordboxesByLanguage[$saveLanguageId] ?? collect())->firstWhere('id', $saveWordboxId);
+        $saveTargetName = $selectedBox->name ?? 'General vocabulary';
+        if (! $selectedBox) {
+            $saveWordboxId = null;
+        }
+    }
+
+    return view('index', [
+        'themes' => $themes,
+        'dueCount' => $totalDueCards,
+        'totalCount' => $totalCards,
+        'wordboxes' => $wordboxes,
+        'targetLanguages' => $targetLanguages,
+        'wordboxesByLanguage' => $wordboxesByLanguage,
+        'saveLanguageId' => $saveLanguageId,
+        'saveLanguageName' => $saveLanguageName,
+        'saveWordboxId' => $saveWordboxId,
+        'saveTargetName' => $saveTargetName,
+    ]);
 });
 
 /*Route::get('/test', function () {
@@ -71,6 +103,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [UserController::class, 'index']);
     Route::get('/profile/edit', [UserController::class, 'edit']);
     Route::post('/profile/edit', [UserController::class, 'update']);
+    Route::get('/profile/wordboxes', [UserController::class, 'wordboxesOrder'])->name('wordboxes.order');
+    Route::post('/profile/wordboxes', [UserController::class, 'updateWordboxesOrder'])->name('wordboxes.order.update');
 
     Route::get('/learning', function () {
         return view('learning.index');
@@ -110,9 +144,15 @@ Route::middleware('auth')->group(function () {
 
         $user = Auth::user();
 
+        $language = $user->currentSaveLanguage();
+        if (! $language) {
+            return redirect('/profile/edit');
+        }
+
         $card = $user->cards()->create([
             'phrase' => $request->phrase,
             'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
+            'language_id' => $language->id,
             'level' => 1,
             'translation' => $request->translation,
             'example_sentence' => $request->example_sentence,
@@ -149,6 +189,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
+    Route::post('/capture-target', [AjaxController::class, 'setCaptureTarget'])->name('capture-target');
 
     Route::get('/cards/{card}/synonyms', function (Card $card) {
         return response()->json([

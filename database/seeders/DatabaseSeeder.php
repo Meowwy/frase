@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\Card;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Database\Factories\CardFactory;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -15,6 +14,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(LanguageSeeder::class);
+
         User::factory()->create([
             'username' => 'Rosťa',
             'email' => 'rosta@gmail.com',

@@ -13,9 +13,15 @@
                             </a>
                         </div>
                         <p class="text-white/70">{{ $wordbox->description }}</p>
-                        <div class="mt-4 pt-4 border-t border-white/10 flex justify-between text-sm">
-                            <span class="text-white/50">Total Cards</span>
-                            <span class="font-bold text-blue-400">{{ $cards->count() }}</span>
+                        <div class="mt-4 pt-4 border-t border-white/10 space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-white/50">Total Cards</span>
+                                <span class="font-bold text-blue-400">{{ $cards->count() }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-white/50">Language</span>
+                                <span class="font-bold text-blue-400">{{ optional($wordbox->language)->flag }} {{ optional($wordbox->language)->name }}</span>
+                            </div>
                         </div>
                     </div>
                 </x-panel>
@@ -33,6 +39,7 @@
                             <p id="info_creatingCard" class="hidden ml-3 font-bold">Creating card... Please wait</p>
                         </div>
                         <x-forms.input type="hidden" :label="false" name="wordbox_id" value="{{ $wordbox->id }}" />
+                        <x-forms.input type="hidden" :label="false" name="language_id" value="{{ $wordbox->language_id }}" />
                     </x-forms.form>
                 </x-panel>
 

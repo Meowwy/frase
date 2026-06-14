@@ -42,6 +42,14 @@ This is a language learning app that allows users to save words and phrases for 
 - Mass assignment protection is typically disabled using `protected $guarded = [];`.
 - Migrations follow standard Laravel naming conventions (`YYYY_MM_DD_HHMMSS_create_table_name.php`).
 
+### Multi-language Vocabulary
+- The app supports vocabulary in multiple languages. The `languages` table is a static, seeded reference list (ISO 639-1 `code`, English `name`, `native_name`, `flag`) populated by `LanguageSeeder` (idempotent on `code`); add languages there.
+- A user learns **up to 5 target languages** via the `language_user` pivot (`$user->languages()`), has one `native_language_id`, and one `active_language_id` (the durable default "save" language). These FKs supersede the legacy free-text `users.target_language` / `users.native_language` columns, which are kept temporarily for backfill and dropped later.
+- `cards`, `wordboxes`, and `themes` each carry a `language_id`. A card belongs to exactly one language; "General vocabulary" = cards in a language not attached to any wordbox.
+- **Save destination**: where a new word is saved (language + optional wordbox) is chosen in the right-side picker on the dashboard and persisted in the session (`capture_language_id`, `capture_wordbox_id`) via `POST /capture-target`. `User::currentSaveLanguage()` resolves session → `active_language_id` → first target language. `AjaxController@index` reads this to set the new card's `language_id`, scope the duplicate check and themes per-language, and (optionally) attach the matching wordbox.
+- The save-destination picker controls **only** where words are saved; it does not reload or re-scope the page. Dashboard browse views and the learning/flashcard flow are intentionally still cross-language and slated for a later language-aware redesign — `language_id` is in place to support it.
+- Queue jobs have no session/Auth, so they derive language from their own data (e.g. `GenerateGapFillJob` uses `$wordbox->language`).
+
 ## Frontend Patterns
 
 ### Styling
