@@ -21,7 +21,7 @@ class AI extends Model
      * Reasoning effort for the chat model. "low" keeps latency/cost down
      * while still letting the model craft good recall questions.
      */
-    private const REASONING_EFFORT = 'low';
+    private const REASONING_EFFORT = 'medium';
 
     public static function getEmbedding(string $text): ?array
     {
@@ -107,11 +107,11 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'You are a vocabulary tutor building flashcard content for a language learner. Follow every field rule exactly, especially the square-bracket formatting.',
+                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard for learning vocabulary in context. First decide the card's phrase, then write every other field to describe that exact phrase, never the original Term, if it is only one word. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.",
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Term: \"{$phrase}\" (fix the spelling if it is wrong). Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
+                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
                 ],
             ],
             'response_format' => [
@@ -124,23 +124,23 @@ class AI extends Model
                         'properties' => [
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'The term provided by the user, corrected for spelling and in its base/dictionary form.',
+                                'description' => 'The phrase this card teaches. If the Original term is already a phrase, keep it; if it is a single word, expand it into a natural collocation (max 3 words) by pairing it with at least one extra CONTENT word — a meaningful noun, verb, or adjective it commonly appears with. The added meaning must come from a content word, never only from grammar words (articles, prepositions, conjunctions, auxiliaries such as a, the, to, that, on, be). Examples: book => read a book, frugal => frugal lifestyle, imply => imply guilt. Fix spelling and use the base/dictionary form. Decide this first: every other field must describe THIS phrase, not the original Term.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "One short, natural sentence in {$targetLanguage} whose context makes the term's meaning clear. Wrap the term in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
+                                'description' => "One short, natural {$targetLanguage} sentence whose context makes the phrase's meaning clear. Wrap the phrase in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
                             ],
                             'question' => [
                                 'type' => 'string',
-                                'description' => "A short question in {$targetLanguage}, like a teacher testing vocabulary, whose single correct answer is the term itself. Unlike the definition, point to the typical usage of the term or a situation so it can be recalled. Never write the term (or an obvious form of it) in the question.",
+                                'description' => "A short recall cue in {$targetLanguage} that points to the phrase without naming it — may be a brief situation, statement, or question, whatever fits best. Anchor it to a real-life situation or to words closely tied to the phrase so the learner recalls it from context, e.g. \"read a book\" => \"what you do in a library\". You may reuse the phrase's own words, e.g. \"frugal lifestyle\" => \"a way of living that spends only as much money as necessary\". Keep it short, no filler. Never write the original term or an obvious form of it.",
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "The term translated into {$nativeLanguage}. Give up to two common alternatives separated by a semicolon.",
+                                'description' => "The phrase translated into {$nativeLanguage}; at most two common variants separated by a semicolon.",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "A concise dictionary-style definition of the term in {$targetLanguage}. Do not use the term itself in the definition.",
+                                'description' => "A concise dictionary-style definition of the phrase in {$targetLanguage}. Do not use the phrase itself in the definition.",
                             ],
                             'theme' => [
                                 'type' => 'string',
@@ -169,11 +169,11 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'You are a vocabulary tutor building flashcard content for a language learner. Keep the meaning of the term consistent with the supplied context. Follow every field rule exactly, especially the square-bracket formatting.',
+                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard for learning vocabulary in context. First decide the card's phrase, capturing the meaning the Term has in that context but in a general dictionary form; then write every other field to describe that exact phrase. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.",
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Term: \"{$phrase}\" (fix the spelling if it is wrong), used in this context: \"{$context}\". Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
+                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong), used in this context: \"{$context}\". Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
                 ],
             ],
             'response_format' => [
@@ -186,23 +186,23 @@ class AI extends Model
                         'properties' => [
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'A 2-4 word expression that includes the term and captures the broader, dictionary-like meaning it carries in the context (not the specific subject). Use base forms of the words.',
+                                'description' => 'The phrase this card teaches. If the Original term is already a phrase, keep it; if it is a single word, expand it into a natural collocation (max 3 words) by pairing it with at least one extra CONTENT word — a meaningful noun, verb, or adjective it commonly appears with. The added meaning must come from a content word, never only from grammar words (articles, prepositions, conjunctions, auxiliaries such as a, the, to, that, on, be). Examples: book => read a book, frugal => frugal lifestyle, imply => imply guilt. Keep the meaning it has in the context but in a general, dictionary-style form (not tied to the specific subject). Fix spelling and use base forms. Decide this first: every other field must describe THIS phrase.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "One short, natural sentence in {$targetLanguage} whose context makes the term's meaning (as used in the supplied context) clear. Wrap the term in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
+                                'description' => "One short, natural {$targetLanguage} sentence whose context makes the phrase's meaning (as used in the supplied context) clear. Wrap the phrase in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
                             ],
                             'question' => [
                                 'type' => 'string',
-                                'description' => "A short question in {$targetLanguage}, like a teacher testing vocabulary, whose single correct answer is the term itself. Unlike the definition, point to the typical usage of the term or a situation so it can be recalled. Never write the term (or an obvious form of it) in the question.",
+                                'description' => "A short recall cue in {$targetLanguage} that points to the phrase without naming it, matching its meaning in the context — may be a brief situation, statement, or question, whatever fits best. Anchor it to a real-life situation or to words closely tied to the phrase so the learner recalls it from context, e.g. \"read a book\" => \"what you do in a library\". You may reuse the phrase's own words, e.g. \"frugal lifestyle\" => \"a way of living that spends only as much money as necessary\". Keep it short, no filler. Never write the original term or an obvious form of it.",
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "The term translated into {$nativeLanguage}, matching its meaning in the context. Give up to two common alternatives separated by a semicolon.",
+                                'description' => "The phrase translated into {$nativeLanguage}, matching its meaning in the context; at most two common variants separated by a semicolon.",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "A concise dictionary-style definition of the term in {$targetLanguage}, based on the context. Do not use the term itself in the definition.",
+                                'description' => "A concise dictionary-style definition of the phrase in {$targetLanguage}, based on the context. Do not use the phrase itself in the definition.",
                             ],
                             'theme' => [
                                 'type' => 'string',

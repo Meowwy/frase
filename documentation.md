@@ -157,6 +157,21 @@ no-wordbox option.
   - **Definition Section** — the old theme-name pill is replaced by the wordbox name rendered as a
     clickable pill linking to `route('wordbox.show', $wordbox->id)`. Hidden when the card has no wordbox.
 
+### 5. Flashcard prompts: phrase-first consistency (single call)
+- **Finding:** OpenAI Structured Outputs is autoregressive and emits JSON in the **exact
+  property order of the schema**, so each field is generated conditioned on the fields above it
+  (the same reason OpenAI's own example puts `steps` before `final_answer`). Because `phrase` is
+  the **first** property in the card schema, `sentence`/`question`/`translation`/`definition`/`theme`
+  are all generated *after* it and stay consistent with it. **No second call is needed** — a single
+  call already gives "decide the phrase, then derive everything from it." The only limitation is that
+  the model cannot revise `phrase` based on a later field (generation only flows forward), which is the
+  desired direction anyway. Keep `phrase` as the first property.
+- **Change** (`app/Models/AI.php`, both `getContentForCard` and `getContentForCardWithContext`):
+  rewrote the system message and all field descriptions to (a) say the model picks the `phrase`
+  first and every other field must describe **that phrase, not the raw Term**, and (b) replace the
+  leftover "the term" wording with "the phrase" so the dependency is explicit. Prompts were also
+  tightened (shorter, no behaviour change to the schema/field set). Field order unchanged.
+
 ### Verification used this session
 - Tinker (render views, build the option list for a real user with wordboxes to confirm ordering).
 - `php artisan route:list --path=api` to confirm `/api/save-options` registered.
