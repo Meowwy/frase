@@ -1,16 +1,22 @@
-@props(["card", "theme", "synonyms", "relatedTerms"])
+@props(["card", "theme", "wordbox", "synonyms", "relatedTerms"])
 <x-html-layout>
     <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg">
         <!-- Main Term Section -->
-        <div class="mb-6 space-x-3">
-            <span class="text-4xl font-bold">{{$card->phrase}}</span>
-            <span class="text-xl italic">{{$card->translation}}</span>
+        <div class="mb-6 flex items-baseline justify-between gap-3">
+            <div class="space-x-3">
+                <span class="text-4xl font-bold">{{$card->phrase}}</span>
+                <span class="text-xl italic">{{$card->translation}}</span>
+            </div>
+            @if($card->language)
+                <span class="text-xl leading-none">{{$card->language->flag}}</span>
+            @endif
         </div>
 
         <!-- Definition Section -->
         <div class="mb-6">
-            @if(!is_null($theme))
-                <span class="capitalize text-sm mr-1 font-bold bg-orange-700 text-white rounded-full px-3 py-1">{{$theme}}</span>
+            @if(!is_null($wordbox))
+                <a href="{{ route('wordbox.show', $wordbox->id) }}"
+                   class="capitalize text-sm mr-1 font-bold bg-orange-700 hover:bg-orange-600 text-white rounded-full px-3 py-1">{{$wordbox->name}}</a>
             @endif
             <span class="">{{$card->definition}}</span>
         </div>

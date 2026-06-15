@@ -2,18 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCardRequest;
+use App\Http\Requests\UpdateCardRequest;
 use App\Jobs\CreateCardJob;
 use App\Models\AI;
 use App\Models\Card;
-use App\Http\Requests\StoreCardRequest;
-use App\Http\Requests\UpdateCardRequest;
 use App\Models\Theme;
 use App\Models\User;
 use Carbon\Carbon;
 use http\Env\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
-use function PHPUnit\Framework\isEmpty;
 
 class CardController extends Controller
 {
@@ -29,13 +27,14 @@ class CardController extends Controller
 
         $cards->transform(function ($card) {
             $card->next_study_at = Carbon::parse($card->next_study_at)->format('d-m-Y');
+
             return $card;
         });
 
         $themes = Theme::where('user_id', Auth::id())
             ->get(['id', 'name']); // Get only the id and name columns
 
-// Format the result as an array of associative arrays
+        // Format the result as an array of associative arrays
         $themesArray = $themes->map(function ($theme) {
             return [
                 'id' => $theme->id,
@@ -49,12 +48,12 @@ class CardController extends Controller
     public function themeFilter(\Illuminate\Http\Request $request)
     {
         $themeName = $request->get('themeSelect');
-        if($themeName === 'All themes'){
+        if ($themeName === 'All themes') {
             $cards = Auth::user()->cards()
                 ->with('theme:id,name')
                 ->orderBy('created_at', 'desc')
                 ->paginate(20);
-        }else{
+        } else {
             $cards = Auth::user()->cards()
                 ->with('theme:id,name')
                 ->whereHas('theme', function ($query) use ($themeName) {
@@ -64,9 +63,9 @@ class CardController extends Controller
                 ->paginate(20);
         }
 
-
         $cards->transform(function ($card) {
             $card->next_study_at = Carbon::parse($card->next_study_at)->format('d-m-Y');
+
             return $card;
         });
 
@@ -88,41 +87,41 @@ class CardController extends Controller
      */
     public function store(StoreCardRequest $request)
     {
-        /*this method is unused, the functionality is in the Ajax controller*/
-        if(Auth::user()->currency_amount <= 0){
+        /* this method is unused, the functionality is in the Ajax controller */
+        if (Auth::user()->currency_amount <= 0) {
             return redirect('/');
         }
 
         $request->validate([
-            'capturedWord' => ['required', 'string', 'max:40', 'regex:/^[^0-9]*$/']
+            'capturedWord' => ['required', 'string', 'max:40', 'regex:/^[^0-9]*$/'],
         ]);
 
         $userId = Auth::id();
         $phrase = request('capturedWord');
-        if(!request()->filled('capturedWord')){
+        if (! request()->filled('capturedWord')) {
             return redirect('/');
         }
 
-        //CreateCardJob::dispatch($userId, $phrase);
-        //obsah CreateCardJob
+        // CreateCardJob::dispatch($userId, $phrase);
+        // obsah CreateCardJob
         $user = Auth::user();
 
-            // Retrieve all themes of the authenticated user
+        // Retrieve all themes of the authenticated user
         $themes = $user->themes()->select('id', 'name')->get();
 
-
-        if(count($themes) !== 0){
+        if (count($themes) !== 0) {
             $themeStrings = $themes->map(function ($theme) {
                 return "\"{$theme->name}\"";
             });
             $themeString = $themeStrings->implode(',');
-        }else{
+        } else {
             $themeString = '';
         }
 
         $content = AI::getContentForCard($this->phrase, $themeString, $user->target_language, $user->native_language);
-        if(is_null($content)){
+        if (is_null($content)) {
             logger('The model refused to create the card for '.$this->phrase);
+
             return;
         }
         logger($content);
@@ -144,15 +143,15 @@ class CardController extends Controller
                 'example_sentence' => $output->sentence,
                 'question' => $output->question,
                 'definition' => $output->definition,
-                'next_study_at' => now()
+                'next_study_at' => now(),
             ]);
             logger('Card has been created for '.$this->phrase);
-        } catch(\Exception $e) {
+        } catch (\Exception $e) {
             logger($e->getMessage());
         }
-        //konec obsahu CreateCardJob
+        // konec obsahu CreateCardJob
 
-        //return redirect('/');
+        // return redirect('/');
         /*return response()->json([
             'success' => 'Word "' . $phrase . '" has been submitted successfully.',
             'capturedWord' => $phrase
@@ -171,45 +170,48 @@ class CardController extends Controller
 
         $card->phraseCaps = ucfirst($card->phrase);
 
-        if (!is_null($card->theme_id)){
+        if (! is_null($card->theme_id)) {
             $theme = Theme::where('user_id', Auth::id())
                 ->where('id', $card->theme_id)
                 ->pluck('name')
                 ->first();
-        }else{
+        } else {
             $theme = null;
         }
 
-        if(!is_null($card->last_studied)){
+        if (! is_null($card->last_studied)) {
 
             // Assuming $card->last_studied is a date variable
             $lastStudied = Carbon::parse($card->last_studied);
 
-// Format the date in the form of "1 January 2024"
+            // Format the date in the form of "1 January 2024"
             $formattedDate = $lastStudied->format('j F Y');
 
-// Calculate the number of days since last studied
+            // Calculate the number of days since last studied
             $daysAgo = floor($lastStudied->diffInDays(Carbon::now()));
 
-// Save the number of days to a new property
+            // Save the number of days to a new property
             $card->last_studied_days = $daysAgo;
 
-// Save the string with "days ago (1 January 2024)"
+            // Save the string with "days ago (1 January 2024)"
             $card->last_studied = $formattedDate;
         }
 
         $nextStudyAt = Carbon::parse($card->next_study_at);
 
-// Format the date in the form of "1 January 2024"
+        // Format the date in the form of "1 January 2024"
         $card->next_study_at = $nextStudyAt->format('l j F Y');
-
 
         $synonyms = $card->synonyms()->with('synonymCard:id,phrase,translation')->get();
         $relatedTerms = $card->relatedTerms()->with('relatedCard:id,phrase,translation')->get();
 
+        $card->load('language');
+        $wordbox = $card->wordbox()->first();
+
         return view('cards.show', [
             'card' => $card,
             'theme' => $theme,
+            'wordbox' => $wordbox,
             'synonyms' => $synonyms,
             'relatedTerms' => $relatedTerms,
         ]);
@@ -229,6 +231,7 @@ class CardController extends Controller
                 'name' => $theme->name,
             ];
         })->toArray();
+
         return view('cards.edit', ['card' => $card, 'themes' => $themesArray]);
     }
 
@@ -250,10 +253,10 @@ class CardController extends Controller
             'question' => ['required', 'string'],
             'example_sentence' => ['required', 'string'],
             'id' => ['required'],
-            'theme_id' => ['required']
+            'theme_id' => ['required'],
         ]);
 
-        if($validatedData['theme_id'] === '-1'){
+        if ($validatedData['theme_id'] === '-1') {
             $validatedData['theme_id'] = null;
         }
 
@@ -286,6 +289,7 @@ class CardController extends Controller
                 'name' => $theme->name,
             ];
         })->toArray();
+
         return view('cards.add', ['themes' => $themesArray]);
     }
 
@@ -297,7 +301,7 @@ class CardController extends Controller
             'translation' => ['required', 'string'],
             'example_sentence' => ['required', 'string'],
             'question' => ['required', 'string'],
-            'theme_id' => ['required']
+            'theme_id' => ['required'],
         ]);
 
         $user = User::find($this->userId);
@@ -310,7 +314,7 @@ class CardController extends Controller
             'example_sentence' => $request->sentence,
             'question' => $request->question,
             'definition' => $request->definition,
-            'next_study_at' => now()
+            'next_study_at' => now(),
         ]);
         logger('Card has been created for '.$this->phrase);
     }
