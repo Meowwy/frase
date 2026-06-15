@@ -47,4 +47,15 @@ class GapFillExerciseController extends Controller
             'url' => route('gap-fill.show', $exercise),
         ]);
     }
+
+    public function destroy(GapFillExercise $exercise)
+    {
+        // Gate::authorize('delete', $exercise);
+
+        $wordboxId = $exercise->wordbox_id;
+        $exercise->delete();
+
+        return redirect()->route('wordbox.show', $wordboxId)
+            ->with('message', 'Exercise deleted.');
+    }
 }

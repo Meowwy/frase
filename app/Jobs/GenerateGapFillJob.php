@@ -50,6 +50,7 @@ class GenerateGapFillJob implements ShouldQueue
 
             if ($result) {
                 $this->exercise->update([
+                    'title' => $result['title'] ?? null,
                     'text_with_gaps' => $result['text'],
                     'correct_answers' => $result['answers'],
                     'status' => 'completed',

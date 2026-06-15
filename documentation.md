@@ -172,6 +172,24 @@ no-wordbox option.
   leftover "the term" wording with "the phrase" so the dependency is explicit. Prompts were also
   tightened (shorter, no behaviour change to the schema/field set). Field order unchanged.
 
+### 6. Gap-fill exercises: word bank, AI title, delete
+- **Word bank (`gap-fill/show.blade.php`):** the old feedback-only "Answer Key" is now a permanent
+  **"Words to use"** bank below the story — all answers shuffled (`collect()->values()->shuffle()`),
+  no index labels. Chips are click-to-fill (fills the last-focused gap, else the first empty one).
+- **Re-checkable feedback:** replaced the single `showFeedback` boolean with a reactive `feedback`
+  map keyed by gap index. `check()` recomputes every click (so users can fix and recheck); each
+  input's `@input` resets its own colour to default the moment its value changes.
+- **AI title:** `AI::generateTextWithGaps` now returns a `title` (≤5 words, target language, derived
+  from the story — placed after `text` in the schema so it's conditioned on it). `GenerateGapFillJob`
+  persists it. New nullable `gap_fill_exercises.title` column
+  (`2026_06_15_133302_add_title_to_gap_fill_exercises_table`); added to the model `$fillable`.
+  Shown as the exercise `<h1>` and in the history list (falls back to `Exercise #id` for old rows).
+- **Delete:** new `DELETE /gap-fill/{exercise}` → `GapFillExerciseController@destroy` (redirects to
+  the wordbox). History table has a red **Delete** action opening an Alpine confirmation modal.
+- **Prompt note (same session):** the gap-fill prompt no longer requires verbatim phrases — the
+  story may adapt a phrase's form (inflection/variant) while keeping its meaning/context; the
+  returned `answers[].phrase` is the exact text that fills the gap.
+
 ### Verification used this session
 - Tinker (render views, build the option list for a real user with wordboxes to confirm ordering).
 - `php artisan route:list --path=api` to confirm `/api/save-options` registered.

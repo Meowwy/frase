@@ -284,11 +284,11 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'You are a language learning expert. Write a short, coherent story in the target language that naturally uses every provided phrase. Replace each used phrase in the text with a numbered placeholder [1], [2], … (numbered in order of appearance) and return the mapping of each placeholder to the exact phrase it replaced.',
+                    'content' => 'You are a language learning expert. Write a short, coherent story in the target language that naturally works in every provided phrase. You do not have to use each phrase word-for-word: adapt its form (inflection, conjugation, or a natural variant) so the text reads naturally, but keep the same meaning and context the phrase carries as a vocabulary item. Replace the part of the text that corresponds to each phrase with a numbered placeholder [1], [2], … (numbered in order of appearance) and return, for each placeholder, the exact text that belongs in that gap. Also give the story a short title (max 5 words) in the target language that reflects its content.',
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Wordbox name: \"{$wordboxName}\". Target language: \"{$targetLanguage}\".{$themePrompt} Phrases to use: \"{$phrases}\". Write the story in {$targetLanguage}, replacing each phrase with its [n] placeholder.",
+                    'content' => "Wordbox name: \"{$wordboxName}\". Target language: \"{$targetLanguage}\".{$themePrompt} Phrases to use: \"{$phrases}\". Write the story in {$targetLanguage}, replacing each phrase (or its adapted form) with its [n] placeholder.",
                 ],
             ],
             'response_format' => [
@@ -303,6 +303,10 @@ class AI extends Model
                                 'type' => 'string',
                                 'description' => 'The story with numbered placeholders [1], [2], etc.',
                             ],
+                            'title' => [
+                                'type' => 'string',
+                                'description' => 'A short title for the story (max 5 words) in the target language.',
+                            ],
                             'answers' => [
                                 'type' => 'array',
                                 'description' => 'A list of objects, each with an index and the correct phrase.',
@@ -315,7 +319,7 @@ class AI extends Model
                                         ],
                                         'phrase' => [
                                             'type' => 'string',
-                                            'description' => 'The correct phrase for this gap.',
+                                            'description' => 'The exact text that belongs in this gap (the adapted form actually used, if you changed it).',
                                         ],
                                     ],
                                     'required' => ['index', 'phrase'],
@@ -323,7 +327,7 @@ class AI extends Model
                                 ],
                             ],
                         ],
-                        'required' => ['text', 'answers'],
+                        'required' => ['text', 'title', 'answers'],
                         'additionalProperties' => false,
                     ],
                 ],

@@ -217,6 +217,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/wordbox/{wordbox}/gapfill/generate', [GapFillExerciseController::class, 'store'])->name('gapfill.generate');
     Route::get('/gap-fill/{exercise}', [GapFillExerciseController::class, 'show'])->name('gap-fill.show');
     Route::get('/gap-fill/{exercise}/status', [GapFillExerciseController::class, 'status'])->name('gap-fill.status');
+    Route::delete('/gap-fill/{exercise}', [GapFillExerciseController::class, 'destroy'])->name('gap-fill.destroy');
     Route::get('/test/createdGapFill', function () {
         $exercise = \App\Models\GapFillExercise::latest()->first();
         if (! $exercise) {

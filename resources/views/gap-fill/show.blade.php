@@ -2,19 +2,35 @@
     <div class="container mx-auto p-6 max-w-4xl"
          x-data="{
             answers: {{ json_encode($exercise->correct_answers) }},
-            showFeedback: false,
+            feedback: {},
             showHistory: false,
+            lastInput: null,
+            deleteUrl: null,
+            deleteTitle: '',
+            fill(word) {
+                let target = this.lastInput;
+                if (!target || target.value.trim() !== '') {
+                    target = [...document.querySelectorAll('input[data-index]')].find(i => i.value.trim() === '');
+                }
+                if (target) { target.value = word; this.feedback[target.dataset.index] = null; }
+            },
             check() {
-                this.showFeedback = true;
+                document.querySelectorAll('input[data-index]').forEach(i => {
+                    let idx = i.dataset.index;
+                    this.feedback[idx] = this.answers[idx].toLowerCase().trim() === i.value.toLowerCase().trim() ? 'correct' : 'wrong';
+                });
             },
             reset() {
-                this.showFeedback = false;
-                document.querySelectorAll('input').forEach(i => i.value = '');
+                this.feedback = {};
+                document.querySelectorAll('input[data-index]').forEach(i => i.value = '');
             }
          }">
 
         <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold">Gap-Fill: {{ $exercise->wordbox->name }}</h1>
+            <div>
+                <h1 class="text-3xl font-bold">{{ $exercise->title ?? 'Gap-Fill #'.$exercise->id }}</h1>
+                <p class="text-sm text-white/50 mt-1">Gap-Fill &middot; {{ $exercise->wordbox->name }}</p>
+            </div>
             <a href="{{ route('wordbox.show', $exercise->wordbox_id) }}" class="text-blue-400 hover:text-blue-300">
                 &larr; Back to Wordbox
             </a>
@@ -23,10 +39,24 @@
         <div class="bg-white/10 p-8 rounded-2xl border border-white/10 mb-8 leading-relaxed text-xl">
             {!! preg_replace_callback('/\[(\d+)\]/', function($matches) {
                 return '<input type="text" data-index="'.$matches[1].'"
+                        @focus="lastInput = $event.target"
+                        @input="feedback['.$matches[1].'] = null"
                         class="bg-transparent border-b-2 border-white/20 px-2 py-0 w-40 focus:outline-none focus:border-blue-500 transition-colors mx-1 text-blue-400 font-medium"
-                        :class="showFeedback ? (answers['.$matches[1].'].toLowerCase().trim() === $el.value.toLowerCase().trim() ? \'!border-green-500 !text-green-500\' : \'!border-red-500 !text-red-500\') : \'\'"
+                        :class="feedback['.$matches[1].'] === \'correct\' ? \'!border-green-500 !text-green-500\' : (feedback['.$matches[1].'] === \'wrong\' ? \'!border-red-500 !text-red-500\' : \'\')"
                         placeholder="'.$matches[1].'">';
             }, $exercise->text_with_gaps) !!}
+        </div>
+
+        <div class="p-6 bg-white/5 rounded-2xl border border-white/10 mb-8">
+            <h2 class="text-sm font-bold mb-4 text-white/50 uppercase tracking-widest text-center">Words to use</h2>
+            <div class="flex flex-wrap justify-center gap-3">
+                @foreach(collect($exercise->correct_answers)->values()->shuffle() as $word)
+                    <button type="button" @click="fill(@js($word))"
+                            class="bg-white/5 hover:bg-blue-600/30 text-blue-300 font-medium px-4 py-2 rounded-lg border border-white/10 hover:border-blue-500/50 transition-all">
+                        {{ $word }}
+                    </button>
+                @endforeach
+            </div>
         </div>
 
         <div class="flex flex-col items-center gap-6">
@@ -37,20 +67,6 @@
                 <button @click="reset()" class="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-xl font-bold transition-all border border-white/10">
                     Clear All
                 </button>
-            </div>
-
-            <div x-show="showFeedback" x-transition class="p-6 bg-white/5 rounded-2xl border border-white/10 w-full">
-                <h2 class="text-lg font-bold mb-4 text-white/70 uppercase tracking-widest text-center">Answer Key</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    @foreach($exercise->correct_answers as $index => $answer)
-                        <div class="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/5">
-                            <span class="bg-blue-500/20 text-blue-400 w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm">
-                                {{ $index }}
-                            </span>
-                            <span class="font-medium">{{ $answer }}</span>
-                        </div>
-                    @endforeach
-                </div>
             </div>
         </div>
 
@@ -76,19 +92,52 @@
                         @foreach($allExercises as $index => $item)
                             <tr class="transition-colors {{ $exercise->id === $item->id ? 'bg-blue-900 text-white font-bold' : 'hover:bg-white/5 text-white/70' }}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $index + 1 }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">Exercise #{{ $item->id }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $item->title ?? 'Exercise #'.$item->id }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $item->created_at->format('Y-m-d H:i') }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                    @if($exercise->id !== $item->id)
-                                        <a href="{{ route('gap-fill.show', $item) }}" class="text-blue-400 hover:text-blue-300">View &rarr;</a>
-                                    @else
-                                        <span class="text-white/30 italic">Current</span>
-                                    @endif
+                                    <div class="flex items-center justify-end gap-4">
+                                        @if($exercise->id !== $item->id)
+                                            <a href="{{ route('gap-fill.show', $item) }}" class="text-blue-400 hover:text-blue-300">View &rarr;</a>
+                                        @else
+                                            <span class="text-white/30 italic">Current</span>
+                                        @endif
+                                        <button type="button"
+                                                @click="deleteUrl = '{{ route('gap-fill.destroy', $item) }}'; deleteTitle = @js($item->title ?? 'Exercise #'.$item->id)"
+                                                class="text-red-500 hover:text-red-400 font-medium">
+                                            Delete
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Delete confirmation modal -->
+        <div x-show="deleteUrl !== null" style="display: none;"
+             @keydown.escape.window="deleteUrl = null"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div @click.outside="deleteUrl = null" class="bg-neutral-900 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-xl">
+                <h3 class="text-xl font-bold mb-2">Delete exercise?</h3>
+                <p class="text-white/60 mb-6">
+                    This will permanently delete &ldquo;<span class="text-white font-medium" x-text="deleteTitle"></span>&rdquo;. This action cannot be undone.
+                </p>
+                <div class="flex justify-end gap-3">
+                    <button type="button" @click="deleteUrl = null"
+                            class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+                        Cancel
+                    </button>
+                    <form :action="deleteUrl" method="POST">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit"
+                                class="px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all">
+                            Delete
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

@@ -13,6 +13,7 @@ class GapFillExercise extends Model
     protected $fillable = [
         'wordbox_id',
         'theme_preference',
+        'title',
         'text_with_gaps',
         'correct_answers',
         'status',
