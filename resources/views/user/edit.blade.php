@@ -55,6 +55,7 @@
             const LANGS = @json($languages->map(fn ($l) => ['id' => $l->id, 'flag' => $l->flag, 'name' => $l->name])->values());
             const COUNTS = @json($termCounts);
             const PRESELECTED = @json($selectedTargetIds);
+            const HIDDEN_IDS = @json($hiddenLanguageIds);
             const LEVELS = @json(array_keys($proficiencyLevels));
             const NAMES = @json((object) $proficiencyNames);
             const PRELEVELS = @json((object) $selectedLevels);
@@ -76,7 +77,9 @@
 
             let nativeId = nativeInput.value || null;
             // Each row is a chosen language; `hidden` keeps it listed (greyed, unhideable) but out of the saved set.
+            // Active targets come first, then languages the user has cards in but no longer learns (hidden).
             let rows = PRESELECTED.map(id => ({ id: id, level: PRELEVELS[id] || DEFAULT_LEVEL, hidden: false }));
+            HIDDEN_IDS.forEach(id => rows.push({ id: id, level: DEFAULT_LEVEL, hidden: true }));
 
             const langById = id => LANGS.find(l => String(l.id) === String(id));
             const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };

@@ -77,10 +77,23 @@ class UserController extends Controller
             ->pluck('language_user.users_level', 'languages.id')
             ->all();
 
+        $selectedTargetIds = $user->languages()->pluck('languages.id')->all();
+
+        // "Hidden" languages: ones the user has saved cards in but is no longer actively
+        // learning (not a target, not their native). Shown greyed so the user still sees
+        // every language they have content in and can unhide it.
+        $hiddenLanguageIds = $termCounts->keys()
+            ->filter(fn ($id) => $id
+                && ! in_array((int) $id, $selectedTargetIds)
+                && (int) $id !== (int) $user->native_language_id)
+            ->values()
+            ->all();
+
         return view('user.edit', [
             'languages' => Language::orderBy('name')->get(),
-            'selectedTargetIds' => $user->languages()->pluck('languages.id')->all(),
+            'selectedTargetIds' => $selectedTargetIds,
             'selectedLevels' => $selectedLevels,
+            'hiddenLanguageIds' => $hiddenLanguageIds,
             'proficiencyLevels' => config('proficiency.levels'),
             'proficiencyNames' => config('proficiency.names'),
             'defaultLevel' => config('proficiency.default'),

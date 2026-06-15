@@ -209,10 +209,19 @@ no-wordbox option.
 - **Storage:** new nullable `language_user.users_level` column
   (`2026_06_15_140000_add_users_level_to_language_user_table`). `User::languages()` now
   `->withPivot('users_level')`; `User::levelForLanguage(?Language)` returns e.g. `"B1"` (or null).
-- **Settings (`/profile/edit`):** each "languages you are learning" row now has a level `<select>`
-  (`target_language_levels[<langId>]`). `UserController@update` validates levels against the config
-  keys and `sync()`s `[langId => ['users_level' => level]]` (defaulting to `config('proficiency.default')`).
-  `@edit` passes current levels + the config list to the view.
+- **Settings (`/profile/edit`) — redesigned picker:** languages are added via a **searchable
+  combo** ("+ Add a language" → text filter over languages not native and not already listed).
+  Each chosen language becomes a fixed row (language shown read-only, no longer a combo) with a
+  **custom proficiency combo** styled identically to the language combos (options read
+  "A1 - Beginner" etc. from `config('proficiency.names')`) and a Hide/✕ action. **Hiding** keeps
+  the row (greyed, with **Unhide**) but excludes it from the saved set; hidden/listed languages are
+  excluded from the add-combo. Hidden state is **persisted implicitly** (no schema change): on load,
+  `@edit` computes `hiddenLanguageIds` = languages the user has cards in (`termCounts`) but that are
+  neither a current target nor their native language, and the view seeds those as greyed rows — so a
+  hidden language keeps showing after save/reload. Submits `target_language_ids[]` + `target_language_levels[<id>]`
+  (hidden inputs, only for non-hidden rows). `UserController@update` validates levels against the
+  config keys and `sync()`s `[langId => ['users_level' => level]]` (default `config('proficiency.default')`).
+  `@edit` passes current levels + the config list/names to the view.
 - **Prompts:** `AI::levelInstruction(?string $level)` builds a strong "CRITICAL … strictly keep all
   vocabulary/grammar/sentence length at level X" fragment appended to the system message of
   `getContentForCard`, `getContentForCardWithContext`, and `generateTextWithGaps` (all gained an
