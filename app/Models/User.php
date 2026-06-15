@@ -66,10 +66,24 @@ class User extends Authenticatable
 
     /**
      * The languages the user is currently learning (target-language set, up to 5).
+     * The pivot carries the user's proficiency in each language (CEFR: A1..C2).
      */
     public function languages()
     {
-        return $this->belongsToMany(Language::class);
+        return $this->belongsToMany(Language::class)->withPivot('users_level');
+    }
+
+    /**
+     * The user's proficiency level (e.g. "B1") for a given target language,
+     * or null if the language is not in their set / has no level yet.
+     */
+    public function levelForLanguage(?Language $language): ?string
+    {
+        if (! $language) {
+            return null;
+        }
+
+        return $this->languages()->whereKey($language->id)->first()?->pivot?->users_level;
     }
 
     /**

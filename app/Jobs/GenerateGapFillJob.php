@@ -41,11 +41,15 @@ class GenerateGapFillJob implements ShouldQueue
                 ?? $user->target_language
                 ?? 'English';
 
+            // Match the exercise difficulty to the user's proficiency in this language.
+            $level = $user->levelForLanguage($wordbox->language);
+
             $result = AI::generateTextWithGaps(
                 $phrases,
                 $targetLanguage,
                 $wordbox->name,
-                $this->exercise->theme_preference
+                $this->exercise->theme_preference,
+                $level
             );
 
             if ($result) {

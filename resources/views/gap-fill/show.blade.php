@@ -1,12 +1,26 @@
 <x-html-layout>
     <div class="container mx-auto p-6 max-w-4xl"
          x-data="{
-            answers: {{ json_encode($exercise->correct_answers) }},
+            answers: {{ json_encode($exercise->correct_answers ?? []) }},
+            status: '{{ $exercise->status }}',
             feedback: {},
             showHistory: false,
             lastInput: null,
             deleteUrl: null,
             deleteTitle: '',
+            poll() {
+                fetch('{{ route('gap-fill.status', $exercise) }}')
+                    .then(res => res.json())
+                    .then(data => {
+                        this.status = data.status;
+                        if (data.status === 'completed') {
+                            window.location.reload();
+                        } else if (data.status !== 'failed') {
+                            setTimeout(() => this.poll(), 2000);
+                        }
+                    })
+                    .catch(() => setTimeout(() => this.poll(), 3000));
+            },
             fill(word) {
                 let target = this.lastInput;
                 if (!target || target.value.trim() !== '') {
@@ -24,7 +38,8 @@
                 this.feedback = {};
                 document.querySelectorAll('input[data-index]').forEach(i => i.value = '');
             }
-         }">
+         }"
+         x-init="if (status !== 'completed' && status !== 'failed') poll()">
 
         <div class="flex justify-between items-center mb-8">
             <div>
@@ -37,38 +52,63 @@
         </div>
 
         <div class="bg-white/10 p-8 rounded-2xl border border-white/10 mb-8 leading-relaxed text-xl">
-            {!! preg_replace_callback('/\[(\d+)\]/', function($matches) {
-                return '<input type="text" data-index="'.$matches[1].'"
-                        @focus="lastInput = $event.target"
-                        @input="feedback['.$matches[1].'] = null"
-                        class="bg-transparent border-b-2 border-white/20 px-2 py-0 w-40 focus:outline-none focus:border-blue-500 transition-colors mx-1 text-blue-400 font-medium"
-                        :class="feedback['.$matches[1].'] === \'correct\' ? \'!border-green-500 !text-green-500\' : (feedback['.$matches[1].'] === \'wrong\' ? \'!border-red-500 !text-red-500\' : \'\')"
-                        placeholder="'.$matches[1].'">';
-            }, $exercise->text_with_gaps) !!}
+            @if($exercise->status === 'completed')
+                {!! preg_replace_callback('/\[(\d+)\]/', function($matches) {
+                    return '<input type="text" data-index="'.$matches[1].'"
+                            @focus="lastInput = $event.target"
+                            @input="feedback['.$matches[1].'] = null"
+                            class="bg-transparent border-b-2 border-white/20 px-2 py-0 w-40 focus:outline-none focus:border-blue-500 transition-colors mx-1 text-blue-400 font-medium"
+                            :class="feedback['.$matches[1].'] === \'correct\' ? \'!border-green-500 !text-green-500\' : (feedback['.$matches[1].'] === \'wrong\' ? \'!border-red-500 !text-red-500\' : \'\')"
+                            placeholder="'.$matches[1].'">';
+                }, $exercise->text_with_gaps) !!}
+            @elseif($exercise->status === 'failed')
+                <div class="flex items-center gap-3 text-red-400 text-base">
+                    <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Generation failed. Please go back and try generating the exercise again.
+                </div>
+            @else
+                <div class="flex items-center gap-3 text-white/50 text-base animate-pulse">
+                    <svg class="animate-spin h-6 w-6 text-blue-500 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Exercise is still being generated&hellip;
+                </div>
+            @endif
         </div>
 
         <div class="p-6 bg-white/5 rounded-2xl border border-white/10 mb-8">
             <h2 class="text-sm font-bold mb-4 text-white/50 uppercase tracking-widest text-center">Words to use</h2>
             <div class="flex flex-wrap justify-center gap-3">
-                @foreach(collect($exercise->correct_answers)->values()->shuffle() as $word)
-                    <button type="button" @click="fill(@js($word))"
-                            class="bg-white/5 hover:bg-blue-600/30 text-blue-300 font-medium px-4 py-2 rounded-lg border border-white/10 hover:border-blue-500/50 transition-all">
-                        {{ $word }}
-                    </button>
-                @endforeach
+                @if($exercise->status === 'completed')
+                    @foreach(collect($exercise->correct_answers)->values()->shuffle() as $word)
+                        <button type="button" @click="fill(@js($word))"
+                                class="bg-white/5 hover:bg-blue-600/30 text-blue-300 font-medium px-4 py-2 rounded-lg border border-white/10 hover:border-blue-500/50 transition-all">
+                            {{ $word }}
+                        </button>
+                    @endforeach
+                @else
+                    @foreach(range(1, 6) as $i)
+                        <div class="h-10 w-24 rounded-lg bg-white/5 border border-white/10 animate-pulse"></div>
+                    @endforeach
+                @endif
             </div>
         </div>
 
-        <div class="flex flex-col items-center gap-6">
-            <div class="flex gap-4">
-                <button @click="check()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20">
-                    Check Answers
-                </button>
-                <button @click="reset()" class="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-xl font-bold transition-all border border-white/10">
-                    Clear All
-                </button>
+        @if($exercise->status === 'completed')
+            <div class="flex flex-col items-center gap-6">
+                <div class="flex gap-4">
+                    <button @click="check()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20">
+                        Check Answers
+                    </button>
+                    <button @click="reset()" class="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-xl font-bold transition-all border border-white/10">
+                        Clear All
+                    </button>
+                </div>
             </div>
-        </div>
+        @endif
 
         <div class="mt-12 pt-8 border-t border-white/10">
             <button @click="showHistory = !showHistory" class="flex items-center gap-2 text-white/50 hover:text-white transition-colors mx-auto uppercase tracking-widest text-sm font-bold">

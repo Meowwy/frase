@@ -23,6 +23,25 @@ class AI extends Model
      */
     private const REASONING_EFFORT = 'medium';
 
+    /**
+     * Build a strong instruction fragment that constrains the language the model
+     * produces to the learner's CEFR proficiency level. Returns an empty string
+     * when no (or an unknown) level is given, so prompts stay unchanged.
+     */
+    private static function levelInstruction(?string $level): string
+    {
+        if (! $level) {
+            return '';
+        }
+
+        $description = config("proficiency.levels.{$level}");
+        if (! $description) {
+            return '';
+        }
+
+        return " CRITICAL — the learner's proficiency in the target language is CEFR level {$level}: {$description} You MUST strictly keep all vocabulary, grammar and sentence length at this level and never above it. If a given term is harder than this level you may still use that exact term, but every other word around it must stay at level {$level}.";
+    }
+
     public static function getEmbedding(string $text): ?array
     {
         $response = Http::withToken(config('services.openai.secret'))
@@ -96,7 +115,7 @@ class AI extends Model
         return $response->json('choices.0.message.content');
     }
 
-    public static function getContentForCard(string $phrase, string $themes, string $targetLanguage, string $nativeLanguage)
+    public static function getContentForCard(string $phrase, string $themes, string $targetLanguage, string $nativeLanguage, ?string $level = null)
     {
         logger('update 2');
         logger('Obtaining data for '.$phrase);
@@ -107,7 +126,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard for learning vocabulary in context. First decide the card's phrase, then write every other field to describe that exact phrase, never the original Term, if it is only one word. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.",
+                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard for learning vocabulary in context. First decide the card's phrase, then write every other field to describe that exact phrase, never the original Term, if it is only one word. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -158,7 +177,7 @@ class AI extends Model
         // return $response;
     }
 
-    public static function getContentForCardWithContext(string $phrase, string $themes, string $targetLanguage, string $nativeLanguage, string $context)
+    public static function getContentForCardWithContext(string $phrase, string $themes, string $targetLanguage, string $nativeLanguage, string $context, ?string $level = null)
     {
         logger('update 2');
         logger('Obtaining data for '.$phrase);
@@ -169,7 +188,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard for learning vocabulary in context. First decide the card's phrase, capturing the meaning the Term has in that context but in a general dictionary form; then write every other field to describe that exact phrase. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.",
+                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard for learning vocabulary in context. First decide the card's phrase, capturing the meaning the Term has in that context but in a general dictionary form; then write every other field to describe that exact phrase. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -273,7 +292,7 @@ class AI extends Model
         return $response;
     }
 
-    public static function generateTextWithGaps(string $phrases, string $targetLanguage, string $wordboxName, ?string $themePreference = null): ?array
+    public static function generateTextWithGaps(string $phrases, string $targetLanguage, string $wordboxName, ?string $themePreference = null, ?string $level = null): ?array
     {
         Log::info('Generating text with gaps for wordbox: '.$wordboxName);
         $themePrompt = $themePreference ? " Theme preference: \"{$themePreference}\"." : '';
@@ -284,7 +303,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'You are a language learning expert. Write a short, coherent story in the target language that naturally works in every provided phrase. You do not have to use each phrase word-for-word: adapt its form (inflection, conjugation, or a natural variant) so the text reads naturally, but keep the same meaning and context the phrase carries as a vocabulary item. Replace the part of the text that corresponds to each phrase with a numbered placeholder [1], [2], … (numbered in order of appearance) and return, for each placeholder, the exact text that belongs in that gap. Also give the story a short title (max 5 words) in the target language that reflects its content.',
+                    'content' => 'You are a language learning expert. Write a short, coherent story in the target language that naturally works in every provided phrase. You do not have to use each phrase word-for-word: adapt its form (inflection, conjugation, or a natural variant) so the text reads naturally, but keep the same meaning and context the phrase carries as a vocabulary item. Replace the part of the text that corresponds to each phrase with a numbered placeholder [1], [2], … (numbered in order of appearance) and return, for each placeholder, the exact text that belongs in that gap. Also give the story a short title (max 5 words) in the target language that reflects its content.'.self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',

@@ -71,11 +71,12 @@ class AjaxController extends Controller
 
         $targetLanguage = $language->name;
         $nativeLanguage = optional($user->nativeLanguage)->name ?? $user->native_language;
+        $level = $user->levelForLanguage($language);
 
         if (is_null($context)) {
-            $content = AI::getContentForCard($capturedWord, $themeString, $targetLanguage, $nativeLanguage);
+            $content = AI::getContentForCard($capturedWord, $themeString, $targetLanguage, $nativeLanguage, $level);
         } else {
-            $content = AI::getContentForCardWithContext($capturedWord, $themeString, $targetLanguage, $nativeLanguage, $context);
+            $content = AI::getContentForCardWithContext($capturedWord, $themeString, $targetLanguage, $nativeLanguage, $context, $level);
         }
         if (is_null($content)) {
             logger('The model refused to create the card for '.$request->capturedWord);

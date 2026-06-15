@@ -22,16 +22,13 @@ class GapFillExerciseController extends Controller
 
         GenerateGapFillJob::dispatch($exercise);
 
-        return back()->with('message', 'Exercise generation started!');
+        return redirect()->route('gap-fill.show', $exercise)
+            ->with('message', 'Exercise generation started!');
     }
 
     public function show(GapFillExercise $exercise)
     {
         // Gate::authorize('view', $exercise);
-
-        if ($exercise->status !== 'completed') {
-            return view('gap-fill.processing', compact('exercise'));
-        }
 
         $allExercises = $exercise->wordbox->gapFillExercises()
             ->orderBy('created_at', 'asc')

@@ -70,7 +70,10 @@ introspection instead of guessing. Key tools (fetch schemas via ToolSearch
 
 - `languages` — static seeded reference list (ISO 639-1 `code`, `name`, `native_name`, `flag`
   emoji), populated by `LanguageSeeder` (idempotent on `code`). Add languages there.
-- `language_user` pivot — a user's up-to-5 target languages (`$user->languages()`).
+- `language_user` pivot — a user's up-to-5 target languages (`$user->languages()`), with a
+  `users_level` column holding the user's CEFR proficiency (A1..C2) for that language. The relation
+  exposes it via `->withPivot('users_level')`; `User::levelForLanguage($language)` reads it.
+  Allowed levels + their AI descriptions live in `config/proficiency.php`.
 - `users.native_language_id`, `users.active_language_id` — FK defaults (supersede legacy
   free-text `target_language` / `native_language` columns kept temporarily for backfill).
 - `cards`, `wordboxes`, `themes` each carry `language_id`. "General vocabulary" = cards in a
@@ -186,9 +189,36 @@ no-wordbox option.
   Shown as the exercise `<h1>` and in the history list (falls back to `Exercise #id` for old rows).
 - **Delete:** new `DELETE /gap-fill/{exercise}` → `GapFillExerciseController@destroy` (redirects to
   the wordbox). History table has a red **Delete** action opening an Alpine confirmation modal.
+- **In-place generating state:** `GapFillExerciseController@show` no longer branches to the separate
+  `gap-fill.processing` spinner page — it always renders `gap-fill.show`. When `status !== completed`
+  the view shows the full exercise layout with the text box reading "Exercise is still being
+  generated…" (spinner) and skeleton placeholder chips in the (empty) "Words to use" box, and Alpine
+  polls `gap-fill.status` every 2s, reloading on completion (or showing an error on `failed`).
+  `store()` now redirects straight to `gap-fill.show` so generating lands the user in that view.
+  **Requires a running queue worker** (`php artisan queue:work`, `QUEUE_CONNECTION=database`) — with
+  no worker the job never runs and the page polls indefinitely. `gap-fill.processing` view is now
+  unused (kept in place, no longer routed).
 - **Prompt note (same session):** the gap-fill prompt no longer requires verbatim phrases — the
   story may adapt a phrase's form (inflection/variant) while keeping its meaning/context; the
   returned `answers[].phrase` is the exact text that fills the gap.
+
+### 7. Per-language proficiency level → level-aware AI generation
+- **Config (`config/proficiency.php`):** a hardcoded `levels` map (CEFR `A1`..`C2` ⇒ a short English
+  description of how the AI should write at that level — vocabulary, grammar, sentence complexity).
+  Descriptions describe *how* to write, so they apply to any target language. Also a `default` key.
+- **Storage:** new nullable `language_user.users_level` column
+  (`2026_06_15_140000_add_users_level_to_language_user_table`). `User::languages()` now
+  `->withPivot('users_level')`; `User::levelForLanguage(?Language)` returns e.g. `"B1"` (or null).
+- **Settings (`/profile/edit`):** each "languages you are learning" row now has a level `<select>`
+  (`target_language_levels[<langId>]`). `UserController@update` validates levels against the config
+  keys and `sync()`s `[langId => ['users_level' => level]]` (defaulting to `config('proficiency.default')`).
+  `@edit` passes current levels + the config list to the view.
+- **Prompts:** `AI::levelInstruction(?string $level)` builds a strong "CRITICAL … strictly keep all
+  vocabulary/grammar/sentence length at level X" fragment appended to the system message of
+  `getContentForCard`, `getContentForCardWithContext`, and `generateTextWithGaps` (all gained an
+  optional trailing `$level` param; empty/unknown level ⇒ no change). Callers: `AjaxController@index`
+  passes `$user->levelForLanguage($language)`; `GenerateGapFillJob` passes
+  `$user->levelForLanguage($wordbox->language)`. Legacy `CreateCardJob` left unchanged (no level).
 
 ### Verification used this session
 - Tinker (render views, build the option list for a real user with wordboxes to confirm ordering).

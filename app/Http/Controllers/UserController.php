@@ -72,9 +72,18 @@ class UserController extends Controller
             ->groupBy('language_id')
             ->pluck('total', 'language_id');
 
+        // Current per-language proficiency: [language_id => "B1", ...].
+        $selectedLevels = $user->languages()
+            ->pluck('language_user.users_level', 'languages.id')
+            ->all();
+
         return view('user.edit', [
             'languages' => Language::orderBy('name')->get(),
             'selectedTargetIds' => $user->languages()->pluck('languages.id')->all(),
+            'selectedLevels' => $selectedLevels,
+            'proficiencyLevels' => config('proficiency.levels'),
+            'proficiencyNames' => config('proficiency.names'),
+            'defaultLevel' => config('proficiency.default'),
             'nativeLanguageId' => $user->native_language_id,
             'termCounts' => $termCounts,
         ]);
@@ -131,11 +140,16 @@ class UserController extends Controller
      */
     public function update(Request $request)
     {
+        $allowedLevels = array_keys(config('proficiency.levels'));
+        $defaultLevel = config('proficiency.default');
+
         $validated = $request->validate([
             'username' => ['required', 'string', 'max:50'],
             'native_language_id' => ['required', 'integer', 'exists:languages,id'],
             'target_language_ids' => ['required', 'array', 'max:5'],
             'target_language_ids.*' => ['integer', 'exists:languages,id'],
+            'target_language_levels' => ['array'],
+            'target_language_levels.*' => ['in:'.implode(',', $allowedLevels)],
         ]);
 
         $user = Auth::user();
@@ -143,8 +157,15 @@ class UserController extends Controller
         $user->native_language_id = $validated['native_language_id'];
         $user->save();
 
-        // Sync the up-to-5 target-language set.
-        $user->languages()->sync($validated['target_language_ids']);
+        // Sync the up-to-5 target-language set, attaching each language's proficiency level.
+        $levels = $validated['target_language_levels'] ?? [];
+        $syncData = [];
+        foreach ($validated['target_language_ids'] as $languageId) {
+            $syncData[$languageId] = [
+                'users_level' => $levels[$languageId] ?? $defaultLevel,
+            ];
+        }
+        $user->languages()->sync($syncData);
 
         // Keep the active (default save) language valid.
         if (! in_array($user->active_language_id, $validated['target_language_ids'])) {
