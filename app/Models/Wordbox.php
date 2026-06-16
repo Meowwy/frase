@@ -11,6 +11,11 @@ class Wordbox extends Model
 
     protected $guarded = [];
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function cards()
     {
         return $this->belongsToMany(Card::class, 'wordbox_card', 'wordbox_id', 'card_id');

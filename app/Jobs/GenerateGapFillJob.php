@@ -62,7 +62,7 @@ class GenerateGapFillJob implements ShouldQueue
             } else {
                 $this->exercise->update(['status' => 'failed']);
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Gap fill generation failed: '.$e->getMessage());
             $this->exercise->update(['status' => 'failed']);
         }

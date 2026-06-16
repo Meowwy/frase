@@ -111,9 +111,34 @@ Route::middleware('auth')->group(function () {
     });
     Route::get('/filterCardsForLearning/{filter}', [Learning::class, 'setLearning']);
     Route::get('/setLearning', function () {
-        return view('learning.set');
+        $user = Auth::user();
+        $filter = session('learning_filter');
+
+        // Legacy theme-based flow keeps the simple mode picker.
+        $themeName = null;
+        if (is_string($filter) && $filter !== '' && $filter !== 'due' && ! is_numeric($filter)
+            && $user->themes()->where('name', $filter)->exists()) {
+            $themeName = $filter;
+        }
+
+        $targetLanguages = $user->languages()->orderBy('name')->get();
+        $wordboxesByLanguage = $user->wordboxes()
+            ->select('id', 'name', 'language_id', 'position')
+            ->orderBy('position')
+            ->orderBy('name')
+            ->get()
+            ->groupBy('language_id');
+        $activeLanguageId = $user->currentSaveLanguage()?->id ?? optional($targetLanguages->first())->id;
+
+        return view('learning.set', [
+            'themeName' => $themeName,
+            'targetLanguages' => $targetLanguages,
+            'wordboxesByLanguage' => $wordboxesByLanguage,
+            'activeLanguageId' => $activeLanguageId,
+        ]);
     });
     Route::get('/startLearning/{wbid}/{mode}', [Learning::class, 'startLearning']);
+    Route::get('/startLearningSet/{mode}', [Learning::class, 'startLearningSet']);
     Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
     Route::get('/completeLearning', function () {
         return view('learning.complete');
@@ -123,7 +148,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/searchWordbox/{wbid}', [SeachController::class, 'searchWordbox'])->name('seachWordbox');
 
     Route::get('/cards', [CardController::class, 'index']);
-    Route::post('/cards/themeFilter', [CardController::class, 'themeFilter']);
     Route::get('/cards/{card:id}', [CardController::class, 'show']);
     Route::get('/cards/edit/{card:id}', [CardController::class, 'edit']);
     Route::post('/cards/new', [CardController::class, 'save']);

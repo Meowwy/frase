@@ -8,7 +8,9 @@
       "WebFetch(domain:www.dataquest.io)",
       "WebFetch(domain:www.splitbrain.org)",
       "Bash(php artisan:*)",
-      "WebFetch(domain:developers.openai.com)"
+      "WebFetch(domain:developers.openai.com)",
+      "mcp__laravel-boost__read-log-entries",
+      "mcp__laravel-boost__database-query"
     ]
   },
   "enableAllProjectMcpServers": true,

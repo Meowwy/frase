@@ -1,9 +1,17 @@
 @props(['cards', 'cardCount'])
 <x-html-layout>
+    <div class="relative">
+        <button id="exitBtn" type="button" class="absolute left-0 top-0 inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            <span>Save and quit</span>
+        </button>
+
     <div class="flex justify-center items-center">
         <div class="flex-col items-center">
             <div class="flex justify-center mb-4">
-                <span id="themeName" class="text-lg mr-1 font-bold bg-orange-800 text-white rounded-full px-3 py-1"></span>
+                <span id="wordboxName" class="invisible text-lg mr-1 font-bold bg-orange-800 text-white rounded-full px-3 py-1">&nbsp;</span>
             </div>
             <div class="flashcard" id="flashcard">
                 <div class="front" id="front">
@@ -27,14 +35,12 @@
             </div>
         </div>
     </div>
+    </div>
 
     <div class="flex justify-center gap-2 items-center mt-6">
         <x-number-display id="unseenInfo" number="{{$cardCount}}" text="queue"></x-number-display>
         <x-number-display id="wrongInfo" number="0"  text="wrong"></x-number-display>
         <x-number-display id="correctInfo" number="0"  text="correct"></x-number-display>
-    </div>
-    <div>
-        <x-forms.button id="exitBtn">Save and quit</x-forms.button>
     </div>
     <div>
         <x-forms.form id="resultsForm" method="POST" action="/saveLearning">
@@ -60,7 +66,7 @@
         let currentNumber = 0;
 
         const flashcard = document.getElementById('flashcard');
-        const themeName = document.getElementById('themeName');
+        const wordboxName = document.getElementById('wordboxName');
         const front = document.getElementById('front');
         const back = document.getElementById('back');
         const wrongBtn = document.getElementById('wrongBtn');
@@ -79,15 +85,20 @@
         function updateFlashcard(index) {
             flashcard.classList.remove('is-flipped');
             front.textContent = cards[index].front;
-            themeName.textContent = cards[index].theme
+            if (cards[index].wordbox) {
+                wordboxName.textContent = cards[index].wordbox;
+                wordboxName.classList.remove('invisible');
+            } else {
+                // Keep the pill's space reserved so nothing shifts, just hide it.
+                wordboxName.innerHTML = '&nbsp;';
+                wordboxName.classList.add('invisible');
+            }
             wrongBtn.classList.add('hidden');
             correctBtn.classList.add('hidden');
             flipBtn.classList.remove('hidden');
-            currentNumber = parseInt(unseenInfo.innerText);
-            if(currentNumber !== 0){
-                currentNumber--;
-                unseenInfo.innerText = currentNumber.toString();
-            }
+            // Always reflect the real number of cards still to be cleared (wrong cards
+            // stay in the deck until answered correctly, so they keep counting here).
+            unseenInfo.innerText = cards.length.toString();
             hintText.textContent = 'Click to show hint.';
         }
 
@@ -136,9 +147,7 @@
             }
 
             cards.splice(currentIndex, 1);
-            if(cards.length === 0){
-                end();
-            }
+
             currentNumber = parseInt(correctInfo.innerText);
             currentNumber++;
             correctInfo.innerText = currentNumber.toString();
@@ -147,14 +156,19 @@
                 currentNumber--;
                 wrongInfo.innerText = currentNumber.toString();
             }
-            if (currentIndex <= cards.length - 1) {
-                updateFlashcard(currentIndex);
-            } else {
+
+            // Deck emptied: finish immediately, don't fall through to updateFlashcard().
+            if(cards.length === 0){
+                end();
+                return;
+            }
+
+            if (currentIndex > cards.length - 1) {
                 currentIndex = 0;
                 allCardsShown = true;
                 initialLength = cards.length;
-                updateFlashcard(currentIndex);
             }
+            updateFlashcard(currentIndex);
         });
 
         flipBtn.addEventListener('click', () => {

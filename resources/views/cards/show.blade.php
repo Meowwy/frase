@@ -1,15 +1,31 @@
 @props(["card", "theme", "wordbox", "synonyms", "relatedTerms"])
 <x-html-layout>
     <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg">
+        <a href="/cards" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-6">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            <span>back</span>
+        </a>
+
         <!-- Main Term Section -->
         <div class="mb-6 flex items-baseline justify-between gap-3">
             <div class="space-x-3">
                 <span class="text-4xl font-bold">{{$card->phrase}}</span>
                 <span class="text-xl italic">{{$card->translation}}</span>
             </div>
-            @if($card->language)
-                <span class="text-xl leading-none">{{$card->language->flag}}</span>
-            @endif
+            <div class="flex items-center gap-3 shrink-0">
+                @if($card->language)
+                    <span class="text-xl leading-none">{{$card->language->flag}}</span>
+                @endif
+                <a href="/cards/edit/{{$card->id}}" title="Edit card"
+                   class="text-white/70 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                </a>
+            </div>
         </div>
 
         <!-- Definition Section -->
@@ -106,15 +122,6 @@
                 </tr>
             </tbody>
         </table>
-        <div class="flex flex-col space-y-4">
-            <a href="/cards/edit/{{$card->id}}">
-                <x-forms.button-confirm>Edit card</x-forms.button-confirm>
-            </a>
-            <a href="/cards">
-                <x-forms.button-small>Back to card list</x-forms.button-small>
-            </a>
-        </div>
-
     </div>
 
 </x-html-layout>

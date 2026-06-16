@@ -17,25 +17,28 @@
 </head>
 <body class="bg-black text-white font-lato pb-20">
 <div class="px-10">
-    <nav class="flex relative items-center py-4 border-b border-white/10">
+    <nav class="flex items-center py-4 border-b border-white/10 gap-6">
         <div class="flex-1">
             <a href="/">
-                <p>Frase</p>
+                <p class="font-bold">Frase</p>
             </a>
         </div>
 
-        <div class="absolute left-1/2 transform -translate-x-1/2">
-            @auth
-            <form action="/search" method="get" id="searchForm">
-                <x-forms.input-search name="searchTerm"
-                               placeholder="Search for a term"></x-forms.input-search>
-            </form>
-            @endauth
-        </div>
+        @auth
+            <div class="flex items-center gap-8 font-bold">
+                <a href="/" class="hover:text-blue-400 transition-colors">Home</a>
+                <a href="/cards" class="hover:text-blue-400 transition-colors">Vocabulary</a>
+                <a href="/filterCardsForLearning/due" class="hover:text-blue-400 transition-colors">Learn</a>
+            </div>
+        @endauth
 
-        <div class="flex flex-1 justify-end">
+        <div class="flex flex-1 justify-end items-center gap-6">
             @auth
-                <div class="space-x-6 font-bold flex">
+                <form action="/search" method="get" id="searchForm">
+                    <x-forms.input-search name="searchTerm"
+                                   placeholder="Search for a term"></x-forms.input-search>
+                </form>
+                <div class="space-x-6 font-bold flex items-center">
                     <a href="/profile">{{Auth::user()->username}}'s Account Settings</a>
                     <form method="post" action="/logout">
                         @csrf

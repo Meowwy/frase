@@ -151,50 +151,6 @@
         </section>
 
         <section>
-            <x-section-heading>quick navigation</x-section-heading>
-            <div class="flex items-center justify-center space-x-10 mt-6">
-                <x-panel>
-                    @if($dueCount === 0)
-                        <div class="flex flex-col space-y-2">
-                            <p class="text-center">Nothing to learn for today!</p>
-                        </div>
-                    @else
-                        <div class="flex flex-col space-y-2">
-                            <p class="text-center">{{$dueCount}} cards to learn today</p>
-                            <x-forms.form method="GET" action="/filterCardsForLearning/due" class="text-center">
-                                <x-forms.button-confirm>Learn due cards</x-forms.button-confirm>
-                            </x-forms.form>
-                        </div>
-
-                    @endif
-                    <div>
-
-                    </div>
-                </x-panel>
-                    <x-panel>
-                        <div class="flex flex-col space-y-2">
-                            <p>You have saved {{$totalCount}} terms</p>
-                            <a href="/cards" class="flex flex-col items-center">
-                                <x-forms.button-confirm>Browse terms</x-forms.button-confirm>
-                            </a>
-                        </div>
-
-                    </x-panel>
-                <x-panel>
-                    <div class="flex flex-col space-y-2">
-                        <p>Insert a term manually</p>
-                        <a href="/add" class="flex flex-col items-center">
-                            <x-forms.button-confirm>Add card</x-forms.button-confirm>
-                        </a>
-                    </div>
-
-                </x-panel>
-
-            </div>
-
-        </section>
-
-        <section>
             <x-section-heading>wordboxes</x-section-heading>
             <x-panel>
                 <div class="flex">

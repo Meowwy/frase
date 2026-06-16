@@ -12,13 +12,9 @@
         </div>
     </div>
     <div class="flex flex-col justify-center items-center space-y-2">
-        <form method="POST" action="/cards/themeFilter">
-            @csrf
-            <select class="hidden" id="themeSelect" name="themeSelect">
-                <option value="{{$theme->name}}">{{$theme->name}}</option>
-            </select>
+        <a href="/cards?theme={{ urlencode($theme->name) }}">
             <x-forms.button-small>Show cards</x-forms.button-small>
-        </form>
+        </a>
 
         <form method="get" action="/filterCardsForLearning/{{$theme->name}}" class="">
             <x-forms.button-confirm>Learn due</x-forms.button-confirm>

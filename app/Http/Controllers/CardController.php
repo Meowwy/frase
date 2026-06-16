@@ -16,70 +16,82 @@ use Illuminate\Support\Facades\Auth;
 class CardController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display the vocabulary list, filtered by language + wordbox + live search.
+     *
+     * One endpoint serves both the full page and the live updates: a normal request
+     * renders the page, an AJAX request returns just the rows + pagination so the
+     * shared <x-wordbox-picker> and the header search inputs can refresh in place.
      */
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
-        $cards = Auth::user()->cards()
-            ->with('theme:id,name')
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $user = Auth::user();
 
-        $cards->transform(function ($card) {
-            $card->next_study_at = Carbon::parse($card->next_study_at)->format('d-m-Y');
+        $wordbox = $request->query('wordbox', 'all'); // 'all' | 'general' | <wordbox id>
+        $term = trim((string) $request->query('term', ''));
+        $definition = trim((string) $request->query('definition', ''));
 
-            return $card;
-        });
-
-        $themes = Theme::where('user_id', Auth::id())
-            ->get(['id', 'name']); // Get only the id and name columns
-
-        // Format the result as an array of associative arrays
-        $themesArray = $themes->map(function ($theme) {
-            return [
-                'id' => $theme->id,
-                'name' => $theme->name,
-            ];
-        })->toArray();
-
-        return view('cards.index', ['cards' => $cards, 'themes' => $themesArray]);
-    }
-
-    public function themeFilter(\Illuminate\Http\Request $request)
-    {
-        $themeName = $request->get('themeSelect');
-        if ($themeName === 'All themes') {
-            $cards = Auth::user()->cards()
-                ->with('theme:id,name')
-                ->orderBy('created_at', 'desc')
-                ->paginate(20);
-        } else {
-            $cards = Auth::user()->cards()
-                ->with('theme:id,name')
-                ->whereHas('theme', function ($query) use ($themeName) {
-                    $query->where('name', $themeName);
-                })
-                ->orderBy('created_at', 'desc')
-                ->paginate(20);
+        // Legacy entry: dashboard theme card links here with ?theme=<name>. Pre-filter
+        // by that theme and open the picker on the theme's language.
+        $theme = null;
+        if ($themeName = $request->query('theme')) {
+            $theme = $user->themes()->where('name', $themeName)->first();
         }
 
-        $cards->transform(function ($card) {
-            $card->next_study_at = Carbon::parse($card->next_study_at)->format('d-m-Y');
+        // Resolve which language the list (and picker) is scoped to.
+        $languageId = $request->query('language_id') ?: ($theme?->language_id ?? $user->currentSaveLanguage()?->id);
+        if ($languageId && ! $user->languages()->where('languages.id', $languageId)->exists()) {
+            $languageId = $user->currentSaveLanguage()?->id;
+        }
 
-            return $card;
-        });
+        $query = $user->cards()->with('wordbox:id,name');
 
-        $themes = Theme::where('user_id', Auth::id())
-            ->get(['id', 'name']); // Get only the id and name columns
+        if ($languageId) {
+            $query->where('language_id', $languageId);
+        }
+        if ($theme) {
+            $query->where('theme_id', $theme->id);
+        }
 
-        $themesArray = $themes->map(function ($theme) {
-            return [
-                'id' => $theme->id,
-                'name' => $theme->name,
-            ];
-        })->toArray();
+        if ($wordbox === 'general') {
+            $query->whereDoesntHave('wordbox');
+        } elseif (is_numeric($wordbox)) {
+            $query->whereHas('wordbox', fn ($q) => $q->where('wordboxes.id', $wordbox));
+        }
 
-        return view('cards.index', ['cards' => $cards, 'themes' => $themesArray, 'selectedTheme' => $themeName]);
+        if ($term !== '') {
+            $query->where('phrase', 'like', '%'.$term.'%');
+        }
+        if ($definition !== '') {
+            $query->where('definition', 'like', '%'.$definition.'%');
+        }
+
+        $cards = $query->orderBy('created_at', 'desc')
+            ->paginate(20)
+            ->appends($request->query());
+
+        if ($request->ajax()) {
+            return response()->json([
+                'rows' => view('cards._rows', ['cards' => $cards])->render(),
+                'pagination' => $cards->links()->toHtml(),
+            ]);
+        }
+
+        $targetLanguages = $user->languages()->orderBy('name')->get();
+        $wordboxesByLanguage = $user->wordboxes()
+            ->select('id', 'name', 'language_id', 'position')
+            ->orderBy('position')
+            ->orderBy('name')
+            ->get()
+            ->groupBy('language_id');
+
+        return view('cards.index', [
+            'cards' => $cards,
+            'targetLanguages' => $targetLanguages,
+            'wordboxesByLanguage' => $wordboxesByLanguage,
+            'activeLanguageId' => $languageId,
+            'term' => $term,
+            'definition' => $definition,
+        ]);
     }
 
     /**

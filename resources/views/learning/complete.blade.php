@@ -4,7 +4,7 @@
     </div>
     <div class="mb-4">
         @if(session('more_cards_available'))
-            <a href="/startLearning/{{session('learning_mode')}}">
+            <a href="/startLearning/0/{{session('learning_mode')}}">
                 <x-forms.button>Continue learning another set of cards</x-forms.button>
             </a>
 

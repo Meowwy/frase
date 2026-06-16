@@ -39,7 +39,7 @@ class AI extends Model
             return '';
         }
 
-        return " CRITICAL — the learner's proficiency in the target language is CEFR level {$level}: {$description} You MUST strictly keep all vocabulary, grammar and sentence length at this level and never above it. If a given term is harder than this level you may still use that exact term, but every other word around it must stay at level {$level}.";
+        return " CRITICAL — the learner's proficiency is CEFR level {$level}: {$description} Keep all vocabulary and grammar at this level. If a given term is harder than this level you may still use it, but every other word around it must stay at level {$level}.";
     }
 
     public static function getEmbedding(string $text): ?array
@@ -126,7 +126,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard for learning vocabulary in context. First decide the card's phrase, then write every other field to describe that exact phrase, never the original Term, if it is only one word. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard for learning vocabulary in context. First decide the card's phrase, then write every other field to describe that exact phrase, never the original Term, if it is only one word. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -188,7 +188,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard for learning vocabulary in context. First decide the card's phrase, capturing the meaning the Term has in that context but in a general dictionary form; then write every other field to describe that exact phrase. Write all content in the target language, except the translation. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard for learning vocabulary in context. First decide the card's phrase, capturing the meaning the Term has in that context but in a general dictionary form; then write every other field to describe that exact phrase. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
