@@ -41,7 +41,7 @@
                         <span class="cross hidden ml-1 text-white/60 hover:text-white">✕</span>
                     </button>
                     @if($boxes->count())
-                        <span class="pinned shrink-0 w-px h-5 bg-white/30"></span>
+                        <span class="pinned shrink-0 w-px h-6 bg-white/70 mx-2"></span>
                         @foreach($boxes as $box)
                             <button type="button"
                                     class="save-node tag flex items-center gap-1.5 text-xs px-3 py-1 border border-white/10 hover:bg-white/10 transition-colors whitespace-nowrap bg-white/5"

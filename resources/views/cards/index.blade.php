@@ -1,4 +1,11 @@
 <x-html-layout>
+    <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-6">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        <span>back to home</span>
+    </a>
+
     @if($targetLanguages->isNotEmpty())
         <x-wordbox-picker :target-languages="$targetLanguages"
                           :wordboxes-by-language="$wordboxesByLanguage"
@@ -11,12 +18,12 @@
             <tr>
                 {{-- Search inputs are baked into the header in place of the column titles. --}}
                 <th class="px-6 py-3 text-left">
-                    <input type="text" id="searchTerm" placeholder="Term" autocomplete="off"
+                    <input type="text" id="cardSearchTerm" placeholder="Term" autocomplete="off"
                            value="{{ $term }}"
                            class="w-full bg-transparent text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
                 </th>
                 <th class="px-6 py-3 text-left">
-                    <input type="text" id="searchDefinition" placeholder="Definition" autocomplete="off"
+                    <input type="text" id="cardSearchDefinition" placeholder="Definition" autocomplete="off"
                            value="{{ $definition }}"
                            class="w-full bg-transparent text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
                 </th>
@@ -52,8 +59,8 @@
                 $.get(url || '/cards', url ? {} : {
                     language_id: filter.languageId,
                     wordbox: filter.wordbox,
-                    term: $('#searchTerm').val(),
-                    definition: $('#searchDefinition').val(),
+                    term: $('#cardSearchTerm').val(),
+                    definition: $('#cardSearchDefinition').val(),
                 }, render);
             }
 
@@ -63,7 +70,7 @@
                 fetchCards();
             });
 
-            $('#searchTerm, #searchDefinition').on('input', function () {
+            $('#cardSearchTerm, #cardSearchDefinition').on('input', function () {
                 clearTimeout(debounce);
                 debounce = setTimeout(() => fetchCards(), 250);
             });

@@ -66,10 +66,4 @@
         </a>
     </div>
 
-    <br>
-    <a href="/">
-        <x-forms.button-small>Back to main page</x-forms.button-small>
-    </a>
-
-
 </x-html-layout>

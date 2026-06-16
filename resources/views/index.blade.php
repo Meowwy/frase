@@ -151,8 +151,7 @@
         </section>
 
         <section>
-            <x-section-heading>wordboxes</x-section-heading>
-            <x-panel>
+            <div class="bg-white/5 rounded-xl border border-white/10 p-4">
                 <div class="flex">
                     <!-- Left Section (1/4 width) -->
                     <div class="w-1/4 p-6 flex flex-col justify-center">
@@ -175,14 +174,14 @@
                                         <p class="text-xs font-semibold text-blue-400 uppercase tracking-wider">Cards: {{ $wordbox->cards_count }}</p>
                                     </div>
                                     <a href="/wordbox/{{ $wordbox->id }}" class="mt-4">
-                                        <x-forms.button class="w-full">View Details</x-forms.button>
+                                        <x-forms.button-small class="w-full">View details</x-forms.button-small>
                                     </a>
                                 </div>
                             @endforeach
                         </div>
                     </div>
                 </div>
-            </x-panel>
+            </div>
 
         </section>
 
@@ -224,31 +223,6 @@
                 </div>
             </x-forms.form>
         </x-modal>
-
-        <section>
-            <x-section-heading>themes</x-section-heading>
-            @if(count($themes) === 0)
-                <div class="flex justify-center">
-                    <div class="flex flex-col items-center justify-center">
-                        <p>The themes are added automatically and will gather together similar cards. You can create your own and manage existing in the settings.</p>
-                        <a href="/themes/manage">
-                            <x-forms.button>Manage themes</x-forms.button>
-                        </a>
-                    </div>
-
-                </div>
-            @endif
-
-            <div class="grid lg:grid-cols-3 gap-8 mt-6">
-                @auth
-                    @foreach($themes as $theme)
-                        <x-theme-card :theme="$theme"/>
-                    @endforeach
-                @endauth
-
-
-            </div>
-        </section>
 
         <script type="text/javascript">
             const addPostButton = document.getElementById("btnAdd");
