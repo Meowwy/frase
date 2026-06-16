@@ -58,6 +58,22 @@ Route::get('/', function () {
         ->get()
         ->groupBy('language_id');
 
+    // Due-card counts per target language → drives the "Learning" review cards on the dashboard.
+    $dueByLanguage = Auth::user()->cards()
+        ->whereDate('next_study_at', '<=', now()->toDateString())
+        ->selectRaw('language_id, COUNT(*) as aggregate')
+        ->groupBy('language_id')
+        ->pluck('aggregate', 'language_id');
+
+    $dueLanguages = $targetLanguages
+        ->filter(fn ($lang) => ($dueByLanguage[$lang->id] ?? 0) > 0)
+        ->map(function ($lang) use ($dueByLanguage) {
+            $lang->due_count = $dueByLanguage[$lang->id];
+
+            return $lang;
+        })
+        ->values();
+
     $saveLanguage = Auth::user()->currentSaveLanguage();
     $saveLanguageId = $saveLanguage?->id;
     $saveLanguageName = $saveLanguage?->name;
@@ -78,6 +94,7 @@ Route::get('/', function () {
         'wordboxes' => $wordboxes,
         'targetLanguages' => $targetLanguages,
         'wordboxesByLanguage' => $wordboxesByLanguage,
+        'dueLanguages' => $dueLanguages,
         'saveLanguageId' => $saveLanguageId,
         'saveLanguageName' => $saveLanguageName,
         'saveWordboxId' => $saveWordboxId,
@@ -128,7 +145,13 @@ Route::middleware('auth')->group(function () {
             ->orderBy('name')
             ->get()
             ->groupBy('language_id');
-        $activeLanguageId = $user->currentSaveLanguage()?->id ?? optional($targetLanguages->first())->id;
+        // Allow preselecting a language via ?language_id (e.g. the dashboard "Review due cards" card).
+        $requestedLanguageId = request()->query('language_id');
+        if ($requestedLanguageId && $user->languages()->where('languages.id', $requestedLanguageId)->exists()) {
+            $activeLanguageId = $requestedLanguageId;
+        } else {
+            $activeLanguageId = $user->currentSaveLanguage()?->id ?? optional($targetLanguages->first())->id;
+        }
 
         return view('learning.set', [
             'themeName' => $themeName,

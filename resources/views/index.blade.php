@@ -150,6 +150,23 @@
             @endif
         </section>
 
+        <section class="my-8 mb-12">
+            <div class="bg-white/5 rounded-xl border border-white/10 p-4">
+                @if($dueLanguages->isNotEmpty())
+                    <div class="flex flex-wrap justify-center">
+                        @foreach($dueLanguages as $language)
+                            <x-learning-due-card :language="$language" />
+                        @endforeach
+                    </div>
+                @else
+                    <div class="flex flex-col items-center justify-center text-center py-10">
+                        <p class="text-3xl font-bold tracking-wide text-orange-800">ALL DONE</p>
+                        <p class="mt-2 text-white/60">All cards reviewed — nothing due right now.</p>
+                    </div>
+                @endif
+            </div>
+        </section>
+
         <section>
             <div class="bg-white/5 rounded-xl border border-white/10 p-4">
                 <div class="flex">

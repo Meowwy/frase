@@ -74,8 +74,8 @@
             <x-section-heading>
                 <span>Start learning </span><span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> from <span id="startTarget" class="text-blue-400">all terms</span> by...
             </x-section-heading>
-            <div class="flex text-center justify-center gap-4 mt-4 flex-wrap">
-                <x-panel class="w-48">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-center">
+                <x-panel>
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="sentences">Sentences</a>
@@ -83,7 +83,7 @@
                         <p class="text-sm mt-4">Recall the word from English sentence with blank space.</p>
                     </div>
                 </x-panel>
-                <x-panel class="w-48">
+                <x-panel>
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="questions">Questions</a>
@@ -91,7 +91,7 @@
                         <p class="text-sm mt-4">Recall the word when asked about it.</p>
                     </div>
                 </x-panel>
-                <x-panel class="w-48">
+                <x-panel>
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="words">Words</a>
@@ -99,7 +99,7 @@
                         <p class="text-sm mt-4">Recall the English translation from Czech word.</p>
                     </div>
                 </x-panel>
-                <x-panel class="w-48">
+                <x-panel>
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="definitions">Definitions</a>

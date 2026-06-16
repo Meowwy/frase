@@ -139,11 +139,7 @@ class AjaxController extends Controller
             return response()->json(['success' => 'Card for "'.$phrase.'" has been created successfully.']);
         }
 
-        if ($wordbox) {
-            return redirect()->route('wordbox.show', ['id' => $wordbox->id]);
-        } else {
-            return redirect('/');
-        }
+        return redirect('/');
 
         /*return response()->json([
             'success' => 'Word "' . $phrase . '" has been submitted successfully.',
