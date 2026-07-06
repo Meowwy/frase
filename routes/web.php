@@ -153,11 +153,44 @@ Route::middleware('auth')->group(function () {
             $activeLanguageId = $user->currentSaveLanguage()?->id ?? optional($targetLanguages->first())->id;
         }
 
+        // Precompute total/due card counts per selection so the builder can show how many
+        // cards a filter yields without hitting the backend on every change. Mirrors the
+        // rules in Learning::getCardsForSelection (due = next_study_at on/before today).
+        $today = now()->toDateString();
+        $dueExpr = 'sum(case when date(next_study_at) <= ? then 1 else 0 end) as due';
+
+        $allCounts = $user->cards()
+            ->selectRaw("language_id, count(*) as total, {$dueExpr}", [$today])
+            ->groupBy('language_id')->get()->keyBy('language_id');
+        $generalCounts = $user->cards()->whereDoesntHave('wordbox')
+            ->selectRaw("language_id, count(*) as total, {$dueExpr}", [$today])
+            ->groupBy('language_id')->get()->keyBy('language_id');
+        $wordboxCounts = $user->cards()
+            ->join('wordbox_card', 'cards.id', '=', 'wordbox_card.card_id')
+            ->selectRaw('wordbox_card.wordbox_id as wid, count(*) as total, '.str_replace('next_study_at', 'cards.next_study_at', $dueExpr), [$today])
+            ->groupBy('wordbox_card.wordbox_id')->get()->keyBy('wid');
+
+        $cardCounts = [];
+        foreach ($targetLanguages as $lang) {
+            $cardCounts[$lang->id] = [
+                'all' => ['total' => (int) ($allCounts[$lang->id]->total ?? 0), 'due' => (int) ($allCounts[$lang->id]->due ?? 0)],
+                'general' => ['total' => (int) ($generalCounts[$lang->id]->total ?? 0), 'due' => (int) ($generalCounts[$lang->id]->due ?? 0)],
+                'wordboxes' => [],
+            ];
+            foreach ($wordboxesByLanguage[$lang->id] ?? [] as $wb) {
+                $cardCounts[$lang->id]['wordboxes'][$wb->id] = [
+                    'total' => (int) ($wordboxCounts[$wb->id]->total ?? 0),
+                    'due' => (int) ($wordboxCounts[$wb->id]->due ?? 0),
+                ];
+            }
+        }
+
         return view('learning.set', [
             'themeName' => $themeName,
             'targetLanguages' => $targetLanguages,
             'wordboxesByLanguage' => $wordboxesByLanguage,
             'activeLanguageId' => $activeLanguageId,
+            'cardCounts' => $cardCounts,
         ]);
     });
     Route::get('/startLearning/{wbid}/{mode}', [Learning::class, 'startLearning']);

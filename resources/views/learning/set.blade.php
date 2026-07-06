@@ -72,10 +72,11 @@
             </div>
 
             <x-section-heading>
-                <span>Start learning </span><span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> from <span id="startTarget" class="text-blue-400">all terms</span> by...
+                <span id="reviewSentence">Review <span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> from <span id="startTarget" class="text-blue-400">all terms</span> by...</span>
+                <span id="noCardsSentence" class="hidden">No cards to review</span>
             </x-section-heading>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-center">
-                <x-panel>
+                <x-panel class="mode-panel">
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="sentences">Sentences</a>
@@ -83,7 +84,7 @@
                         <p class="text-sm mt-4">Recall the word from English sentence with blank space.</p>
                     </div>
                 </x-panel>
-                <x-panel>
+                <x-panel class="mode-panel">
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="questions">Questions</a>
@@ -91,7 +92,7 @@
                         <p class="text-sm mt-4">Recall the word when asked about it.</p>
                     </div>
                 </x-panel>
-                <x-panel>
+                <x-panel class="mode-panel">
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="words">Words</a>
@@ -99,7 +100,7 @@
                         <p class="text-sm mt-4">Recall the English translation from Czech word.</p>
                     </div>
                 </x-panel>
-                <x-panel>
+                <x-panel class="mode-panel">
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                             <a href="#" class="mode-link" data-mode="definitions">Definitions</a>
@@ -114,6 +115,10 @@
             // Card-set builder: the shared wordbox picker handles language + wordbox;
             // here we add the scope toggle and fold everything into the mode links + heading.
             $(document).ready(function () {
+                // Per-selection card counts precomputed server-side; keyed by language id,
+                // then 'all' | 'general' | wordbox id, each with {total, due}.
+                const counts = @json($cardCounts);
+
                 const init = window.WordboxPicker.current();
                 const state = {
                     languageId: init.languageId,
@@ -122,11 +127,41 @@
                     scope: 'due',          // 'due' | 'cram'
                 };
 
-                // Fold the current selection into the "Start learning ... by..." heading:
-                // scope in the orange pill, the selected target in blue.
+                // How many cards the current selection yields. For 'due' we mirror the
+                // backend cap (more than 20 due → only 15 are studied).
+                function selectionCount() {
+                    const lang = counts[state.languageId];
+                    if (!lang) return 0;
+                    const entry = state.wordbox === 'all' ? lang.all
+                        : state.wordbox === 'general' ? lang.general
+                        : (lang.wordboxes && lang.wordboxes[state.wordbox]);
+                    if (!entry) return 0;
+                    if (state.scope === 'due') {
+                        return entry.due > 20 ? 15 : entry.due;
+                    }
+                    return entry.total;
+                }
+
+                // Fold the current selection into the "Review ... by..." heading: the count
+                // + scope in the orange pill, the selected target in blue. When the selection
+                // yields nothing, swap in "No cards to review" and disable the mode options.
+                // due  → "15 due cards"     cram → "all 15 cards"
                 function updateStartHeading() {
-                    $('#startScope').text(state.scope === 'due' ? 'due cards' : 'all cards');
-                    $('#startTarget').text(state.label || 'all terms');
+                    const n = selectionCount();
+                    const empty = n === 0;
+
+                    $('#reviewSentence').toggleClass('hidden', empty);
+                    $('#noCardsSentence').toggleClass('hidden', !empty);
+
+                    if (!empty) {
+                        const noun = 'card' + (n === 1 ? '' : 's');
+                        $('#startScope').text(state.scope === 'due' ? `${n} due ${noun}` : `all ${n} ${noun}`);
+                        $('#startTarget').text(state.label || 'all terms');
+                    }
+
+                    // Gray out and inert the mode cards when there is nothing to review;
+                    // pointer-events-none kills both the hover styling and the click.
+                    $('.mode-panel').toggleClass('opacity-40 pointer-events-none', empty);
                 }
 
                 function updateModeLinks() {

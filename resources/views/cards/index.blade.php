@@ -18,14 +18,24 @@
             <tr>
                 {{-- Search inputs are baked into the header in place of the column titles. --}}
                 <th class="px-6 py-3 text-left">
-                    <input type="text" id="cardSearchTerm" placeholder="Term" autocomplete="off"
-                           value="{{ $term }}"
-                           class="w-full bg-transparent text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
+                    <div class="flex items-center gap-2 border-b border-white/60">
+                        <svg class="w-4 h-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <input type="text" id="cardSearchTerm" placeholder="Term" autocomplete="off"
+                               value="{{ $term }}"
+                               class="w-full bg-transparent py-1 text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
+                    </div>
                 </th>
                 <th class="px-6 py-3 text-left">
-                    <input type="text" id="cardSearchDefinition" placeholder="Definition" autocomplete="off"
-                           value="{{ $definition }}"
-                           class="w-full bg-transparent text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
+                    <div class="flex items-center gap-2 border-b border-white/60">
+                        <svg class="w-4 h-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <input type="text" id="cardSearchDefinition" placeholder="Definition" autocomplete="off"
+                               value="{{ $definition }}"
+                               class="w-full bg-transparent py-1 text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
+                    </div>
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Wordbox</th>
             </tr>
