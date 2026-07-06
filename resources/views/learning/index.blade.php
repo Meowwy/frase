@@ -49,21 +49,13 @@
     </div>
 
     <script>
-        /*let cards = [
-            { id:"1", front: "First", back: "Atoms consist of a nucleus containing protons and neutrons, surrounded by electrons in shells." },
-            { id:"2", front: "Second", back: "A table of the chemical elements arranged in order of atomic number." },
-            { id:"3", front: "Third", back: "Atoms combine by sharing or transferring electrons to achieve stability." },
-            { id:"4", front: "Forth", back: "A mole is a unit that measures the amount of substance, containing Avogadro's number of particles." },
-            { id:"5", front: "Fifth", back: "Acids donate protons (H+), while bases accept protons." }
-        ];*/
-
         {!! $cards !!};
 
-        let initialLength = {{ $cardCount }};
-        let results = [];
+        // Total cards dealt at the start of the session; used to derive the "correct"
+        // counter (a card leaves the deck only when answered correctly).
+        const totalCards = {{ $cardCount }};
+        const results = [];
         let currentIndex = 0;
-        let allCardsShown = false;
-        let currentNumber = 0;
 
         const flashcard = document.getElementById('flashcard');
         const wordboxName = document.getElementById('wordboxName');
@@ -75,18 +67,38 @@
         const exitBtn = document.getElementById('exitBtn');
         const hintElement = document.getElementById('hint');
         const hintText = document.getElementById('hintText');
+        const resultsForm = document.getElementById('resultsForm');
+        const resultsInput = document.getElementById('resultsInput');
 
-        const unseenInfo = document.getElementById('queue');
+        const queueInfo = document.getElementById('queue');
         const wrongInfo = document.getElementById('wrong');
         const correctInfo = document.getElementById('correct');
 
+        // A card is "reviewed" once it has a results entry (its first answer, which is
+        // the grade sent to the backend — repeat-until-correct never overwrites it).
+        const isReviewed = card => results.some(r => r.id === card.id);
 
+        // Record a card's first answer only; wrong cards reappear until cleared, but
+        // their original (wrong) grade must stand for scheduling.
+        function recordResult(result) {
+            if (!isReviewed(cards[currentIndex])) {
+                results.push({ id: cards[currentIndex].id, result });
+            }
+        }
 
-        function updateFlashcard(index) {
+        function updateCounters() {
+            // queue: still-unanswered cards. wrong: cards left in the deck after a wrong
+            // answer. correct: cards cleared from the deck. Together they sum to totalCards.
+            queueInfo.innerText   = cards.filter(c => !isReviewed(c)).length.toString();
+            wrongInfo.innerText   = cards.filter(isReviewed).length.toString();
+            correctInfo.innerText = (totalCards - cards.length).toString();
+        }
+
+        function showCard() {
             flashcard.classList.remove('is-flipped');
-            front.textContent = cards[index].front;
-            if (cards[index].wordbox) {
-                wordboxName.textContent = cards[index].wordbox;
+            front.textContent = cards[currentIndex].front;
+            if (cards[currentIndex].wordbox) {
+                wordboxName.textContent = cards[currentIndex].wordbox;
                 wordboxName.classList.remove('invisible');
             } else {
                 // Keep the pill's space reserved so nothing shifts, just hide it.
@@ -96,98 +108,65 @@
             wrongBtn.classList.add('hidden');
             correctBtn.classList.add('hidden');
             flipBtn.classList.remove('hidden');
-            // Always reflect the real number of cards still to be cleared (wrong cards
-            // stay in the deck until answered correctly, so they keep counting here).
-            unseenInfo.innerText = cards.length.toString();
             hintText.textContent = 'Click to show hint.';
+            updateCounters();
         }
 
-        flashcard.addEventListener('click', () => {
+        function flip() {
             back.textContent = cards[currentIndex].back;
             flashcard.classList.toggle('is-flipped');
             flipBtn.classList.add('hidden');
             wrongBtn.classList.remove('hidden');
             correctBtn.classList.remove('hidden');
+        }
+
+        flashcard.addEventListener('click', flip);
+        flipBtn.addEventListener('click', flip);
+
+        // Spacebar flips the current card, mirroring a click on it — but not while the
+        // user is typing in a field (e.g. the nav-bar search).
+        document.addEventListener('keydown', (e) => {
+            const el = e.target;
+            const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+            if (e.code === 'Space' && !e.repeat && !typing) {
+                e.preventDefault(); // stop the page from scrolling
+                flip();
+            }
         });
 
         hintElement.addEventListener('click', () => {
             hintText.textContent = cards[currentIndex].hint;
-
-        })
+        });
 
         wrongBtn.addEventListener('click', () => {
-            if(!results.some(r => r.id === cards[currentIndex].id)) {
-                results.push({
-                    id: cards[currentIndex].id,
-                    result: 0
-                });
-            }
-            if(allCardsShown === false){
-                currentNumber = parseInt(wrongInfo.innerText);
-                currentNumber++;
-                wrongInfo.innerText = currentNumber.toString();
-            }
-            if (currentIndex < cards.length - 1) {
-                currentIndex++;
-                updateFlashcard(currentIndex);
-            } else {
-                currentIndex = 0;
-                allCardsShown = true;
-                initialLength = cards.length;
-                updateFlashcard(currentIndex);
-            }
+            recordResult(0);
+            // Keep the card in the deck and move on; it reappears until answered correctly.
+            currentIndex = (currentIndex + 1) % cards.length;
+            showCard();
         });
 
         correctBtn.addEventListener('click', () => {
-            if(!results.some(r => r.id === cards[currentIndex].id)){
-                results.push({
-                    id: cards[currentIndex].id,
-                    result: 1
-                });
-            }
-
+            recordResult(1);
             cards.splice(currentIndex, 1);
 
-            currentNumber = parseInt(correctInfo.innerText);
-            currentNumber++;
-            correctInfo.innerText = currentNumber.toString();
-            if(allCardsShown === true){
-                currentNumber = parseInt(wrongInfo.innerText);
-                currentNumber--;
-                wrongInfo.innerText = currentNumber.toString();
-            }
-
-            // Deck emptied: finish immediately, don't fall through to updateFlashcard().
-            if(cards.length === 0){
+            if (cards.length === 0) {
                 end();
                 return;
             }
-
-            if (currentIndex > cards.length - 1) {
+            // The splice shifted everything left, so wrap if we were on the last card.
+            if (currentIndex >= cards.length) {
                 currentIndex = 0;
-                allCardsShown = true;
-                initialLength = cards.length;
             }
-            updateFlashcard(currentIndex);
+            showCard();
         });
 
-        flipBtn.addEventListener('click', () => {
-            back.textContent = cards[currentIndex].back;
-            flashcard.classList.toggle('is-flipped');
-            flipBtn.classList.add('hidden');
-            wrongBtn.classList.remove('hidden');
-            correctBtn.classList.remove('hidden');
-        });
+        exitBtn.addEventListener('click', end);
 
-        exitBtn.addEventListener('click', () => {
-            end();
-        });
-
-        function end(){
-            document.getElementById('resultsInput').value = JSON.stringify(results);
-            document.getElementById('resultsForm').submit();
+        function end() {
+            resultsInput.value = JSON.stringify(results);
+            resultsForm.submit();
         }
 
-        updateFlashcard(currentIndex);
+        showCard();
     </script>
 </x-html-layout>

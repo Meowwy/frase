@@ -17,6 +17,7 @@ This is a language learning app that allows users to save words and phrases for 
 - Always document any changes did to the application architecture here in this AGENT.md file for future reference. This file is supposed to hold the current architecture of the application and also as a guideline for future contributions so they are consistent with the conventions.
 - Stick to the current naming conventions and patterns.
 - You don't have to run "npm run build" after implementing new features, because I use hot reload and can see changes in the dev environment.
+- **Exception — previewing via the `frase.test` Herd environment:** when the Vite dev server (`npm run dev`) is *not* running, `@vite` finds no `public/hot` file and falls back to the compiled assets in `public/build`. If those are stale, recently added Tailwind classes are missing and styling looks broken (works in production because deploy runs a fresh build). So before previewing `frase.test` without the dev server, either keep `npm run dev` running or run `npm run build` to refresh `public/build`.
 
 ## Application Architecture
 
