@@ -13,6 +13,13 @@
                 <div id="nativeMenu" class="combo-menu hidden absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1"></div>
             </div>
             <input type="hidden" name="native_language_id" id="nativeInput" value="{{ $nativeLanguageId }}">
+
+            <label class="flex items-start gap-2 mt-3 max-w-md cursor-pointer">
+                <input type="checkbox" name="native_save" id="nativeSave" value="1"
+                       class="mt-0.5 h-4 w-4 shrink-0 accent-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                       @checked($nativeSaveEnabled)>
+                <span class="text-sm text-white/70">Also save words in my native language — build vocabulary in your own language, learned in context.</span>
+            </label>
         </div>
 
         <div class="mt-2">
@@ -22,7 +29,17 @@
             </div>
             <p class="text-sm text-white/60 mb-3">Pick up to 5 languages and set your proficiency for each. Each word you save belongs to one of these.</p>
 
-            <div id="targetLangs" class="space-y-2"></div>
+            <table class="table-fixed w-full max-w-3xl text-left text-white bg-white/5 rounded-xl">
+                <thead class="text-white/60 text-sm">
+                    <tr class="border-b border-gray-700">
+                        <th class="w-48 px-4 py-2 font-medium">Language</th>
+                        <th class="w-56 px-4 py-2 font-medium">Proficiency</th>
+                        <th class="w-24 px-4 py-2 font-medium">Terms</th>
+                        <th class="w-10 px-4 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody id="targetLangs" class="divide-y divide-gray-700"></tbody>
+            </table>
 
             <div id="addCombo" class="combo relative max-w-md mt-3">
                 <button type="button" id="addTrigger"
@@ -50,6 +67,21 @@
         </a>
     </div>
 
+    {{-- Confirm dialog for Hide / Remove, reusing the shared modal (replaces the browser confirm). --}}
+    <x-modal name="confirm-language-action" title="Are you sure?">
+        <p class="text-white/60 mb-6"><span id="langActionMsg"></span></p>
+        <div class="flex justify-end gap-3">
+            <button type="button" onclick="closeModal('confirm-language-action')"
+                    class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+                Cancel
+            </button>
+            <button type="button" id="langActionConfirm"
+                    class="px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all">
+                Confirm
+            </button>
+        </div>
+    </x-modal>
+
     <script>
         (function () {
             const LANGS = @json($languages->map(fn ($l) => ['id' => $l->id, 'flag' => $l->flag, 'name' => $l->name])->values());
@@ -74,8 +106,36 @@
             const nativeMenu = document.getElementById('nativeMenu');
             const nativeLabel = document.getElementById('nativeLabel');
             const nativeInput = document.getElementById('nativeInput');
+            const nativeSave = document.getElementById('nativeSave');
+
+            // Confirm modal (shared component) — a pending callback is run when confirmed.
+            const langActionMsg = document.getElementById('langActionMsg');
+            const langActionConfirm = document.getElementById('langActionConfirm');
+            let pendingLangAction = null;
+
+            function askConfirm(message, onConfirm) {
+                langActionMsg.textContent = message;
+                pendingLangAction = onConfirm;
+                closeMenus();
+                openModal('confirm-language-action');
+            }
+
+            langActionConfirm.addEventListener('click', () => {
+                const action = pendingLangAction;
+                pendingLangAction = null;
+                closeModal('confirm-language-action');
+                if (action) { action(); }
+            });
 
             let nativeId = nativeInput.value || null;
+
+            // The "save in native language" toggle only makes sense once a native language
+            // is chosen; disable (and clear) it otherwise.
+            function syncNativeSave() {
+                const has = ! ! nativeId;
+                nativeSave.disabled = ! has;
+                if (! has) { nativeSave.checked = false; }
+            }
             // Each row is a chosen language; `hidden` keeps it listed (greyed, unhideable) but out of the saved set.
             // Active targets come first, then languages the user has cards in but no longer learns (hidden).
             let rows = PRESELECTED.map(id => ({ id: id, level: PRELEVELS[id] || DEFAULT_LEVEL, hidden: false }));
@@ -93,6 +153,7 @@
 
             function closeMenus() {
                 wrap.querySelectorAll('.combo-menu').forEach(m => m.classList.add('hidden'));
+                wrap.querySelectorAll('.row-menu').forEach(m => m.classList.add('hidden'));
                 nativeMenu.classList.add('hidden');
                 addMenu.classList.add('hidden');
             }
@@ -114,6 +175,7 @@
                         nativeInput.value = l.id;
                         rows = rows.filter(r => String(r.id) !== String(nativeId));
                         closeMenus();
+                        syncNativeSave();
                         renderNative();
                         render();
                     });
@@ -172,43 +234,63 @@
             // ---- Target-language rows ----
             function render() {
                 wrap.innerHTML = '';
+
+                if (rows.length === 0) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td colspan="4" class="px-4 py-4 text-sm text-white/40">No languages yet — add one below.</td>`;
+                    wrap.appendChild(tr);
+                    updateControls();
+                    return;
+                }
+
                 rows.forEach((row, idx) => {
                     const lang = langById(row.id);
                     const count = COUNTS[row.id] || 0;
                     const level = row.level || DEFAULT_LEVEL;
-                    const dim = row.hidden ? 'opacity-50' : '';
 
-                    let btnHtml;
+                    // The 3-dot menu shows the single action that fits this row's state.
+                    let menuItem;
                     if (row.hidden) {
-                        btnHtml = `<button type="button" class="unhide-row text-xs px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors whitespace-nowrap">Unhide</button>`;
+                        menuItem = `<button type="button" class="menu-unhide block w-full px-4 py-2 text-sm text-left hover:bg-white/10">Unhide</button>`;
                     } else if (count > 0) {
-                        btnHtml = `<button type="button" class="hide-row text-xs px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors whitespace-nowrap">Hide</button>`;
+                        menuItem = `<button type="button" class="menu-hide block w-full px-4 py-2 text-sm text-left hover:bg-white/10">Hide</button>`;
                     } else {
-                        btnHtml = `<button type="button" class="del-row text-xs px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors whitespace-nowrap">✕</button>`;
+                        menuItem = `<button type="button" class="menu-remove block w-full px-4 py-2 text-sm text-left text-red-500 hover:bg-white/10">Remove</button>`;
                     }
 
-                    const el = document.createElement('div');
-                    el.className = 'flex items-center gap-2';
-                    el.innerHTML = `
-                        <div class="grow flex items-center rounded-xl bg-white/10 border border-white/10 px-4 py-2 ${dim}">
-                            <span>${lang ? esc(lang.flag + ' ' + lang.name) : ''}</span>
-                        </div>
-                        <div class="combo relative w-52 shrink-0 ${dim}">
-                            <button type="button" class="level-trigger combo-trigger w-full flex items-center justify-between rounded-xl bg-white/10 border border-white/10 px-4 py-2 hover:border-blue-500 transition-colors" ${row.hidden ? 'disabled' : ''}>
-                                <span>${esc(levelLabel(level))}</span>
-                                <span class="text-white/50 text-xs">▾</span>
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-white/10' + (row.hidden ? ' opacity-50' : '');
+                    tr.innerHTML = `
+                        <td class="px-4 py-2 truncate">
+                            ${lang ? esc(lang.flag + ' ' + lang.name) : ''}
+                            ${row.hidden ? `<span class="text-xs text-white/30 italic ml-1">(hidden)</span>` : ''}
+                        </td>
+                        <td class="px-4 py-2">
+                            <div class="combo relative w-full">
+                                <button type="button" class="level-trigger combo-trigger w-full flex items-center justify-between rounded-lg bg-white/10 border border-white/10 px-3 py-1.5 text-sm hover:border-blue-500 transition-colors" ${row.hidden ? 'disabled' : ''}>
+                                    <span class="truncate">${esc(levelLabel(level))}</span>
+                                    <span class="text-white/50 text-xs shrink-0 ml-1">▾</span>
+                                </button>
+                                <div class="combo-menu hidden absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1"></div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-white/50 whitespace-nowrap">${count > 0 ? count + ' term' + (count > 1 ? 's' : '') : '—'}</td>
+                        <td class="px-4 py-2 text-right relative">
+                            <button type="button" class="row-menu-btn text-gray-400 hover:text-white" aria-label="Row options">
+                                <svg class="w-5 h-5 inline" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 6a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4z"></path>
+                                </svg>
                             </button>
-                            <div class="combo-menu hidden absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1"></div>
-                        </div>
-                        ${count > 0 ? `<span class="text-xs text-white/50 whitespace-nowrap">${count} term${count > 1 ? 's' : ''}</span>` : ''}
-                        ${row.hidden ? `<span class="text-xs text-white/30 italic whitespace-nowrap">hidden</span>` : ''}
-                        ${btnHtml}
-                        ${! row.hidden ? `<input type="hidden" name="target_language_ids[]" value="${row.id}">
-                        <input type="hidden" name="target_language_levels[${row.id}]" value="${level}">` : ''}
+                            <div class="row-menu hidden absolute right-4 top-10 z-40 w-32 rounded-lg border border-white/10 bg-[#111] py-1 text-left shadow-xl">
+                                ${menuItem}
+                            </div>
+                            ${! row.hidden ? `<input type="hidden" name="target_language_ids[]" value="${row.id}">
+                            <input type="hidden" name="target_language_levels[${row.id}]" value="${level}">` : ''}
+                        </td>
                     `;
 
                     // Proficiency combo (same look as the language pickers).
-                    const menu = el.querySelector('.combo-menu');
+                    const menu = tr.querySelector('.combo-menu');
                     LEVELS.forEach(lv => {
                         const o = document.createElement('button');
                         o.type = 'button';
@@ -223,7 +305,7 @@
                         menu.appendChild(o);
                     });
 
-                    const levelTrigger = el.querySelector('.level-trigger');
+                    const levelTrigger = tr.querySelector('.level-trigger');
                     levelTrigger.addEventListener('click', e => {
                         e.stopPropagation();
                         if (row.hidden) { return; }
@@ -232,33 +314,47 @@
                         if (! isOpen) { menu.classList.remove('hidden'); }
                     });
 
-                    const hideBtn = el.querySelector('.hide-row');
+                    // 3-dot row menu toggle.
+                    const rowMenu = tr.querySelector('.row-menu');
+                    tr.querySelector('.row-menu-btn').addEventListener('click', e => {
+                        e.stopPropagation();
+                        const isOpen = ! rowMenu.classList.contains('hidden');
+                        closeMenus();
+                        if (! isOpen) { rowMenu.classList.remove('hidden'); }
+                    });
+
+                    const hideBtn = tr.querySelector('.menu-hide');
                     if (hideBtn) {
                         hideBtn.addEventListener('click', () => {
-                            const msg = 'Hide ' + (lang ? lang.name : 'this language') + '?\n\n'
-                                + 'Your ' + count + ' saved card' + (count > 1 ? 's' : '')
-                                + ' will be kept. You can unhide it any time to resume learning it.';
-                            if (! confirm(msg)) { return; }
-                            row.hidden = true;
-                            render();
+                            askConfirm(
+                                'Hide ' + (lang ? lang.name : 'this language') + '? Your ' + count + ' saved card'
+                                + (count > 1 ? 's' : '') + ' will be kept — you can unhide it any time to resume learning it.',
+                                () => { row.hidden = true; render(); }
+                            );
                         });
                     }
 
-                    const unhideBtn = el.querySelector('.unhide-row');
+                    const unhideBtn = tr.querySelector('.menu-unhide');
                     if (unhideBtn) {
                         unhideBtn.addEventListener('click', () => {
+                            closeMenus();
                             if (activeCount() >= MAX) { hint.classList.remove('hidden'); return; }
                             row.hidden = false;
                             render();
                         });
                     }
 
-                    const delBtn = el.querySelector('.del-row');
-                    if (delBtn) {
-                        delBtn.addEventListener('click', () => { rows.splice(idx, 1); render(); });
+                    const removeBtn = tr.querySelector('.menu-remove');
+                    if (removeBtn) {
+                        removeBtn.addEventListener('click', () => {
+                            askConfirm(
+                                'Remove ' + (lang ? lang.name : 'this language') + ' from your languages?',
+                                () => { rows.splice(idx, 1); render(); }
+                            );
+                        });
                     }
 
-                    wrap.appendChild(el);
+                    wrap.appendChild(tr);
                 });
                 updateControls();
             }
@@ -274,6 +370,7 @@
 
             document.addEventListener('click', closeMenus);
 
+            syncNativeSave();
             renderNative();
             render();
         })();

@@ -239,6 +239,82 @@ class AI extends Model
         // return $response;
     }
 
+    /**
+     * Build a monolingual flashcard entirely in the learner's own native language.
+     *
+     * Used when the save destination is the user's native language: the learner is
+     * building vocabulary in their own language, so every field is written in that
+     * language and there is no translation. Handles both the plain and the
+     * context-supplied cases via the optional $context argument.
+     */
+    public static function getContentForCardNative(string $phrase, string $themes, string $nativeLanguage, ?string $context = null)
+    {
+        logger('Obtaining native-language data for '.$phrase);
+
+        $systemContent = "You are a vocabulary tutor helping a native speaker of {$nativeLanguage} build their vocabulary by learning words and phrases in context. Write every field in {$nativeLanguage}. First decide the card's phrase, then write every other field to describe that exact phrase, never the original term, if it is only one word.";
+        if (! is_null($context)) {
+            $systemContent .= ' The term was seen in a specific context; capture the meaning it has there but in a general, dictionary-style form.';
+        }
+        $systemContent .= ' Follow each field\'s rules exactly.';
+
+        $userContent = "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Write everything in {$nativeLanguage}.";
+        if (! is_null($context)) {
+            $userContent .= " Used in this context: \"{$context}\".";
+        }
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => $systemContent,
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $userContent,
+                ],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'get_information_for_card_native',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'phrase' => [
+                                'type' => 'string',
+                                'description' => 'The phrase this card teaches. If the Original term is already a phrase, keep it; if it is a single word, expand it into a natural collocation (max 3 words) by pairing it with at least one extra CONTENT word — a meaningful noun, verb, or adjective it commonly appears with. The added meaning must come from a content word, never only from grammar words (articles, prepositions, conjunctions, auxiliaries such as a, the, to, that, on, be). Examples: book => read a book, frugal => frugal lifestyle, imply => imply guilt. Fix spelling and use the base/dictionary form. Decide this first: every other field must describe THIS phrase, not the original Term.',
+                            ],
+                            'sentence' => [
+                                'type' => 'string',
+                                'description' => "One short, natural {$nativeLanguage} sentence whose context makes the phrase's meaning clear. Wrap the phrase in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Keep it clear and easy to read.",
+                            ],
+                            'question' => [
+                                'type' => 'string',
+                                'description' => "A short recall cue in {$nativeLanguage} that points to the phrase without naming it — may be a brief situation, statement, or question, whatever fits best. Anchor it to a real-life situation or to words closely tied to the phrase so the learner recalls it from context, e.g. \"read a book\" => \"what you do in a library\". You may reuse the phrase's own words, e.g. \"frugal lifestyle\" => \"a way of living that spends only as much money as necessary\". Keep it short, no filler. Never write the original term or an obvious form of it.",
+                            ],
+                            'definition' => [
+                                'type' => 'string',
+                                'description' => "A concise dictionary-style definition of the phrase in {$nativeLanguage}. Do not use the phrase itself in the definition.",
+                            ],
+                            'theme' => [
+                                'type' => 'string',
+                                'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
+                            ],
+                        ],
+                        'required' => ['phrase', 'sentence', 'question', 'definition', 'theme'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ]);
+
+        return $response->json('choices.0.message.content');
+    }
+
     public static function generateThemes(string $phrases, string $targetLanguage)
     {
         logger('Generating themes.');

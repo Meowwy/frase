@@ -79,6 +79,14 @@ class UserController extends Controller
 
         $selectedTargetIds = $user->languages()->pluck('languages.id')->all();
 
+        // The native language may be attached to the pivot purely to enable saving words
+        // in it (see update()). That is surfaced as its own checkbox, not as a row in the
+        // "languages you are learning" table, so strip it out of the learning set here.
+        $nativeId = (int) $user->native_language_id;
+        $nativeSaveEnabled = in_array($nativeId, array_map('intval', $selectedTargetIds), true);
+        $selectedTargetIds = array_values(array_filter($selectedTargetIds, fn ($id) => (int) $id !== $nativeId));
+        unset($selectedLevels[$nativeId]);
+
         // "Hidden" languages: ones the user has saved cards in but is no longer actively
         // learning (not a target, not their native). Shown greyed so the user still sees
         // every language they have content in and can unhide it.
@@ -98,6 +106,7 @@ class UserController extends Controller
             'proficiencyNames' => config('proficiency.names'),
             'defaultLevel' => config('proficiency.default'),
             'nativeLanguageId' => $user->native_language_id,
+            'nativeSaveEnabled' => $nativeSaveEnabled,
             'termCounts' => $termCounts,
         ]);
     }
@@ -159,6 +168,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'username' => ['required', 'string', 'max:50'],
             'native_language_id' => ['required', 'integer', 'exists:languages,id'],
+            'native_save' => ['nullable', 'boolean'],
             'target_language_ids' => ['required', 'array', 'max:5'],
             'target_language_ids.*' => ['integer', 'exists:languages,id'],
             'target_language_levels' => ['array'],
@@ -178,11 +188,21 @@ class UserController extends Controller
                 'users_level' => $levels[$languageId] ?? $defaultLevel,
             ];
         }
+
+        // "Save words in my native language" attaches the native language to the same
+        // pivot so it becomes a save destination everywhere — but it is kept separate
+        // from the 5-language learning limit and carries no proficiency level.
+        if ($request->boolean('native_save') && ! isset($syncData[$validated['native_language_id']])) {
+            $syncData[$validated['native_language_id']] = ['users_level' => null];
+        }
+
         $user->languages()->sync($syncData);
 
-        // Keep the active (default save) language valid.
-        if (! in_array($user->active_language_id, $validated['target_language_ids'])) {
-            $user->active_language_id = $validated['target_language_ids'][0] ?? null;
+        // Keep the active (default save) language valid — it may be any attached language,
+        // including the native one when native-save is enabled.
+        $attachedIds = array_map('intval', array_keys($syncData));
+        if (! in_array((int) $user->active_language_id, $attachedIds, true)) {
+            $user->active_language_id = $attachedIds[0] ?? null;
             $user->save();
             session()->forget(['capture_language_id', 'capture_wordbox_id']);
         }

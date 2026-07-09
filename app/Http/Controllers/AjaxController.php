@@ -73,7 +73,13 @@ class AjaxController extends Controller
         $nativeLanguage = optional($user->nativeLanguage)->name ?? $user->native_language;
         $level = $user->levelForLanguage($language);
 
-        if (is_null($context)) {
+        // Saving into the native language builds monolingual vocabulary: every field is
+        // generated in the native language and the card has no translation.
+        $isNative = $user->native_language_id && (int) $language->id === (int) $user->native_language_id;
+
+        if ($isNative) {
+            $content = AI::getContentForCardNative($capturedWord, $themeString, $language->name, $context);
+        } elseif (is_null($context)) {
             $content = AI::getContentForCard($capturedWord, $themeString, $targetLanguage, $nativeLanguage, $level);
         } else {
             $content = AI::getContentForCardWithContext($capturedWord, $themeString, $targetLanguage, $nativeLanguage, $context, $level);
@@ -114,7 +120,7 @@ class AjaxController extends Controller
                 'theme_id' => ($selectedTheme ? $selectedTheme->id : $recentThemeId),
                 'language_id' => $language->id,
                 'level' => 1,
-                'translation' => $output->translation,
+                'translation' => $output->translation ?? '',
                 'example_sentence' => $output->sentence,
                 'question' => $output->question,
                 'definition' => $output->definition,
