@@ -207,6 +207,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/cards/{card:id}', [CardController::class, 'show']);
     Route::get('/cards/edit/{card:id}', [CardController::class, 'edit']);
     Route::post('/cards/new', [CardController::class, 'save']);
+    // Bulk row actions from the /cards list. Registered before the /cards/{card:id}
+    // wildcard below so their literal paths aren't captured as a card id.
+    Route::post('/cards/bulk-destroy', [CardController::class, 'bulkDestroy']);
+    Route::post('/cards/assign-wordbox', [CardController::class, 'assignWordbox']);
     Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
         if ($card) {

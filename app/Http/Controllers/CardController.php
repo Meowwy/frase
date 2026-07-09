@@ -280,11 +280,55 @@ class CardController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Delete one or more of the user's cards (bulk row action from /cards).
+     * Also serves the single-row delete (the 3-dot menu) with a one-id array.
      */
-    public function destroy(Card $card)
+    public function bulkDestroy(\Illuminate\Http\Request $request)
     {
-        //
+        $data = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer'],
+        ]);
+
+        // Scoping through cards() enforces ownership; ids not owned are ignored.
+        $cards = Auth::user()->cards()->whereIn('id', $data['ids'])->get();
+
+        foreach ($cards as $card) {
+            $card->wordbox()->detach(); // drop pivot rows so none are orphaned
+            $card->delete();
+        }
+
+        return response()->json(['deleted' => $cards->count()]);
+    }
+
+    /**
+     * (Re)assign the selected cards to a wordbox (bulk row action from /cards).
+     * A card is treated as belonging to a single wordbox, so we sync the pivot
+     * to just the target — moving cards that were already in another wordbox.
+     */
+    public function assignWordbox(\Illuminate\Http\Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer'],
+            'wordbox_id' => ['required', 'integer'],
+        ]);
+
+        $user = Auth::user();
+        $wordbox = $user->wordboxes()->where('id', $data['wordbox_id'])->firstOrFail();
+
+        // The list is single-language; guard defensively so a card can't be
+        // moved into a wordbox of a different language.
+        $cards = $user->cards()
+            ->whereIn('id', $data['ids'])
+            ->where('language_id', $wordbox->language_id)
+            ->get();
+
+        foreach ($cards as $card) {
+            $card->wordbox()->sync([$wordbox->id]);
+        }
+
+        return response()->json(['assigned' => $cards->count(), 'wordbox' => $wordbox->name]);
     }
 
     /**
