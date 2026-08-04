@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class Learning extends Model
 {
@@ -246,7 +247,10 @@ class Learning extends Model
 
         $targetWords = $cards->map(fn ($c) => ['id' => $c->id, 'term' => $c->phrase])->values()->all();
 
-        $opening = AI::startConversation($targetWords, $language->name, $level);
+        // Stable per-chat key so every turn is routed to the same prompt cache.
+        $cacheKey = 'conv-'.$user->id.'-'.Str::uuid()->toString();
+
+        $opening = AI::startConversation($targetWords, $language->name, $level, $cacheKey);
         if (is_null($opening)) {
             return redirect('/setLearning')->with('popup_message', 'Could not start the conversation. Please try again.');
         }
@@ -258,6 +262,7 @@ class Learning extends Model
             'stale_count' => 0,
             'language_id' => $language->id,
             'level' => $level,
+            'cache_key' => $cacheKey,
         ]]);
 
         return view('learning.conversation', [

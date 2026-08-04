@@ -472,21 +472,21 @@ class AI extends Model
      *
      * @param  array<int, array{id:int, term:string}>  $targetWords
      */
-    public static function startConversation(array $targetWords, string $targetLanguage, ?string $level = null): ?string
+    public static function startConversation(array $targetWords, string $targetLanguage, ?string $level = null, ?string $cacheKey = null): ?string
     {
         $terms = collect($targetWords)->pluck('term')->implode(', ');
 
-        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+        $payload = [
             'model' => self::MODEL,
             'reasoning_effort' => 'low',
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a warm, playful conversation partner in a language-practice roleplay. Invent ONE believable everyday situation (e.g. ordering in a café, meeting a friend, asking for directions) that could naturally lead the learner to use these target words: {$terms}. Write ONLY in {$targetLanguage}. Open the scene in 1-2 short sentences and end with a question that gently pulls the learner toward using ONE of the target words. Absolute rule: NEVER write, translate, hint at, or spell any of the target words yourself — your job is to make the LEARNER say them. Stay fully in character; never mention that this is an exercise or that there are 'target words'.".self::levelInstruction($level),
+                    'content' => "You are a kind conversation partner / teacher in a language-practice. Ask user about a situation that could naturally lead the learner to use these target words: {$terms}. Keep is short and simple. Write ONLY in {$targetLanguage}. Start the chat with only one short message (1-2 short senteces max) and end with a question. Absolute rule: NEVER write, translate, hint at, or spell any of the target words yourself — your job is to make the LEARNER say them.".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
-                    'content' => 'Begin the roleplay now with your opening message.',
+                    'content' => 'Begin the chat with opening message.',
                 ],
             ],
             'response_format' => [
@@ -499,7 +499,7 @@ class AI extends Model
                         'properties' => [
                             'reply' => [
                                 'type' => 'string',
-                                'description' => "Your in-character opening message in {$targetLanguage}: briefly set the scene and ask a question. Must never contain any target word.",
+                                'description' => "Your opening message in {$targetLanguage}. Must never contain any target word.",
                             ],
                         ],
                         'required' => ['reply'],
@@ -507,7 +507,13 @@ class AI extends Model
                     ],
                 ],
             ],
-        ]);
+        ];
+
+        if ($cacheKey) {
+            $payload['prompt_cache_key'] = $cacheKey;
+        }
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', $payload);
 
         if ($response->json('choices.0.message.refusal') != null) {
             Log::error('AI refused to start conversation: '.$response->json('choices.0.message.refusal'));
@@ -531,29 +537,44 @@ class AI extends Model
      * words the learner used in their latest message (accepting misspellings and any
      * inflected form). Returns ['reply' => string, 'used_word_ids' => int[]] or null.
      *
+     * The message array is built for prompt caching: an invariant system prefix
+     * (role/rules/avoid-list/level — identical for every turn of a chat) sits first so
+     * the growing transcript below it is served from cache, while the only per-turn
+     * changing piece (the shrinking remaining-words list) is a small trailing message
+     * after the prefix. $cacheKey (a per-chat id) is passed as prompt_cache_key to keep
+     * a chat's turns routed to the same cache.
+     *
      * @param  array<int, array{role:string, content:string}>  $messages  running transcript
      * @param  array<int, array{id:int, term:string}>  $remainingWords  words still to elicit
      * @param  array<int, array{id:int, term:string}>  $allWords  every target word (never say these)
      */
-    public static function conversationReply(array $messages, array $remainingWords, array $allWords, string $targetLanguage, ?string $level = null): ?array
+    public static function conversationReply(array $messages, array $remainingWords, array $allWords, string $targetLanguage, ?string $level = null, ?string $cacheKey = null): ?array
     {
         $remainingList = collect($remainingWords)->map(fn ($w) => "{$w['id']}: {$w['term']}")->implode('; ');
         $avoidList = collect($allWords)->pluck('term')->implode(', ');
 
+        // Invariant prefix (same bytes every turn → cacheable). It references the
+        // remaining-words list without embedding it; the actual list is appended below.
         $system = [
             'role' => 'system',
-            'content' => "You are a warm, playful conversation partner in a language-practice roleplay, speaking ONLY in {$targetLanguage}. Rules:\n"
-                ."1. Stay 100% in character — never mention exercises, 'target words', or that you are an AI.\n"
-                ."2. NEVER write, translate, spell, or clearly hint at any of these words yourself: {$avoidList}. Your whole goal is to make the LEARNER say them.\n"
-                ."3. Steer the conversation so the learner naturally wants to use the words still left to elicit (id: term) — {$remainingList}. If the learner seems stuck on one, smoothly change the topic or scene to draw out a DIFFERENT remaining word instead of pushing the same one.\n"
-                ."4. Keep replies short (1-3 sentences) and natural, and end with something that invites a reply.\n"
-                .'Also report which of the STILL-REMAINING words the learner actually used in their most recent message — count a word as used even if misspelled or in a different inflected form, as long as it is clearly an attempt at that word.'.self::levelInstruction($level),
+            'content' => "You are a kind conversation partner / teacher that asks a user conversational questions about words he tries to learn, write ONLY in {$targetLanguage}. Rules:\n"
+                ."1. NEVER write, translate, spell, or clearly hint at any of these words yourself: {$avoidList}. Your whole goal is to make the LEARNER say them.\n"
+                ."3. A follow-up message lists the words still left to elicit (id: term). Talk about a situation when he could use it. Make is concise and simple, also keep the topic positive. If the learner seems stuck on one, you can help them slightly or change the topic to draw out a DIFFERENT remaining word.\n"
+                ."4. Keep replies short (1-3 short, message-like sentences) and natural.\n"
+                .'Also report which of the STILL-REMAINING words the learner actually used in their most recent message — count a word as used even if misspelled or in a different inflected form.'.self::levelInstruction($level),
         ];
 
-        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+        // Per-turn dynamic tail: kept after the cacheable prefix + transcript so it
+        // doesn't invalidate the cache. Recency also keeps it salient to the model.
+        $remainingNote = [
+            'role' => 'system',
+            'content' => "Words still left to elicit (id: term) — {$remainingList}.",
+        ];
+
+        $payload = [
             'model' => self::MODEL,
             'reasoning_effort' => 'low',
-            'messages' => array_merge([$system], $messages),
+            'messages' => array_merge([$system], $messages, [$remainingNote]),
             'response_format' => [
                 'type' => 'json_schema',
                 'json_schema' => [
@@ -564,7 +585,7 @@ class AI extends Model
                         'properties' => [
                             'reply' => [
                                 'type' => 'string',
-                                'description' => "Your next in-character message in {$targetLanguage}. Must never contain any target word.",
+                                'description' => "Your next message in {$targetLanguage}. Must never contain any target word.",
                             ],
                             'used_word_ids' => [
                                 'type' => 'array',
@@ -577,7 +598,13 @@ class AI extends Model
                     ],
                 ],
             ],
-        ]);
+        ];
+
+        if ($cacheKey) {
+            $payload['prompt_cache_key'] = $cacheKey;
+        }
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', $payload);
 
         if ($response->json('choices.0.message.refusal') != null) {
             Log::error('AI refused conversation turn: '.$response->json('choices.0.message.refusal'));

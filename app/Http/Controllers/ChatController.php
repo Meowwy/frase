@@ -38,6 +38,7 @@ class ChatController extends Controller
             $chat['target_words'],
             $this->languageName($chat['language_id']),
             $chat['level'],
+            $chat['cache_key'] ?? null,
         );
 
         if (! is_array($result) || ! isset($result['reply'])) {
