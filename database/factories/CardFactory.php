@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -18,14 +17,17 @@ class CardFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => fake()->randomElement([1,2]),
+            'user_id' => fake()->randomElement([1, 2]),
             'phrase' => fake()->word,
             'translation' => fake()->word,
             'example_sentence' => fake()->sentence,
-            'question' => fake()->sentence,
+            'example_1' => fake()->words(2, true),
+            'example_2' => fake()->words(2, true),
+            'example_3' => fake()->words(2, true),
             'definition' => fake()->sentence,
+            'note' => null,
             'next_study_at' => now(),
-            'level' => 1
+            'level' => 1,
         ];
     }
 }

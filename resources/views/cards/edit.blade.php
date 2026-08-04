@@ -7,18 +7,10 @@
         <x-forms.input value="{{$card->definition}}" label="Definition" name="definition"/>
         <x-forms.input value="{{$card->translation}}" label="Translation" name="translation"/>
         <x-forms.input value="{{$card->example_sentence}}" label="Example sentence" name="example_sentence"/>
-        <x-forms.input value="{{$card->question}}" label="Question" name="question"/>
-
-        <x-forms.select label="Theme" name="theme_id">
-            <x-forms.option value="-1">No theme chosen</x-forms.option>
-            @foreach($themes as $theme)
-                @if($theme['id'] === $card->theme_id)
-                    <x-forms.option selected value="{{$theme['id']}}">{{$theme['name']}}</x-forms.option>
-                @else
-                    <x-forms.option value="{{$theme['id']}}">{{$theme['name']}}</x-forms.option>
-                @endif
-            @endforeach
-        </x-forms.select>
+        <x-forms.input value="{{$card->example_1}}" label="Example phrase 1" name="example_1"/>
+        <x-forms.input value="{{$card->example_2}}" label="Example phrase 2" name="example_2"/>
+        <x-forms.input value="{{$card->example_3}}" label="Example phrase 3" name="example_3"/>
+        <x-forms.textarea label="Note" name="note">{{$card->note}}</x-forms.textarea>
         <x-forms.divider></x-forms.divider>
         <div class="flex justify-between">
             <x-forms.button>Save</x-forms.button>

@@ -126,7 +126,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard for learning vocabulary in context. First decide the card's phrase, then write every other field to describe that exact phrase, never the original Term, if it is only one word. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard for learning vocabulary in context. Keep the term itself as the word the learner submitted — only fix spelling and reduce it to its base/dictionary form; do not expand a single word into a phrase. Describe that exact term in every field. You MUST always fill the 'examples' array with exactly 3 short usage phrases that each show a different common way the term is used — never leave it empty. Each example is a 2-4 word fragment with NO subject pronoun and NO final period (e.g. \"run a business\", \"run out of time\" — NOT \"I run a business.\").".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -143,30 +143,33 @@ class AI extends Model
                         'properties' => [
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'The phrase this card teaches. If the Original term is already a phrase, keep it; if it is a single word, expand it into a natural collocation (max 3 words) by pairing it with at least one extra CONTENT word — a meaningful noun, verb, or adjective it commonly appears with. The added meaning must come from a content word, never only from grammar words (articles, prepositions, conjunctions, auxiliaries such as a, the, to, that, on, be). Examples: book => read a book, frugal => frugal lifestyle, imply => imply guilt. Fix spelling and use the base/dictionary form. Decide this first: every other field must describe THIS phrase, not the original Term.',
+                                'description' => 'The term this card teaches, taken from the Original term. Fix any spelling mistakes and reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse). If the Original term is already a multi-word phrase, keep it as the learner wrote it (spelling/base-form fixes only). Do NOT expand a single word into a collocation — a one-word term stays one word. Every other field must describe THIS term.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "One short, natural {$targetLanguage} sentence whose context makes the phrase's meaning clear. Wrap the phrase in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
+                                'description' => "One short, natural {$targetLanguage} sentence whose context makes the term's meaning clear. Wrap the term — in whatever form it appears in the sentence — in square brackets exactly once, e.g. \"She [broke] her promise.\" Use easy language for learners.",
                             ],
-                            'question' => [
-                                'type' => 'string',
-                                'description' => "A short recall cue in {$targetLanguage} that points to the phrase without naming it — may be a brief situation, statement, or question, whatever fits best. Anchor it to a real-life situation or to words closely tied to the phrase so the learner recalls it from context, e.g. \"read a book\" => \"what you do in a library\". You may reuse the phrase's own words, e.g. \"frugal lifestyle\" => \"a way of living that spends only as much money as necessary\". Keep it short, no filler. Never write the original term or an obvious form of it.",
+                            'examples' => [
+                                'type' => 'array',
+                                'description' => "An array of exactly 3 short usage fragments in {$targetLanguage} (2-4 words each) — NOT full sentences (no subject like \"I/she\", no final period) and NOT bracketed. You MUST always return 3. Each shows a DIFFERENT common way the term is used: (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase. For example, for \"run\": \"run a business\", \"run out of time\", \"go for a run\". Never use square brackets.",
+                                'items' => [
+                                    'type' => 'string',
+                                ],
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "The phrase translated into {$nativeLanguage}; at most two common variants separated by a semicolon.",
+                                'description' => "The term translated into {$nativeLanguage}; at most two common variants separated by a semicolon.",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "A concise dictionary-style definition of the phrase in {$targetLanguage}. Do not use the phrase itself in the definition.",
+                                'description' => "A concise dictionary-style definition of the term in {$targetLanguage}. Do not use the term itself in the definition.",
                             ],
                             'theme' => [
                                 'type' => 'string',
                                 'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
                             ],
                         ],
-                        'required' => ['phrase', 'sentence', 'question', 'translation', 'definition', 'theme'],
+                        'required' => ['phrase', 'sentence', 'examples', 'translation', 'definition', 'theme'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -188,7 +191,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard for learning vocabulary in context. First decide the card's phrase, capturing the meaning the Term has in that context but in a general dictionary form; then write every other field to describe that exact phrase. Follow each field's rules exactly. The examples are in English, but it is meant in general to other languages as well.".self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard for learning vocabulary in context. Keep the term itself as the word the learner submitted — only fix spelling and reduce it to its base/dictionary form; do not expand a single word into a phrase. The context fixes WHICH sense of the term this card is about, so every field — including all example fragments — must reflect ONLY that sense/domain and never a different meaning of the word. You MUST always fill the 'examples' array with exactly 3 short usage phrases that each show a different common way the term is used — never leave it empty. Each example is a 2-4 word fragment with NO subject pronoun and NO final period (e.g. \"run a business\", \"run out of time\" — NOT \"I run a business.\").".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -205,30 +208,33 @@ class AI extends Model
                         'properties' => [
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'The phrase this card teaches. If the Original term is already a phrase, keep it; if it is a single word, expand it into a natural collocation (max 3 words) by pairing it with at least one extra CONTENT word — a meaningful noun, verb, or adjective it commonly appears with. The added meaning must come from a content word, never only from grammar words (articles, prepositions, conjunctions, auxiliaries such as a, the, to, that, on, be). Examples: book => read a book, frugal => frugal lifestyle, imply => imply guilt. Keep the meaning it has in the context but in a general, dictionary-style form (not tied to the specific subject). Fix spelling and use base forms. Decide this first: every other field must describe THIS phrase.',
+                                'description' => 'The term this card teaches, taken from the Original term. Fix any spelling mistakes and reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), keeping the meaning it has in the supplied context but in a general, dictionary-style form (not tied to the specific subject). If the Original term is already a multi-word phrase, keep it as the learner wrote it (spelling/base-form fixes only). Do NOT expand a single word into a collocation — a one-word term stays one word. Every other field must describe THIS term.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "One short, natural {$targetLanguage} sentence whose context makes the phrase's meaning (as used in the supplied context) clear. Wrap the phrase in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Use easy language for learners.",
+                                'description' => "One short, natural {$targetLanguage} sentence whose context makes the term's meaning (as used in the supplied context) clear. Wrap the term — in whatever form it appears in the sentence — in square brackets exactly once, e.g. \"She [broke] her promise.\" Use easy language for learners.",
                             ],
-                            'question' => [
-                                'type' => 'string',
-                                'description' => "A short recall cue in {$targetLanguage} that points to the phrase without naming it, matching its meaning in the context — may be a brief situation, statement, or question, whatever fits best. Anchor it to a real-life situation or to words closely tied to the phrase so the learner recalls it from context, e.g. \"read a book\" => \"what you do in a library\". You may reuse the phrase's own words, e.g. \"frugal lifestyle\" => \"a way of living that spends only as much money as necessary\". Keep it short, no filler. Never write the original term or an obvious form of it.",
+                            'examples' => [
+                                'type' => 'array',
+                                'description' => "An array of exactly 3 short usage fragments in {$targetLanguage} (2-4 words each). ALL 3 must fit the term's meaning in the supplied context/domain ONLY — never a different sense of the word (e.g. for \"tree\" in a graph-theory context: \"binary tree\", \"spanning tree\", \"root of the tree\" — NOT \"climb a tree\"). NOT full sentences (no subject like \"I/she\", no final period) and NOT bracketed. You MUST always return 3. Each shows a DIFFERENT common way the term is used within that meaning: a different inflected form, a preposition it typically pairs with, or a frequent collocation/set phrase. Never use square brackets.",
+                                'items' => [
+                                    'type' => 'string',
+                                ],
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "The phrase translated into {$nativeLanguage}, matching its meaning in the context; at most two common variants separated by a semicolon.",
+                                'description' => "The term translated into {$nativeLanguage}, matching its meaning in the context; at most two common variants separated by a semicolon.",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "A concise dictionary-style definition of the phrase in {$targetLanguage}, based on the context. Do not use the phrase itself in the definition.",
+                                'description' => "A concise dictionary-style definition of the term in {$targetLanguage}, based on the context. Do not use the term itself in the definition.",
                             ],
                             'theme' => [
                                 'type' => 'string',
                                 'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
                             ],
                         ],
-                        'required' => ['phrase', 'sentence', 'question', 'translation', 'definition', 'theme'],
+                        'required' => ['phrase', 'sentence', 'examples', 'translation', 'definition', 'theme'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -251,11 +257,11 @@ class AI extends Model
     {
         logger('Obtaining native-language data for '.$phrase);
 
-        $systemContent = "You are a vocabulary tutor helping a native speaker of {$nativeLanguage} build their vocabulary by learning words and phrases in context. Write every field in {$nativeLanguage}. First decide the card's phrase, then write every other field to describe that exact phrase, never the original term, if it is only one word.";
+        $systemContent = "You are a vocabulary tutor helping a native speaker of {$nativeLanguage} build their vocabulary by learning words and phrases in context. Write every field in {$nativeLanguage}. Keep the term itself as the word the learner submitted — only fix spelling and reduce it to its base/dictionary form; do not expand a single word into a phrase. Describe that exact term in every field.";
         if (! is_null($context)) {
             $systemContent .= ' The term was seen in a specific context; capture the meaning it has there but in a general, dictionary-style form.';
         }
-        $systemContent .= ' Follow each field\'s rules exactly.';
+        $systemContent .= " You MUST always fill the 'examples' array with exactly 3 short usage phrases that each show a different common way the term is used — never leave it empty. Each example is a 2-4 word fragment with NO subject pronoun and NO final period (e.g. \"run a business\", \"run out of time\" — NOT \"I run a business.\"). Follow each field's rules exactly.";
 
         $userContent = "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Write everything in {$nativeLanguage}.";
         if (! is_null($context)) {
@@ -286,26 +292,29 @@ class AI extends Model
                         'properties' => [
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'The phrase this card teaches. If the Original term is already a phrase, keep it; if it is a single word, expand it into a natural collocation (max 3 words) by pairing it with at least one extra CONTENT word — a meaningful noun, verb, or adjective it commonly appears with. The added meaning must come from a content word, never only from grammar words (articles, prepositions, conjunctions, auxiliaries such as a, the, to, that, on, be). Examples: book => read a book, frugal => frugal lifestyle, imply => imply guilt. Fix spelling and use the base/dictionary form. Decide this first: every other field must describe THIS phrase, not the original Term.',
+                                'description' => 'The term this card teaches, taken from the Original term. Fix any spelling mistakes and reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse). If the Original term is already a multi-word phrase, keep it as the learner wrote it (spelling/base-form fixes only). Do NOT expand a single word into a collocation — a one-word term stays one word. Every other field must describe THIS term.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "One short, natural {$nativeLanguage} sentence whose context makes the phrase's meaning clear. Wrap the phrase in square brackets exactly once, e.g. \"She gave me a [warm welcome].\" Keep it clear and easy to read.",
+                                'description' => "One short, natural {$nativeLanguage} sentence whose context makes the term's meaning clear. Wrap the term — in whatever form it appears in the sentence — in square brackets exactly once, e.g. \"She [broke] her promise.\" Keep it clear and easy to read.",
                             ],
-                            'question' => [
-                                'type' => 'string',
-                                'description' => "A short recall cue in {$nativeLanguage} that points to the phrase without naming it — may be a brief situation, statement, or question, whatever fits best. Anchor it to a real-life situation or to words closely tied to the phrase so the learner recalls it from context, e.g. \"read a book\" => \"what you do in a library\". You may reuse the phrase's own words, e.g. \"frugal lifestyle\" => \"a way of living that spends only as much money as necessary\". Keep it short, no filler. Never write the original term or an obvious form of it.",
+                            'examples' => [
+                                'type' => 'array',
+                                'description' => "An array of exactly 3 short usage fragments in {$nativeLanguage} (2-4 words each) — NOT full sentences (no subject, no final period) and NOT bracketed. You MUST always return 3. Each shows a DIFFERENT common way the term is used: (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase. Give just the phrase fragment (like a verb+object or preposition+noun), never a whole sentence. Never use square brackets.",
+                                'items' => [
+                                    'type' => 'string',
+                                ],
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "A concise dictionary-style definition of the phrase in {$nativeLanguage}. Do not use the phrase itself in the definition.",
+                                'description' => "A concise dictionary-style definition of the term in {$nativeLanguage}. Do not use the term itself in the definition.",
                             ],
                             'theme' => [
                                 'type' => 'string',
                                 'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
                             ],
                         ],
-                        'required' => ['phrase', 'sentence', 'question', 'definition', 'theme'],
+                        'required' => ['phrase', 'sentence', 'examples', 'definition', 'theme'],
                         'additionalProperties' => false,
                     ],
                 ],

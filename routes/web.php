@@ -211,6 +211,11 @@ Route::middleware('auth')->group(function () {
     // wildcard below so their literal paths aren't captured as a card id.
     Route::post('/cards/bulk-destroy', [CardController::class, 'bulkDestroy']);
     Route::post('/cards/assign-wordbox', [CardController::class, 'assignWordbox']);
+    // Manual card-linking (from the card detail page). Same-language cards only.
+    Route::get('/cards/{card:id}/link-search', [CardController::class, 'linkSearch']);
+    Route::post('/cards/{card:id}/links', [CardController::class, 'link']);
+    Route::delete('/cards/{card:id}/links/{other:id}', [CardController::class, 'unlink']);
+    Route::post('/cards/{card:id}/note', [CardController::class, 'saveNote']);
     Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
         if ($card) {
@@ -240,7 +245,10 @@ Route::middleware('auth')->group(function () {
             'level' => 1,
             'translation' => $request->translation,
             'example_sentence' => $request->example_sentence,
-            'question' => $request->question,
+            'example_1' => $request->example_1,
+            'example_2' => $request->example_2,
+            'example_3' => $request->example_3,
+            'note' => $request->note,
             'definition' => $request->definition,
             'next_study_at' => now(),
         ]);
@@ -257,14 +265,13 @@ Route::middleware('auth')->group(function () {
             'phrase' => ['required', 'string'],
             'definition' => ['required', 'string'],
             'translation' => ['required', 'string'],
-            'question' => ['required', 'string'],
             'example_sentence' => ['required', 'string'],
+            'example_1' => ['nullable', 'string'],
+            'example_2' => ['nullable', 'string'],
+            'example_3' => ['nullable', 'string'],
+            'note' => ['nullable', 'string'],
             'id' => ['required'],
-            'theme_id' => ['required'],
         ]);
-        if ($validatedData['theme_id'] === '-1') {
-            $validatedData['theme_id'] = null;
-        }
         // Update the card with the validated data
         $card->update($validatedData);
 

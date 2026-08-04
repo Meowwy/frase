@@ -180,8 +180,6 @@ class CardController extends Controller
     {
         $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="text-gray-300 font-bold">$1</span>', $card->example_sentence);
 
-        $card->phraseCaps = ucfirst($card->phrase);
-
         if (! is_null($card->theme_id)) {
             $theme = Theme::where('user_id', Auth::id())
                 ->where('id', $card->theme_id)
@@ -214,8 +212,9 @@ class CardController extends Controller
         // Format the date in the form of "1 January 2024"
         $card->next_study_at = $nextStudyAt->format('l j F Y');
 
-        $synonyms = $card->synonyms()->with('synonymCard:id,phrase,translation')->get();
-        $relatedTerms = $card->relatedTerms()->with('relatedCard:id,phrase,translation')->get();
+        $linkedCards = $card->linkedCards()
+            ->orderBy('phrase')
+            ->get(['cards.id', 'phrase', 'translation']);
 
         $card->load('language');
         $wordbox = $card->wordbox()->first();
@@ -224,9 +223,87 @@ class CardController extends Controller
             'card' => $card,
             'theme' => $theme,
             'wordbox' => $wordbox,
-            'synonyms' => $synonyms,
-            'relatedTerms' => $relatedTerms,
+            'linkedCards' => $linkedCards,
         ]);
+    }
+
+    /**
+     * Search the user's cards (same language as the given card) to link, excluding
+     * the card itself and any already-linked cards. Returns JSON for the link picker.
+     */
+    public function linkSearch(\Illuminate\Http\Request $request, Card $card)
+    {
+        abort_unless($card->user_id === Auth::id(), 403);
+
+        $q = trim((string) $request->query('q', ''));
+        if ($q === '') {
+            return response()->json(['results' => []]);
+        }
+
+        $excludedIds = $card->linkedCards()->pluck('cards.id')->push($card->id)->all();
+
+        $results = Auth::user()->cards()
+            ->where('language_id', $card->language_id)
+            ->whereNotIn('id', $excludedIds)
+            ->where('phrase', 'like', '%'.$q.'%')
+            ->orderBy('phrase')
+            ->limit(10)
+            ->get(['id', 'phrase', 'translation']);
+
+        return response()->json(['results' => $results]);
+    }
+
+    /**
+     * Manually link another (same-language) card to this one. Links are stored
+     * bidirectionally in the `synonyms` pivot (mirrors the auto-link convention).
+     */
+    public function link(\Illuminate\Http\Request $request, Card $card)
+    {
+        abort_unless($card->user_id === Auth::id(), 403);
+
+        $data = $request->validate(['card_id' => ['required', 'integer']]);
+
+        $other = Auth::user()->cards()
+            ->where('id', $data['card_id'])
+            ->where('language_id', $card->language_id)
+            ->first();
+
+        if (! $other || $other->id === $card->id) {
+            return response()->json(['message' => 'That card cannot be linked.'], 422);
+        }
+
+        $card->linkedCards()->syncWithoutDetaching([$other->id]);
+        $other->linkedCards()->syncWithoutDetaching([$card->id]);
+
+        return response()->json(['card' => $other->only('id', 'phrase', 'translation')]);
+    }
+
+    /**
+     * Remove a manual link between two cards (drops both mirrored pivot rows).
+     */
+    public function unlink(Card $card, Card $other)
+    {
+        abort_unless($card->user_id === Auth::id(), 403);
+        abort_unless($other->user_id === Auth::id(), 403);
+
+        $card->linkedCards()->detach($other->id);
+        $other->linkedCards()->detach($card->id);
+
+        return response()->json(['unlinked' => true]);
+    }
+
+    /**
+     * Save the user-editable note from the card detail page.
+     */
+    public function saveNote(\Illuminate\Http\Request $request, Card $card)
+    {
+        abort_unless($card->user_id === Auth::id(), 403);
+
+        $data = $request->validate(['note' => ['nullable', 'string']]);
+
+        $card->update(['note' => $data['note']]);
+
+        return response()->json(['saved' => true]);
     }
 
     /**
@@ -234,17 +311,7 @@ class CardController extends Controller
      */
     public function edit(Card $card)
     {
-        $themes = Theme::where('user_id', Auth::id())
-            ->get(['id', 'name']); // Get only the id and name columns
-
-        $themesArray = $themes->map(function ($theme) {
-            return [
-                'id' => $theme->id,
-                'name' => $theme->name,
-            ];
-        })->toArray();
-
-        return view('cards.edit', ['card' => $card, 'themes' => $themesArray]);
+        return view('cards.edit', ['card' => $card]);
     }
 
     /**

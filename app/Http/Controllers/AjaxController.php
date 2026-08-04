@@ -115,6 +115,8 @@ class AjaxController extends Controller
                 }
             }
 
+            $examples = $output->examples ?? [];
+
             $newlyInsertedCard = $user->cards()->create([
                 'phrase' => $output->phrase,
                 'theme_id' => ($selectedTheme ? $selectedTheme->id : $recentThemeId),
@@ -122,7 +124,9 @@ class AjaxController extends Controller
                 'level' => 1,
                 'translation' => $output->translation ?? '',
                 'example_sentence' => $output->sentence,
-                'question' => $output->question,
+                'example_1' => $examples[0] ?? null,
+                'example_2' => $examples[1] ?? null,
+                'example_3' => $examples[2] ?? null,
                 'definition' => $output->definition,
                 'next_study_at' => now(),
             ]);

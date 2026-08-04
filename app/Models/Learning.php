@@ -203,7 +203,6 @@ class Learning extends Model
 
             $entry = match ($mode) {
                 'sentences' => ['front' => $blankedSentence, 'back' => $card->phrase, 'hint' => $card->translation],
-                'questions' => ['front' => $card->question, 'back' => $card->phrase, 'hint' => $blankedSentence],
                 'words' => ['front' => $card->translation, 'back' => $card->phrase, 'hint' => $blankedSentence],
                 'definitions' => ['front' => $card->definition, 'back' => $card->phrase, 'hint' => $card->translation],
                 default => null,

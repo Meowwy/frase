@@ -50,6 +50,16 @@ class Card extends Model
         return $this->hasMany(Synonym::class);
     }
 
+    /**
+     * Cards the user has manually linked to this one. Stored in the `synonyms`
+     * pivot as two mirrored rows per link, so the relation reads symmetrically.
+     */
+    public function linkedCards()
+    {
+        return $this->belongsToMany(Card::class, 'synonyms', 'card_id', 'synonym_card_id')
+            ->withTimestamps();
+    }
+
     public function relatedTerms()
     {
         return $this->hasMany(RelatedTerm::class);
