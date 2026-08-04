@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AjaxController;
 use App\Http\Controllers\CardController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\GapFillExerciseController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\SeachController;
@@ -196,6 +197,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/startLearning/{wbid}/{mode}', [Learning::class, 'startLearning']);
     Route::get('/startLearningSet/{mode}', [Learning::class, 'startLearningSet']);
     Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
+
+    // Conversation learning mode (live AI roleplay chat; state lives in the session).
+    Route::post('/chat/message', [ChatController::class, 'message']);
+    Route::post('/chat/recap', [ChatController::class, 'recap']);
     Route::get('/completeLearning', function () {
         return view('learning.complete');
     });

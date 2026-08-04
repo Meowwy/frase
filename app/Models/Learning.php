@@ -194,6 +194,12 @@ class Learning extends Model
     {
         session(['learning_mode' => $mode]);
 
+        // The conversation mode is a live AI chat, not a flashcard deck — hand off to
+        // its own setup + view instead of building front/back/hint cards.
+        if ($mode === 'conversation') {
+            return self::startConversation();
+        }
+
         $cardsForLearning = self::getCardsForLearning(session('learning_filter'));
         $cards = [];
 
@@ -218,6 +224,46 @@ class Learning extends Model
         $cardsForJS = 'let cards = '.json_encode($cards).';';
 
         return view('learning.index', ['cards' => $cardsForJS, 'cardCount' => count($cards)]);
+    }
+
+    /**
+     * Set up a "Conversation" practice session: take up to 10 cards from the current
+     * selection, ask the AI for an opening line, seed the ephemeral chat state in the
+     * session, and render the chat view.
+     */
+    protected static function startConversation()
+    {
+        $user = Auth::user();
+        $cards = self::getCardsForLearning(session('learning_filter'))->take(10)->values();
+
+        if ($cards->isEmpty()) {
+            return redirect('/setLearning');
+        }
+
+        // All cards in a selection share a language; use it for CEFR level + prompting.
+        $language = $cards->first()->language;
+        $level = $user->levelForLanguage($language);
+
+        $targetWords = $cards->map(fn ($c) => ['id' => $c->id, 'term' => $c->phrase])->values()->all();
+
+        $opening = AI::startConversation($targetWords, $language->name, $level);
+        if (is_null($opening)) {
+            return redirect('/setLearning')->with('popup_message', 'Could not start the conversation. Please try again.');
+        }
+
+        session(['chat_practice' => [
+            'messages' => [['role' => 'assistant', 'content' => $opening]],
+            'target_words' => $targetWords,
+            'used_ids' => [],
+            'stale_count' => 0,
+            'language_id' => $language->id,
+            'level' => $level,
+        ]]);
+
+        return view('learning.conversation', [
+            'opening' => $opening,
+            'targetWords' => $targetWords,
+        ]);
     }
 
     public static function getNextStudyDay($level, $result)

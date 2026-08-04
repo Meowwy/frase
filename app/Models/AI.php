@@ -463,4 +463,221 @@ class AI extends Model
 
         return $data;
     }
+
+    /**
+     * Open a roleplay practice chat. The model invents a believable everyday scene
+     * in the target language (at the learner's CEFR level) and asks an opening
+     * question that nudges the learner toward one of the target words — WITHOUT ever
+     * writing any target word itself. Returns the opening line, or null on failure.
+     *
+     * @param  array<int, array{id:int, term:string}>  $targetWords
+     */
+    public static function startConversation(array $targetWords, string $targetLanguage, ?string $level = null): ?string
+    {
+        $terms = collect($targetWords)->pluck('term')->implode(', ');
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+            'model' => self::MODEL,
+            'reasoning_effort' => 'low',
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => "You are a warm, playful conversation partner in a language-practice roleplay. Invent ONE believable everyday situation (e.g. ordering in a café, meeting a friend, asking for directions) that could naturally lead the learner to use these target words: {$terms}. Write ONLY in {$targetLanguage}. Open the scene in 1-2 short sentences and end with a question that gently pulls the learner toward using ONE of the target words. Absolute rule: NEVER write, translate, hint at, or spell any of the target words yourself — your job is to make the LEARNER say them. Stay fully in character; never mention that this is an exercise or that there are 'target words'.".self::levelInstruction($level),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => 'Begin the roleplay now with your opening message.',
+                ],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'conversation_opening',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'reply' => [
+                                'type' => 'string',
+                                'description' => "Your in-character opening message in {$targetLanguage}: briefly set the scene and ask a question. Must never contain any target word.",
+                            ],
+                        ],
+                        'required' => ['reply'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ]);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused to start conversation: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI conversation start failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        $data = json_decode($response->json('choices.0.message.content'), true);
+
+        return $data['reply'] ?? null;
+    }
+
+    /**
+     * Produce the next in-character chat turn AND detect which still-unused target
+     * words the learner used in their latest message (accepting misspellings and any
+     * inflected form). Returns ['reply' => string, 'used_word_ids' => int[]] or null.
+     *
+     * @param  array<int, array{role:string, content:string}>  $messages  running transcript
+     * @param  array<int, array{id:int, term:string}>  $remainingWords  words still to elicit
+     * @param  array<int, array{id:int, term:string}>  $allWords  every target word (never say these)
+     */
+    public static function conversationReply(array $messages, array $remainingWords, array $allWords, string $targetLanguage, ?string $level = null): ?array
+    {
+        $remainingList = collect($remainingWords)->map(fn ($w) => "{$w['id']}: {$w['term']}")->implode('; ');
+        $avoidList = collect($allWords)->pluck('term')->implode(', ');
+
+        $system = [
+            'role' => 'system',
+            'content' => "You are a warm, playful conversation partner in a language-practice roleplay, speaking ONLY in {$targetLanguage}. Rules:\n"
+                ."1. Stay 100% in character — never mention exercises, 'target words', or that you are an AI.\n"
+                ."2. NEVER write, translate, spell, or clearly hint at any of these words yourself: {$avoidList}. Your whole goal is to make the LEARNER say them.\n"
+                ."3. Steer the conversation so the learner naturally wants to use the words still left to elicit (id: term) — {$remainingList}. If the learner seems stuck on one, smoothly change the topic or scene to draw out a DIFFERENT remaining word instead of pushing the same one.\n"
+                ."4. Keep replies short (1-3 sentences) and natural, and end with something that invites a reply.\n"
+                .'Also report which of the STILL-REMAINING words the learner actually used in their most recent message — count a word as used even if misspelled or in a different inflected form, as long as it is clearly an attempt at that word.'.self::levelInstruction($level),
+        ];
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+            'model' => self::MODEL,
+            'reasoning_effort' => 'low',
+            'messages' => array_merge([$system], $messages),
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'conversation_turn',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'reply' => [
+                                'type' => 'string',
+                                'description' => "Your next in-character message in {$targetLanguage}. Must never contain any target word.",
+                            ],
+                            'used_word_ids' => [
+                                'type' => 'array',
+                                'description' => 'The ids of the still-remaining target words the learner used in their MOST RECENT message (any inflected form or misspelling counts). Empty array if none.',
+                                'items' => ['type' => 'integer'],
+                            ],
+                        ],
+                        'required' => ['reply', 'used_word_ids'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ]);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused conversation turn: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI conversation turn failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return json_decode($response->json('choices.0.message.content'), true);
+    }
+
+    /**
+     * After the chat ends, produce a short bullet-point recap: a per-word note, what
+     * the learner did well, and gentle corrections (wrong form → correct form + short
+     * why). Terms stay in the target language; explanations are in the native language
+     * so the learner understands. Returns the decoded array or null.
+     *
+     * @param  array<int, array{role:string, content:string}>  $messages  full transcript
+     * @param  array<int, array{id:int, term:string}>  $targetWords  every word in the set
+     * @param  array<int, int>  $usedIds  ids the server marked used
+     */
+    public static function conversationRecap(array $messages, array $targetWords, array $usedIds, string $targetLanguage, string $nativeLanguage, ?string $level = null): ?array
+    {
+        $wordList = collect($targetWords)
+            ->map(fn ($w) => "{$w['id']}: {$w['term']} (".(in_array($w['id'], $usedIds) ? 'used' : 'not used').')')
+            ->implode('; ');
+
+        $transcript = collect($messages)
+            ->map(fn ($m) => ($m['role'] === 'assistant' ? 'Partner' : 'Learner').': '.$m['content'])
+            ->implode("\n");
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => "You are a supportive language tutor reviewing a {$targetLanguage} practice conversation for a learner whose native language is {$nativeLanguage}. Be concise and encouraging. Write EVERY note, correction and praise as a SHORT BULLET FRAGMENT — never a full sentence. Keep target-language words in {$targetLanguage}; write all explanations and every 'why' in {$nativeLanguage}. Only correct real mistakes the learner actually made; never invent problems.".self::levelInstruction($level),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Target words — 'used' is authoritative (id: term (used/not used)): {$wordList}.\n\nConversation transcript:\n{$transcript}\n\nFor each target word give a short note: if used, brief praise or the correctly spelled base form; if not used, the correct word form the learner should learn. Then list what the learner did well, and concrete corrections for any grammar or word-form errors they made.",
+                ],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'conversation_recap',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'words' => [
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'id' => ['type' => 'integer', 'description' => 'The target word id.'],
+                                        'got' => ['type' => 'boolean', 'description' => 'Whether the learner used this word (mirror the authoritative used/not-used flag given).'],
+                                        'note' => ['type' => 'string', 'description' => "Short fragment: praise or the correct {$targetLanguage} form; explanation in {$nativeLanguage}."],
+                                    ],
+                                    'required' => ['id', 'got', 'note'],
+                                    'additionalProperties' => false,
+                                ],
+                            ],
+                            'did_well' => [
+                                'type' => 'array',
+                                'description' => "Short bullet fragments in {$nativeLanguage} — genuine strengths in the learner's messages.",
+                                'items' => ['type' => 'string'],
+                            ],
+                            'corrections' => [
+                                'type' => 'array',
+                                'description' => "Short bullet fragments: the learner's wrong form -> correct form - short why (in {$nativeLanguage}). Empty array if there were no real mistakes.",
+                                'items' => ['type' => 'string'],
+                            ],
+                        ],
+                        'required' => ['words', 'did_well', 'corrections'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ]);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused conversation recap: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI conversation recap failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return json_decode($response->json('choices.0.message.content'), true);
+    }
 }

@@ -25,9 +25,9 @@
             <x-panel class="w-48">
                 <div class="py-8">
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                        <a href="/startLearning/0/questions">Questions</a>
+                        <a href="/startLearning/0/conversation">Conversation</a>
                     </h3>
-                    <p class="text-sm mt-4">Recall the word when asked about it.</p>
+                    <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
                 </div>
             </x-panel>
             <x-panel class="w-48">
@@ -87,9 +87,9 @@
                 <x-panel class="mode-panel">
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                            <a href="#" class="mode-link" data-mode="questions">Questions</a>
+                            <a href="#" class="mode-link" data-mode="conversation">Conversation</a>
                         </h3>
-                        <p class="text-sm mt-4">Recall the word when asked about it.</p>
+                        <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
                     </div>
                 </x-panel>
                 <x-panel class="mode-panel">
