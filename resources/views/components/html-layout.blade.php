@@ -29,6 +29,7 @@
                 <a href="/" class="hover:text-blue-400 transition-colors">Home</a>
                 <a href="/cards" class="hover:text-blue-400 transition-colors">Vocabulary</a>
                 <a href="/filterCardsForLearning/due" class="hover:text-blue-400 transition-colors">Learn</a>
+                <a href="/conversation" class="hover:text-blue-400 transition-colors">Conversation</a>
             </div>
         @endauth
 

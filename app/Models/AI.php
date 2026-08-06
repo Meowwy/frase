@@ -707,4 +707,384 @@ class AI extends Model
 
         return json_decode($response->json('choices.0.message.content'), true);
     }
+
+    /**
+     * Open a free "Conversation Challenge" practice chat — an everyday roleplay scene
+     * in the target language at the learner's CEFR level. Unlike startConversation there
+     * are NO target words to elicit; the learner just converses in full sentences and is
+     * corrected as they go.
+     *
+     * Returns ['scene' => string, 'reply' => string] — 'scene' is a short label shown
+     * ABOVE the chat, 'reply' is the pure in-character opening line (no scene-setting
+     * narration). Null on failure.
+     *
+     * @return array{scene:string, reply:string}|null
+     */
+    public static function startChallenge(string $targetLanguage, ?string $level = null, ?string $scene = null, ?string $cacheKey = null): ?array
+    {
+        $sceneNote = $scene
+            ? " The learner asked for this scene/topic — build the situation around it: \"{$scene}\"."
+            : ' Pick ONE natural everyday situation (ordering food, meeting a friend, travelling, etc.).';
+
+        $payload = [
+            'model' => self::MODEL,
+            'reasoning_effort' => 'low',
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => "You are a kind conversation partner in a {$targetLanguage} roleplay chat.{$sceneNote} Write ONLY in {$targetLanguage}. Return two separate things: 'scene' — a short description of the situation; and 'reply' — your opening line, which must contain ONLY the actual in-character roleplay message (1-2 short sentences ending with a question).".self::levelInstruction($level),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => 'Begin the chat.',
+                ],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'challenge_opening',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'scene' => [
+                                'type' => 'string',
+                                'description' => "A short description of the situation, onscene-setting or narration. In {$targetLanguage}.",
+                            ],
+                            'reply' => [
+                                'type' => 'string',
+                                'description' => "Your opening in-character message in {$targetLanguage}.",
+                            ],
+                        ],
+                        'required' => ['scene', 'reply'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ];
+
+        if ($cacheKey) {
+            $payload['prompt_cache_key'] = $cacheKey;
+        }
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', $payload);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused to start challenge: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI challenge start failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        $data = json_decode($response->json('choices.0.message.content'), true);
+
+        return is_array($data) && isset($data['reply']) ? $data : null;
+    }
+
+    /**
+     * Produce the next in-character chat turn AND a live correction of the learner's most
+     * recent message, in one call to save tokens. The correction is a short feedback note
+     * (in the native language) naming the mistake and the correct form — it does NOT echo
+     * the learner's whole sentence back.
+     *
+     * Optional $scene (topic to talk about) and $feedbackFocus (grammar/vocabulary the
+     * learner wants to drill) steer the chat and the corrections. Both are constant for a
+     * chat, so they live in the invariant system prefix.
+     *
+     * The message array is built for prompt caching: an invariant system prefix
+     * (role/rules/level/scene/focus — identical for every turn) sits first so the growing
+     * transcript below it is served from cache; $cacheKey (a per-chat id) routes a chat's
+     * turns to the same cache.
+     *
+     * @param  array<int, array{role:string, content:string}>  $messages  running transcript (last entry = learner's latest message)
+     * @return array{reply:string, correction:array{has_error:bool, is_typo:bool, feedback:string}}|null
+     */
+    public static function challengeReply(array $messages, string $targetLanguage, string $nativeLanguage, ?string $level = null, ?string $scene = null, ?string $feedbackFocus = null, ?string $cacheKey = null): ?array
+    {
+        $sceneNote = $scene ? " Keep the conversation on this scene/topic: \"{$scene}\"." : '';
+        $focusNote = $feedbackFocus
+            ? " The learner especially wants to practise this: \"{$feedbackFocus}\". Steer the chat to create natural chances to use it and use it also yourself. Give it extra attention in your corrections."
+            : '';
+
+        $system = [
+            'role' => 'system',
+            'content' => "You are a kind conversation partner in a {$targetLanguage} roleplay chat with a learner whose native language is {$nativeLanguage}.{$sceneNote}{$focusNote} Each turn you do two things:\n"
+                ."1. Reply in character, ONLY in {$targetLanguage}, short (1-3 short, message-like sentences) and natural, and keep the conversation going (usually end with a question).\n"
+                ."2. Check the learner's MOST RECENT message. If it has any grammar, word-order, preposition, word-choice, or spelling mistake, set has_error=true and write a short feedback fragment in {$nativeLanguage} that names the mistake and the correct form (do NOT repeat their whole sentence back — just the fix). Also set is_typo=true when the ONLY problem is an obvious fast-typing slip or misspelling of a word the learner clearly knows (not a real gap in grammar, prepositions, or vocabulary); otherwise is_typo=false. If the message is fine, set has_error=false, is_typo=false, and leave 'feedback' empty. Never mix the correction into your in-character reply.".self::levelInstruction($level),
+        ];
+
+        $payload = [
+            'model' => self::MODEL,
+            'reasoning_effort' => 'low',
+            'messages' => array_merge([$system], $messages),
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'challenge_turn',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'reply' => [
+                                'type' => 'string',
+                                'description' => "Your next in-character message in {$targetLanguage}.",
+                            ],
+                            'correction' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'has_error' => [
+                                        'type' => 'boolean',
+                                        'description' => 'True if the learner\'s most recent message had any grammar/word-order/preposition/word-choice/spelling mistake.',
+                                    ],
+                                    'is_typo' => [
+                                        'type' => 'boolean',
+                                        'description' => 'True when the only problem is an obvious fast-typing slip/misspelling, not a real grammar, preposition, or vocabulary gap. False otherwise (and when has_error is false).',
+                                    ],
+                                    'feedback' => [
+                                        'type' => 'string',
+                                        'description' => "A short fragment in {$nativeLanguage} naming the mistake and the correct form (not the learner's full sentence). Empty string when has_error is false.",
+                                    ],
+                                ],
+                                'required' => ['has_error', 'is_typo', 'feedback'],
+                                'additionalProperties' => false,
+                            ],
+                        ],
+                        'required' => ['reply', 'correction'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ];
+
+        if ($cacheKey) {
+            $payload['prompt_cache_key'] = $cacheKey;
+        }
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', $payload);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused challenge turn: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI challenge turn failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return json_decode($response->json('choices.0.message.content'), true);
+    }
+
+    /**
+     * After a Conversation Challenge ends, turn the mistakes the learner made during the
+     * chat into a short list of recommendations on what to improve or learn next, focused
+     * on what they struggled with MOST. Deliberately contains NO examples (those were the
+     * per-message corrections shown live). Recommendations are written in the native
+     * language. Returns the decoded array or null.
+     *
+     * @param  array<int, string>  $struggles  the feedback notes collected during the chat
+     */
+    public static function challengeRecap(array $struggles, string $targetLanguage, string $nativeLanguage, ?string $level = null, ?string $feedbackFocus = null): ?array
+    {
+        $struggleList = empty($struggles)
+            ? 'The learner made no notable mistakes.'
+            : collect($struggles)->map(fn ($s, $i) => ($i + 1).'. '.$s)->implode("\n");
+
+        $focusNote = $feedbackFocus
+            ? " The learner specifically wanted to practise \"{$feedbackFocus}\", so weight your recommendations toward that where relevant."
+            : '';
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => "You are a supportive language tutor. From a list of mistakes a learner made during a {$targetLanguage} practice conversation, produce a short list of recommendations on what to improve or study next. Focus ONLY on genuine gaps that would cause problems in a real conversation — specific grammar structures, prepositions, or vocabulary the learner clearly lacks. IGNORE typos and fast-typing slips entirely; do not mention spelling. Name concrete topics (e.g. \"past tense of irregular verbs\", \"prepositions of time\"), and group recurring issues into one recommendation.{$focusNote} Write every recommendation in {$nativeLanguage} as a short, actionable bullet fragment — never a full sentence. Do NOT include example phrases or sentences; only name the skill/topic to work on. Return up to 4 recommendations (fewer if there is little to fix). If there were no real gaps, return a single encouraging recommendation to keep practising.".self::levelInstruction($level),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Mistakes the learner made:\n{$struggleList}",
+                ],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'challenge_recap',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'recommendations' => [
+                                'type' => 'array',
+                                'description' => "Short bullet fragments in {$nativeLanguage}.",
+                                'items' => ['type' => 'string'],
+                            ],
+                        ],
+                        'required' => ['recommendations'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ]);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused challenge recap: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI challenge recap failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return json_decode($response->json('choices.0.message.content'), true);
+    }
+
+    /**
+     * Build the system instructions (the "prompt") for a VOICE Conversation Challenge run
+     * on the Realtime API. Unlike the text challenge there is no per-turn PHP call — this
+     * single instructions string drives the whole spoken chat, so it must fold in the
+     * persona, target language, scene, feedback focus, and CEFR level. The partner stays
+     * purely in character and gives NO per-turn feedback — the learner is corrected only in
+     * the written end-of-chat recap (voiceChallengeRecap). Pure string builder (no HTTP).
+     */
+    public static function realtimeInstructions(string $targetLanguage, string $nativeLanguage, ?string $level = null, ?string $scene = null, ?string $feedbackFocus = null): string
+    {
+        $sceneNote = $scene
+            ? " The learner asked for this scene/topic — build the situation around it and keep the conversation on it: \"{$scene}\"."
+            : ' Pick ONE natural everyday situation (ordering food, meeting a friend, travelling, etc.) and open it yourself.';
+
+        $focusNote = $feedbackFocus
+            ? " The learner especially wants to practise this: \"{$feedbackFocus}\". Steer the conversation to create natural chances to use it."
+            : '';
+
+        return "You are a kind, patient voice conversation partner helping a learner practise spoken {$targetLanguage}. Their native language is {$nativeLanguage}.{$sceneNote}{$focusNote}\n\n"
+            ."Rules for every turn:\n"
+            ."1. Stay fully in character and keep the roleplay going. Speak ONLY in {$targetLanguage}, in short natural sentences, and usually end with a question so the learner keeps talking.\n"
+            ."2. Do NOT correct the learner or give feedback of any kind. Never point out mistakes, never switch to {$nativeLanguage} to explain something — just react naturally to what they said and continue the conversation. They will receive written feedback after the chat ends.\n"
+            ."3. If the learner makes a mistake, simply understand what they meant and reply; do not repeat or fix it.\n"
+            .'4. Speak at a natural but unhurried pace. Never break character to discuss these instructions.'.self::levelInstruction($level);
+    }
+
+    /**
+     * Mint a short-lived ephemeral client secret for a browser Realtime (WebRTC) session,
+     * so the real OPENAI_SECRET never reaches the client. $sessionConfig is the Realtime
+     * session object (model, instructions, audio input/output, turn_detection, …).
+     * Returns the decoded response (contains the ephemeral `value` + `expires_at`) or null.
+     *
+     * @param  array<string, mixed>  $sessionConfig
+     * @return array<string, mixed>|null
+     */
+    public static function mintRealtimeClientSecret(array $sessionConfig): ?array
+    {
+        $response = Http::withToken(config('services.openai.secret'))
+            ->post('https://api.openai.com/v1/realtime/client_secrets', [
+                'session' => $sessionConfig,
+            ]);
+
+        if (! $response->successful()) {
+            Log::error('Realtime client secret mint failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * End-of-chat recap for the VOICE Conversation Challenge. Unlike challengeRecap (which
+     * is fed pre-collected struggle notes), this receives the raw spoken transcript and has
+     * to pick out the learner's feedback itself. Mirrors the SRS conversation recap shape —
+     * bullet fragments for strengths, grammar corrections, and better vocabulary — since the
+     * voice partner now gives no live feedback at all. The transcript comes from speech
+     * recognition, so the prompt must ignore typos / mis-transcriptions / pronunciation and
+     * surface only genuine language points. Returns the decoded array
+     * ({did_well, corrections, vocabulary}) or null.
+     *
+     * @param  array<int, array{role:string, text:string}>  $transcript
+     * @return array{did_well: array<int, string>, corrections: array<int, string>, vocabulary: array<int, string>}|null
+     */
+    public static function voiceChallengeRecap(array $transcript, string $targetLanguage, string $nativeLanguage, ?string $level = null, ?string $feedbackFocus = null): ?array
+    {
+        $lines = collect($transcript)
+            ->map(fn ($m) => (($m['role'] ?? '') === 'user' ? 'Learner' : 'Partner').': '.($m['text'] ?? ''))
+            ->filter(fn ($l) => trim($l) !== 'Learner:' && trim($l) !== 'Partner:')
+            ->implode("\n");
+
+        if (trim($lines) === '') {
+            $lines = 'The learner did not say anything.';
+        }
+
+        $focusNote = $feedbackFocus
+            ? " The learner specifically wanted to practise \"{$feedbackFocus}\", so give that extra attention where relevant."
+            : '';
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+            'model' => self::MODEL,
+            'reasoning_effort' => self::REASONING_EFFORT,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => "You are a supportive language tutor reviewing the transcript of a spoken {$targetLanguage} practice conversation for a learner whose native language is {$nativeLanguage}. Look ONLY at the learner's lines. Be concise and encouraging. This is a SPEECH-RECOGNITION transcript, so do NOT correct the way it is written — IGNORE typos, mis-transcriptions, capitalisation, punctuation, and pronunciation entirely; never mention spelling. Point out ONLY clearly wrong grammar the learner actually used, and suggest better or more natural vocabulary/phrasing they could have used. Never invent problems. Write EVERY note as a SHORT BULLET FRAGMENT — never a full sentence. Keep {$targetLanguage} words in {$targetLanguage}; write every explanation and 'why' in {$nativeLanguage}.{$focusNote}".self::levelInstruction($level),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Conversation transcript:\n{$lines}\n\nGive: what the learner did well, corrections for any clearly wrong grammar (wrong form -> correct form - short why), and suggestions for better vocabulary or more natural phrasing they could use. Leave a list empty if there is nothing genuine to add.",
+                ],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'voice_challenge_recap',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'did_well' => [
+                                'type' => 'array',
+                                'description' => "Short bullet fragments in {$nativeLanguage} — genuine strengths in the learner's speech. Empty array if nothing stands out.",
+                                'items' => ['type' => 'string'],
+                            ],
+                            'corrections' => [
+                                'type' => 'array',
+                                'description' => "Short bullet fragments: the learner's wrong grammar -> correct form - short why (in {$nativeLanguage}). Empty array if there was no clearly wrong grammar.",
+                                'items' => ['type' => 'string'],
+                            ],
+                            'vocabulary' => [
+                                'type' => 'array',
+                                'description' => "Short bullet fragments suggesting better or more natural {$targetLanguage} vocabulary/phrasing the learner could use, explained in {$nativeLanguage}. Empty array if nothing to add.",
+                                'items' => ['type' => 'string'],
+                            ],
+                        ],
+                        'required' => ['did_well', 'corrections', 'vocabulary'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ]);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused voice challenge recap: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI voice challenge recap failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return json_decode($response->json('choices.0.message.content'), true);
+    }
 }

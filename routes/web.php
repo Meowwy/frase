@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AjaxController;
 use App\Http\Controllers\CardController;
+use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\GapFillExerciseController;
 use App\Http\Controllers\RegisteredUserController;
@@ -201,6 +202,16 @@ Route::middleware('auth')->group(function () {
     // Conversation learning mode (live AI roleplay chat; state lives in the session).
     Route::post('/chat/message', [ChatController::class, 'message']);
     Route::post('/chat/recap', [ChatController::class, 'recap']);
+
+    // Conversation Challenge: free practice chat with live per-message corrections.
+    Route::get('/conversation', [ChallengeController::class, 'setup']);
+    Route::post('/conversation/start', [ChallengeController::class, 'start']);
+    Route::post('/conversation/opening', [ChallengeController::class, 'opening']);
+    Route::post('/conversation/message', [ChallengeController::class, 'message']);
+    Route::post('/conversation/recap', [ChallengeController::class, 'recap']);
+    // Voice variant: live Realtime (WebRTC) speech-to-speech chat.
+    Route::post('/conversation/voice/token', [ChallengeController::class, 'voiceToken']);
+    Route::post('/conversation/voice/recap', [ChallengeController::class, 'voiceRecap']);
     Route::get('/completeLearning', function () {
         return view('learning.complete');
     });
