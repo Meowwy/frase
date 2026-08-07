@@ -212,6 +212,9 @@ Route::middleware('auth')->group(function () {
     // Voice variant: live Realtime (WebRTC) speech-to-speech chat.
     Route::post('/conversation/voice/token', [ChallengeController::class, 'voiceToken']);
     Route::post('/conversation/voice/recap', [ChallengeController::class, 'voiceRecap']);
+    // Game variant: AI-set tasks, pass/fail each turn, ends on a mistake or after 10 turns.
+    Route::post('/conversation/game/opening', [ChallengeController::class, 'gameOpening']);
+    Route::post('/conversation/game/message', [ChallengeController::class, 'gameMessage']);
     Route::get('/completeLearning', function () {
         return view('learning.complete');
     });

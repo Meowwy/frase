@@ -37,10 +37,17 @@
                                     class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
                                 🎙️ <span>Voice</span>
                             </button>
+                            <button type="button" data-mode="game"
+                                    class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
+                                🎯 <span>Game</span>
+                            </button>
                         </div>
                         <input type="hidden" name="mode" id="mode" value="text">
                         <p class="text-xs text-white/40 mt-2" id="voiceHint" style="display:none;">
                             You'll speak with an AI partner out loud. It corrects you verbally as you go, and you'll see the transcript on screen.
+                        </p>
+                        <p class="text-xs text-white/40 mt-2" id="gameHint" style="display:none;">
+                            We pick a random situation and set you a task each turn. Say it right — accomplish the task with no clear grammar mistakes — and you move on. One slip and the game ends. Last as many turns as you can, up to 10.
                         </p>
                     </div>
 
@@ -116,7 +123,7 @@
                         <input type="hidden" name="language_id" id="language_id" value="{{ $activeLanguageId }}">
                     </div>
 
-                    <div>
+                    <div class="pref-block">
                         <label for="scene" class="block text-sm font-semibold text-white/80">
                             Scene <span class="font-normal text-white/40">— optional</span>
                         </label>
@@ -126,7 +133,7 @@
                                   class="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"></textarea>
                     </div>
 
-                    <div>
+                    <div class="pref-block">
                         <label for="feedback_focus" class="block text-sm font-semibold text-white/80">
                             Feedback focus <span class="font-normal text-white/40">— optional</span>
                         </label>
@@ -167,9 +174,13 @@
                 selectPill($('.mode-option'), $btn);
 
                 const isVoice = mode === 'voice';
+                const isGame = mode === 'game';
                 $('.voice-only').toggle(isVoice);
+                // The game sets its own scene and drills nothing specific — no preference inputs.
+                $('.pref-block').toggle(!isGame);
                 $('#voiceHint').toggle(isVoice);
-                $('#submitLabel').text(isVoice ? 'Start voice conversation' : 'Start conversation');
+                $('#gameHint').toggle(isGame);
+                $('#submitLabel').text(isVoice ? 'Start voice conversation' : (isGame ? 'Start game' : 'Start conversation'));
             });
 
             $('#turnTakingPicker').on('click', '.turn-option', function () {

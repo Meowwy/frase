@@ -951,6 +951,189 @@ class AI extends Model
     }
 
     /**
+     * Open a Conversation Challenge GAME: pick a random everyday scene and return the first
+     * in-character line plus the first task. Unlike the plain challenge, the learner sets no
+     * preferences — the AI decides the scene. The 'reply' is spoken by a character to the
+     * learner (in {$targetLanguage}); the 'suggestion' is a concise {$nativeLanguage}
+     * instruction telling the learner WHAT to convey next, WITHOUT prescribing any grammar.
+     *
+     * @return array{scene:string, reply:string, suggestion:string}|null
+     */
+    public static function startChallengeGame(string $targetLanguage, string $nativeLanguage, ?string $level = null, ?string $cacheKey = null, ?string $scene = null): ?array
+    {
+        $situation = $scene !== null && trim($scene) !== ''
+            ? "The situation for this game is: {$scene}. Base the scene, the first line and every task on it."
+            : 'Pick ONE random natural everyday situation yourself (ordering food, asking for directions, checking into a hotel, meeting a friend, etc.).';
+
+        $payload = [
+            'model' => self::MODEL,
+            'reasoning_effort' => 'low',
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => "You are running a spoken-{$targetLanguage} practice GAME for a learner whose native language is {$nativeLanguage}. {$situation} Return three things:\n"
+                        ."1. 'scene' — a short setup describing the situation, written in {$nativeLanguage} so the learner understands the context.\n"
+                        ."2. 'reply' — the first in-character line, spoken BY A CHARACTER in the scene TO the learner, written ONLY in {$targetLanguage}, 1-2 short sentences that prompt the learner to respond (e.g. a waiter asking what they would like).\n"
+                        ."3. 'suggestion' — a concise instruction in {$nativeLanguage} telling the learner what to say/convey in {$targetLanguage} in their reply. Be specific and go straight to the point in a few words (e.g. \"order a drink for you and your friend and ask if the pizza has vegan options\"). Describe only the INFORMATION to convey. NEVER name or prescribe a grammar structure or specific words to use.".self::levelInstruction($level),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => 'Start the game.',
+                ],
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'challenge_game_opening',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'scene' => [
+                                'type' => 'string',
+                                'description' => "Short setup of the situation, in {$nativeLanguage}.",
+                            ],
+                            'reply' => [
+                                'type' => 'string',
+                                'description' => "The first in-character line spoken to the learner, in {$targetLanguage}.",
+                            ],
+                            'suggestion' => [
+                                'type' => 'string',
+                                'description' => "Concise instruction in {$nativeLanguage} of what to convey next in {$targetLanguage}; no grammar prescribed.",
+                            ],
+                        ],
+                        'required' => ['scene', 'reply', 'suggestion'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ];
+
+        if ($cacheKey) {
+            $payload['prompt_cache_key'] = $cacheKey;
+        }
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', $payload);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused to start challenge game: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI challenge game start failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        $data = json_decode($response->json('choices.0.message.content'), true);
+
+        return is_array($data) && isset($data['reply']) ? $data : null;
+    }
+
+    /**
+     * Play one GAME turn. Judges the learner's MOST RECENT message against the task they were
+     * set ($task), then — only relevant when they pass — continues the scene in character and
+     * sets the next task. In ONE call it returns:
+     *   - task_completed: did the message convey the information the task asked for?
+     *   - has_error: is there a CLEAR grammar mistake or a clearly wrong word for the situation?
+     *     (typos / fast-typing slips / spelling are IGNORED — same rule as the other chat modes.)
+     *   - mistake: short {$nativeLanguage} explanation of what went wrong + the correct form
+     *     (only when task_completed is false OR has_error is true; empty otherwise).
+     *   - reply: the next in-character line in {$targetLanguage} (used only if the learner passed).
+     *   - suggestion: the next task in {$nativeLanguage} (used only if the learner passed).
+     *
+     * The caller decides the game outcome: a pass is task_completed AND NOT has_error; any
+     * failure ends the game and shows 'mistake' as the feedback.
+     *
+     * Built for prompt caching: an invariant system prefix (role/rules/level) sits first so the
+     * growing transcript is cache-served; the per-turn-changing task is a small trailing system
+     * message. $cacheKey routes a game's turns to the same cache.
+     *
+     * @param  array<int, array{role:string, content:string}>  $messages  running transcript (last entry = learner's latest message)
+     * @return array{task_completed:bool, has_error:bool, mistake:string, reply:string, suggestion:string}|null
+     */
+    public static function challengeGameReply(array $messages, string $task, string $targetLanguage, string $nativeLanguage, ?string $level = null, ?string $cacheKey = null): ?array
+    {
+        $system = [
+            'role' => 'system',
+            'content' => "You are running a spoken-{$targetLanguage} practice GAME for a learner whose native language is {$nativeLanguage}. Each turn the learner is given a task (what to convey) and writes a reply in {$targetLanguage}. You must do all of the following:\n"
+                ."1. Judge whether their MOST RECENT message accomplishes the task they were given (set task_completed). They pass as long as they convey the required information in {$targetLanguage} — accept any correct wording; do not require specific phrasing.\n"
+                ."2. Check that message for a CLEAR grammar mistake or a clearly wrong word for the situation (set has_error). Flag ONLY real errors in grammar, spelling or an obviously wrong word choice.\n"
+                ."3. If task_completed is false OR has_error is true, write 'mistake': a short {$nativeLanguage} explanation of what was wrong (the missing information and/or the grammar/word mistake) and the correct form. Otherwise leave 'mistake' empty.\n"
+                ."4. If task_completed is true AND has_error is false, fill this: 'reply': continue the scene in character, ONLY in {$targetLanguage}, 1-2 short natural sentences that react to what they said and prompt the next response.\n"
+                ."5. If task_completed is true AND has_error is false, fill this: 'suggestion': the next task — a concise {$nativeLanguage} instruction of what to convey next in {$targetLanguage}, specific and to the point in a few words, describing only the INFORMATION to convey and NEVER prescribing a grammar structure or specific words. Be creative and make the conversation diverse.".self::levelInstruction($level),
+        ];
+
+        // Per-turn-changing task goes in a trailing system message (kept out of the cached prefix).
+        $taskMessage = [
+            'role' => 'system',
+            'content' => "The task the learner was asked to accomplish in their latest message: \"{$task}\".",
+        ];
+
+        $payload = [
+            'model' => self::MODEL,
+            'reasoning_effort' => 'low',
+            'messages' => array_merge([$system], $messages, [$taskMessage]),
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'challenge_game_turn',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'task_completed' => [
+                                'type' => 'boolean',
+                                'description' => 'True if the learner\'s latest message conveyed the information the task asked for.',
+                            ],
+                            'has_error' => [
+                                'type' => 'boolean',
+                                'description' => 'True if the message has a clear grammar or spelling mistake or a clearly wrong word for the situation.',
+                            ],
+                            'mistake' => [
+                                'type' => 'string',
+                                'description' => "Short {$nativeLanguage} explanation of what was wrong and the correct form. Empty when task_completed is true and has_error is false.",
+                            ],
+                            'reply' => [
+                                'type' => 'string',
+                                'description' => "The next in-character line in {$targetLanguage}.",
+                            ],
+                            'suggestion' => [
+                                'type' => 'string',
+                                'description' => "The next task in {$nativeLanguage}; no grammar prescribed. Don't be monotonous.",
+                            ],
+                        ],
+                        'required' => ['task_completed', 'has_error', 'mistake', 'reply', 'suggestion'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ];
+
+        if ($cacheKey) {
+            $payload['prompt_cache_key'] = $cacheKey;
+        }
+
+        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', $payload);
+
+        if ($response->json('choices.0.message.refusal') != null) {
+            Log::error('AI refused challenge game turn: '.$response->json('choices.0.message.refusal'));
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::error('AI challenge game turn failed: '.$response->status().' - '.$response->body());
+
+            return null;
+        }
+
+        return json_decode($response->json('choices.0.message.content'), true);
+    }
+
+    /**
      * Build the system instructions (the "prompt") for a VOICE Conversation Challenge run
      * on the Realtime API. Unlike the text challenge there is no per-turn PHP call — this
      * single instructions string drives the whole spoken chat, so it must fold in the

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AI;
+use App\Models\ChallengeGameResult;
+use App\Models\ChallengeScene;
 use App\Models\Language;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +21,9 @@ class ChallengeController extends Controller
 
     /** Selectable Realtime voices (offered on the setup page). */
     private const REALTIME_VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'];
+
+    /** Conversation Challenge Game: turns the learner must clear to win. */
+    private const GAME_MAX_TURNS = 10;
 
     /**
      * Show the Conversation Challenge setup page: pick a language and start.
@@ -46,7 +51,7 @@ class ChallengeController extends Controller
             'language_id' => ['required', 'integer'],
             'scene' => ['nullable', 'string', 'max:200'],
             'feedback_focus' => ['nullable', 'string', 'max:200'],
-            'mode' => ['nullable', 'in:text,voice'],
+            'mode' => ['nullable', 'in:text,voice,game'],
             'turn_taking' => ['nullable', 'in:vad,ptt'],
             'voice' => ['nullable', Rule::in(self::REALTIME_VOICES)],
             'speed' => ['nullable', 'numeric', 'min:0.25', 'max:1.5'],
@@ -77,6 +82,24 @@ class ChallengeController extends Controller
             return view('challenge.voice', [
                 'turnTaking' => $data['turn_taking'] ?? 'vad',
             ]);
+        }
+
+        // Game mode: the AI picks the scene and sets the learner a task each turn (no user
+        // preferences). Seed the ephemeral state (no AI call here) and render the game view,
+        // which fetches the opening via gameOpening().
+        if (($data['mode'] ?? 'text') === 'game') {
+            session(['chat_game' => [
+                'messages' => [],
+                'language_id' => $language->id,
+                'level' => $user->levelForLanguage($language),
+                'cache_key' => 'game-'.$user->id.'-'.Str::uuid()->toString(),
+                'current_task' => null,
+                'survived' => 0,
+                'scene_display' => null,
+                'scene_id' => null,
+            ]]);
+
+            return view('challenge.game', ['maxTurns' => self::GAME_MAX_TURNS]);
         }
 
         // Stable per-chat key so every turn is routed to the same prompt cache.
@@ -214,6 +237,163 @@ class ChallengeController extends Controller
         return response()->json([
             'recommendations' => $recap['recommendations'] ?? [],
         ]);
+    }
+
+    /**
+     * Game: generate the scene, the opening in-character line, and the first task. Called once
+     * by the client on page load. Idempotent (a refresh returns the stored opening).
+     */
+    public function gameOpening(Request $request)
+    {
+        $chat = session('chat_game');
+        if (! $chat) {
+            return response()->json(['message' => 'No active game.'], 409);
+        }
+
+        // Already opened (duplicate/refresh) — return the stored opener + current task.
+        if (! empty($chat['messages'])) {
+            return response()->json([
+                'scene' => $chat['scene_display'] ?? '',
+                'reply' => $chat['messages'][0]['content'] ?? '',
+                'suggestion' => $chat['current_task'] ?? '',
+            ]);
+        }
+
+        $user = Auth::user();
+
+        // Randomly draw one of the seeded situations and hand it to the AI.
+        $scene = ChallengeScene::inRandomOrder()->first();
+        $scenePrompt = $scene ? $scene->name.': '.$scene->description : null;
+
+        $opening = AI::startChallengeGame(
+            $this->languageName($chat['language_id']),
+            optional($user->nativeLanguage)->name ?? $user->native_language,
+            $chat['level'],
+            $chat['cache_key'] ?? null,
+            $scenePrompt,
+        );
+
+        if (! is_array($opening) || ! isset($opening['reply'], $opening['suggestion'])) {
+            return response()->json(['message' => 'Could not start the game. Please try again.'], 500);
+        }
+
+        $chat['messages'][] = ['role' => 'assistant', 'content' => $opening['reply']];
+        $chat['scene_display'] = $opening['scene'] ?? '';
+        $chat['scene_id'] = $scene?->id;
+        $chat['current_task'] = $opening['suggestion'];
+        session(['chat_game' => $chat]);
+
+        return response()->json([
+            'scene' => $opening['scene'] ?? '',
+            'reply' => $opening['reply'],
+            'suggestion' => $opening['suggestion'],
+        ]);
+    }
+
+    /**
+     * Game: play one turn. Judge the learner's answer against the current task, then either
+     * advance the scene with the next task (pass) or end the game (fail, or 10 turns cleared).
+     * A pass = task accomplished AND no clear grammar/word mistake; any failure ends the game
+     * and returns the AI's short explanation as the feedback. On end the result (turns
+     * survived + whether all 10 were cleared) is stored and the session is cleared.
+     */
+    public function gameMessage(Request $request)
+    {
+        $data = $request->validate(['message' => ['required', 'string']]);
+
+        $chat = session('chat_game');
+        if (! $chat) {
+            return response()->json(['message' => 'No active game.'], 409);
+        }
+
+        $user = Auth::user();
+        $task = $chat['current_task'] ?? '';
+        $chat['messages'][] = ['role' => 'user', 'content' => $data['message']];
+
+        $result = AI::challengeGameReply(
+            $chat['messages'],
+            $task,
+            $this->languageName($chat['language_id']),
+            optional($user->nativeLanguage)->name ?? $user->native_language,
+            $chat['level'],
+            $chat['cache_key'] ?? null,
+        );
+
+        if (! is_array($result) || ! array_key_exists('task_completed', $result)) {
+            // Drop the just-appended learner message so a retry doesn't double it.
+            array_pop($chat['messages']);
+            session(['chat_game' => $chat]);
+
+            return response()->json(['message' => 'The game is unavailable right now. Please try again.'], 500);
+        }
+
+        $taskCompleted = (bool) ($result['task_completed'] ?? false);
+        $hasError = (bool) ($result['has_error'] ?? false);
+        $passed = $taskCompleted && ! $hasError;
+
+        $payload = [
+            'task_completed' => $taskCompleted,
+            'has_error' => $hasError,
+            'passed' => $passed,
+            'mistake' => $result['mistake'] ?? '',
+        ];
+
+        if (! $passed) {
+            // Failed task (A) or made a mistake (B) — game over.
+            $this->finishGame($chat, false);
+
+            return response()->json(array_merge($payload, [
+                'ended' => true,
+                'completed' => false,
+                'turns_survived' => $chat['survived'],
+            ]));
+        }
+
+        // Passed: count it and continue in character.
+        $chat['survived']++;
+        $chat['messages'][] = ['role' => 'assistant', 'content' => $result['reply'] ?? ''];
+
+        // Cleared all the turns — a win.
+        if ($chat['survived'] >= self::GAME_MAX_TURNS) {
+            $this->finishGame($chat, true);
+
+            return response()->json(array_merge($payload, [
+                'ended' => true,
+                'completed' => true,
+                'turns_survived' => $chat['survived'],
+                'reply' => $result['reply'] ?? '',
+            ]));
+        }
+
+        // Hand out the next task.
+        $chat['current_task'] = $result['suggestion'] ?? '';
+        session(['chat_game' => $chat]);
+
+        return response()->json(array_merge($payload, [
+            'ended' => false,
+            'turns_survived' => $chat['survived'],
+            'reply' => $result['reply'] ?? '',
+            'suggestion' => $chat['current_task'],
+        ]));
+    }
+
+    /**
+     * Persist a finished game (how many turns the learner survived + whether they cleared all
+     * of them) and clear the ephemeral session state.
+     *
+     * @param  array<string, mixed>  $chat
+     */
+    private function finishGame(array $chat, bool $completed): void
+    {
+        ChallengeGameResult::create([
+            'user_id' => Auth::id(),
+            'language_id' => $chat['language_id'],
+            'challenge_scene_id' => $chat['scene_id'] ?? null,
+            'turns_survived' => $chat['survived'] ?? 0,
+            'completed' => $completed,
+        ]);
+
+        session()->forget('chat_game');
     }
 
     /**
