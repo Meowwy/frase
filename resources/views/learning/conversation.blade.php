@@ -1,6 +1,24 @@
 @props(['opening', 'targetWords'])
 <x-html-layout>
-    <div class="max-w-2xl mx-auto relative">
+    <div class="max-w-4xl mx-auto flex gap-6 items-start">
+        {{-- Hint: toggle list of the target-word translations, collapsed by default. --}}
+        <aside class="w-44 shrink-0">
+            <button id="hintToggle" type="button"
+                    class="flex items-center gap-1 text-sm font-semibold text-white/80 hover:text-white transition-colors">
+                <svg id="hintChevron" class="h-4 w-4 transition-transform" xmlns="http://www.w3.org/2000/svg"
+                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+                </svg>
+                Hint
+            </button>
+            <ul id="hintList" class="hidden mt-3 space-y-1">
+                @foreach ($targetWords as $w)
+                    <li class="text-sm italic text-white/70">{{ ($w['translation'] ?? '') !== '' ? $w['translation'] : $w['term'] }}</li>
+                @endforeach
+            </ul>
+        </aside>
+
+        <div class="flex-1 relative">
         <div class="mb-3 text-sm text-white/60">
             Words left to use:
             <span id="remainingCount" class="font-bold text-white">{{ count($targetWords) }}</span>
@@ -43,10 +61,12 @@
             </div>
             <div id="recapContent" class="hidden">
                 <h3 class="text-lg font-semibold mb-3">Recap</h3>
-                <div id="recapWords" class="space-y-1 mb-4"></div>
-                <div id="recapDidWell" class="mb-4"></div>
-                <div id="recapCorrections"></div>
+                <div class="grid gap-6 md:grid-cols-2">
+                    <div id="recapWords" class="space-y-1"></div>
+                    <div id="recapCorrections"></div>
+                </div>
             </div>
+        </div>
         </div>
     </div>
 
@@ -177,17 +197,8 @@
                     const mark = w.got
                         ? '<span class="text-green-400">✓</span>'
                         : '<span class="text-red-400">✗</span>';
-                    const note = w.note ? ' <span class="text-white/50">— ' + escapeHtml(w.note) + '</span>' : '';
-                    $words.append('<div class="text-sm">' + mark + ' <span class="font-medium">' + escapeHtml(w.term) + '</span>' + note + '</div>');
+                    $words.append('<div class="text-sm">' + mark + ' <span class="font-medium">' + escapeHtml(w.term) + '</span></div>');
                 });
-
-                const $well = $('#recapDidWell').empty();
-                if ((data.did_well || []).length) {
-                    $well.append('<h4 class="text-sm font-semibold text-green-400 mb-1">What you did well</h4>');
-                    const ul = $('<ul class="list-disc list-inside space-y-1 text-sm text-white/80">');
-                    data.did_well.forEach(function (b) { ul.append('<li>' + escapeHtml(b) + '</li>'); });
-                    $well.append(ul);
-                }
 
                 const $corr = $('#recapCorrections').empty();
                 if ((data.corrections || []).length) {
@@ -207,6 +218,12 @@
                 if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
             });
             $end.on('click', endConversation);
+
+            // Hint list: collapsed by default, reveals the translations on toggle.
+            $('#hintToggle').on('click', function () {
+                $('#hintList').toggleClass('hidden');
+                $('#hintChevron').toggleClass('rotate-90');
+            });
 
             $input.focus();
         });

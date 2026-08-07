@@ -651,7 +651,7 @@ class AI extends Model
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Target words — 'used' is authoritative (id: term (used/not used)): {$wordList}.\n\nConversation transcript:\n{$transcript}\n\nFor each target word give a short note: if used, brief praise or the correctly spelled base form; if not used, the correct word form the learner should learn. Then list what the learner did well, and concrete corrections for any grammar or word-form errors they made.",
+                    'content' => "Target words — 'used' is authoritative (id: term (used/not used)): {$wordList}.\n\nConversation transcript:\n{$transcript}\n\nFor each target word just mirror whether it was used. Then give concrete corrections for any grammar or word-form errors the learner made.",
                 ],
             ],
             'response_format' => [
@@ -669,16 +669,10 @@ class AI extends Model
                                     'properties' => [
                                         'id' => ['type' => 'integer', 'description' => 'The target word id.'],
                                         'got' => ['type' => 'boolean', 'description' => 'Whether the learner used this word (mirror the authoritative used/not-used flag given).'],
-                                        'note' => ['type' => 'string', 'description' => "Short fragment: praise or the correct {$targetLanguage} form; explanation in {$nativeLanguage}."],
                                     ],
-                                    'required' => ['id', 'got', 'note'],
+                                    'required' => ['id', 'got'],
                                     'additionalProperties' => false,
                                 ],
-                            ],
-                            'did_well' => [
-                                'type' => 'array',
-                                'description' => "Short bullet fragments in {$nativeLanguage} — genuine strengths in the learner's messages.",
-                                'items' => ['type' => 'string'],
                             ],
                             'corrections' => [
                                 'type' => 'array',
@@ -686,7 +680,7 @@ class AI extends Model
                                 'items' => ['type' => 'string'],
                             ],
                         ],
-                        'required' => ['words', 'did_well', 'corrections'],
+                        'required' => ['words', 'corrections'],
                         'additionalProperties' => false,
                     ],
                 ],

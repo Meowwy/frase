@@ -245,7 +245,7 @@ class Learning extends Model
         $language = $cards->first()->language;
         $level = $user->levelForLanguage($language);
 
-        $targetWords = $cards->map(fn ($c) => ['id' => $c->id, 'term' => $c->phrase])->values()->all();
+        $targetWords = $cards->map(fn ($c) => ['id' => $c->id, 'term' => $c->phrase, 'translation' => $c->translation])->values()->all();
 
         // Stable per-chat key so every turn is routed to the same prompt cache.
         $cacheKey = 'conv-'.$user->id.'-'.Str::uuid()->toString();

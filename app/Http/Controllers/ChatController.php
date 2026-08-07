@@ -95,18 +95,11 @@ class ChatController extends Controller
         );
         $recap = is_array($recap) ? $recap : [];
 
-        // Server stays authoritative on got/not-got; the AI only supplies per-word notes.
-        $notes = [];
-        foreach ($recap['words'] ?? [] as $w) {
-            if (isset($w['id'])) {
-                $notes[(int) $w['id']] = $w['note'] ?? '';
-            }
-        }
+        // Server stays authoritative on got/not-got; the recap only shows the mark + term.
         $words = array_map(fn ($w) => [
             'id' => $w['id'],
             'term' => $w['term'],
             'got' => in_array($w['id'], $usedIds, true),
-            'note' => $notes[$w['id']] ?? '',
         ], $chat['target_words']);
 
         // Spaced-repetition: each used word counts as one correct review (mirrors
@@ -122,7 +115,6 @@ class ChatController extends Controller
 
         return response()->json([
             'words' => $words,
-            'did_well' => $recap['did_well'] ?? [],
             'corrections' => $recap['corrections'] ?? [],
         ]);
     }
