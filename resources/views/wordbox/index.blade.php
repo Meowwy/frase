@@ -157,7 +157,7 @@
                             <tbody class="divide-y divide-white/5">
                             @forelse ($cards as $card)
                                 <tr class="hover:bg-white/5 cursor-pointer transition-colors" onclick="window.location='/cards/{{ $card->id }}'">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">{{ $card->phrase }}</td>
+                                    <td class="px-6 py-4 text-sm font-bold text-white">{{ $card->phrase }}</td>
                                     <td class="px-6 py-4 text-sm text-white/70">{{ $card->definition }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-white/70">{{ $card->translation }}</td>
                                 </tr>

@@ -17,18 +17,23 @@ class AjaxController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-            'capturedWord' => ['required', 'string', 'min:2', 'max:50'],
+            // Long enough to accept a pasted sentence, which the AI reduces to a
+            // reusable expression frame ("I would like to go ..." => "I would like to ...").
+            'capturedWord' => ['required', 'string', 'min:2', 'max:120'],
             'context' => ['nullable', 'string', 'min:2', 'max:250'],
             'language_id' => ['nullable', 'integer'],
             'wordbox_id' => ['nullable', 'integer'],
         ]);
 
         // Extract the captured word
-        $capturedWord = $request->input('capturedWord');
-        $context = $request->input('context');
+        $capturedWord = trim($request->input('capturedWord'));
+
+        // An untouched context input submits "", which is not null — normalise it so the
+        // plain generator is used instead of the context one being fed an empty context.
+        $context = $request->filled('context') ? trim($request->input('context')) : null;
 
         $userId = Auth::id();
-        $phrase = request('capturedWord');
+        $phrase = $capturedWord;
         if (! request()->filled('capturedWord')) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'capturedWord is required'], 422);
@@ -119,11 +124,16 @@ class AjaxController extends Controller
 
             $newlyInsertedCard = $user->cards()->create([
                 'phrase' => $output->phrase,
+                'term_type' => in_array($output->term_type ?? null, Card::TERM_TYPES, true)
+                    ? $output->term_type
+                    : Card::TYPE_LEXICAL,
                 'theme_id' => ($selectedTheme ? $selectedTheme->id : $recentThemeId),
                 'language_id' => $language->id,
                 'level' => 1,
                 'translation' => $output->translation ?? '',
-                'example_sentence' => $output->sentence,
+                // Blank for expressions — they are illustrated by the 3 example sentences
+                // instead. The column is NOT NULL, so coalesce to an empty string.
+                'example_sentence' => $output->sentence ?? '',
                 'example_1' => $examples[0] ?? null,
                 'example_2' => $examples[1] ?? null,
                 'example_3' => $examples[2] ?? null,

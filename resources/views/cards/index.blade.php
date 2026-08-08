@@ -12,8 +12,16 @@
                           :active-language-id="$activeLanguageId" />
     @endif
 
-    {{-- Bulk-action bar: always visible, right-aligned; inert + grayed out when nothing is selected. --}}
-    <div class="mt-6 flex justify-end">
+    {{-- Left: term-type filter (single choice). Right: bulk-action bar — always visible,
+         inert + grayed out when nothing is selected. --}}
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div id="typeFilter" class="inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-0.5 text-sm">
+            @foreach(['lexical' => 'Lexical', 'both' => 'Both', 'expression' => 'Expressions'] as $value => $label)
+                <button type="button" data-type="{{ $value }}"
+                        class="type-btn rounded-md px-3 py-1 transition-colors {{ $type === $value ? 'bg-blue-600/30 ring-1 ring-blue-500 text-white' : 'text-white/60 hover:text-white' }}">{{ $label }}</button>
+            @endforeach
+        </div>
+
         <div id="bulkBar" class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 opacity-40 pointer-events-none transition-opacity">
             <span id="bulkCount" class="text-sm text-white/80">0 selected</span>
             <select id="bulkWordbox"
@@ -90,7 +98,7 @@
         // filtered rows from /cards (AJAX) and swaps the table body + pagination.
         $(document).ready(function () {
             const init = window.WordboxPicker ? window.WordboxPicker.current() : { languageId: '{{ $activeLanguageId }}', wordbox: 'all' };
-            const filter = { languageId: init.languageId, wordbox: init.wordbox };
+            const filter = { languageId: init.languageId, wordbox: init.wordbox, type: '{{ $type }}' };
             let debounce;
 
             // Wordboxes grouped by language, for the "Add to wordbox" dropdown (no backend call).
@@ -115,6 +123,7 @@
                 $.get(url || '/cards', url ? {} : {
                     language_id: filter.languageId,
                     wordbox: filter.wordbox,
+                    type: filter.type,
                     term: $('#cardSearchTerm').val(),
                     definition: $('#cardSearchDefinition').val(),
                 }, render);
@@ -142,6 +151,19 @@
                 filter.languageId = e.detail.languageId;
                 filter.wordbox = e.detail.wordbox;
                 rebuildWordboxSelect(e.detail.languageId);
+                fetchCards();
+            });
+
+            // Term-type filter: exactly one option is active at a time.
+            $('#typeFilter').on('click', '.type-btn', function () {
+                const type = String($(this).data('type'));
+                if (type === filter.type) { return; }
+                filter.type = type;
+                $('#typeFilter .type-btn').each(function () {
+                    const sel = String($(this).data('type')) === type;
+                    $(this).toggleClass('bg-blue-600/30 ring-1 ring-blue-500 text-white', sel)
+                           .toggleClass('text-white/60 hover:text-white', !sel);
+                });
                 fetchCards();
             });
 

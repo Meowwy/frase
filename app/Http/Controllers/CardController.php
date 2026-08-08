@@ -30,6 +30,12 @@ class CardController extends Controller
         $term = trim((string) $request->query('term', ''));
         $definition = trim((string) $request->query('definition', ''));
 
+        // Term-type filter: one of the two types, or 'both' (the default, no constraint).
+        $type = (string) $request->query('type', 'both');
+        if (! in_array($type, Card::TERM_TYPES, true)) {
+            $type = 'both';
+        }
+
         // Legacy entry: dashboard theme card links here with ?theme=<name>. Pre-filter
         // by that theme and open the picker on the theme's language.
         $theme = null;
@@ -56,6 +62,10 @@ class CardController extends Controller
             $query->whereDoesntHave('wordbox');
         } elseif (is_numeric($wordbox)) {
             $query->whereHas('wordbox', fn ($q) => $q->where('wordboxes.id', $wordbox));
+        }
+
+        if ($type !== 'both') {
+            $query->where('term_type', $type);
         }
 
         if ($term !== '') {
@@ -91,6 +101,7 @@ class CardController extends Controller
             'activeLanguageId' => $languageId,
             'term' => $term,
             'definition' => $definition,
+            'type' => $type,
         ]);
     }
 

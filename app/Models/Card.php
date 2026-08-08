@@ -9,6 +9,20 @@ class Card extends Model
 {
     use HasFactory;
 
+    /**
+     * A naming unit — it has a meaning you can define ("X means ..."). Covers single
+     * words, collocations and idioms alike: cabinet, traffic jam, under the weather.
+     */
+    public const TYPE_LEXICAL = 'lexical';
+
+    /**
+     * A ready-made utterance or utterance frame — it performs a communicative function
+     * ("you say X when you want to ..."): I'd rather not, can you hand me the ...
+     */
+    public const TYPE_EXPRESSION = 'expression';
+
+    public const TERM_TYPES = [self::TYPE_LEXICAL, self::TYPE_EXPRESSION];
+
     protected $guarded = [];
 
     protected $casts = [

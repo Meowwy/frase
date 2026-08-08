@@ -10,11 +10,14 @@
 
         <!-- Main Term Section -->
         <div class="mb-6 flex items-baseline justify-between gap-3">
-            <div class="space-x-3">
-                <span class="text-4xl font-bold">{{$card->phrase}}</span>
+            {{-- An expression phrase ("can you hand me the ...") is far longer than a
+                 lexical one, so the heading wraps instead of overflowing. --}}
+            <div class="min-w-0 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="text-3xl sm:text-4xl font-bold break-words">{{$card->phrase}}</span>
                 <span class="text-xl italic">{{$card->translation}}</span>
             </div>
             <div class="flex items-center gap-3 shrink-0">
+                <span class="text-xs uppercase tracking-wider text-white/50">{{$card->term_type}}</span>
                 @if($card->language)
                     <span class="text-xl leading-none">{{$card->language->flag}}</span>
                 @endif
@@ -28,16 +31,25 @@
             </div>
         </div>
 
-        <!-- Usage-example boxes (the 3 short fragments) -->
+        <!-- Usage examples: boxed fragments for a lexical term, stacked full sentences
+             for an expression (which has no example_sentence of its own). -->
         @php($examples = array_filter([$card->example_1, $card->example_2, $card->example_3]))
         @if(!empty($examples))
-            <div class="mb-6 flex flex-wrap gap-3">
-                @foreach($examples as $example)
-                    <div class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90">
-                        {{ $example }}
-                    </div>
-                @endforeach
-            </div>
+            @if($card->term_type === \App\Models\Card::TYPE_EXPRESSION)
+                <div class="mb-6 space-y-1">
+                    @foreach($examples as $example)
+                        <p class="text-gray-400 font-medium leading-relaxed">{{ $example }}</p>
+                    @endforeach
+                </div>
+            @else
+                <div class="mb-6 flex flex-wrap gap-3">
+                    @foreach($examples as $example)
+                        <div class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90">
+                            {{ $example }}
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         @endif
 
         <!-- Definition Section -->
@@ -49,9 +61,9 @@
             <span class="">{{$card->definition}}</span>
         </div>
 
-        <!-- Example Sentence -->
+        <!-- Example Sentence (an expression's is a two-line A:/B: exchange, so keep the breaks) -->
         @if(!empty($card->example_sentence))
-            <p class="mb-6 text-gray-400 font-medium">{!! $card->example_sentence !!}</p>
+            <p class="mb-6 text-gray-400 font-medium whitespace-pre-line leading-relaxed">{!! $card->example_sentence !!}</p>
         @endif
 
         <!-- Linked cards -->

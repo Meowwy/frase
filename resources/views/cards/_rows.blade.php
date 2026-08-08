@@ -5,7 +5,8 @@
             <input type="checkbox" value="{{ $card->id }}"
                    class="js-card-checkbox h-4 w-4 rounded border-white/30 bg-transparent align-middle cursor-pointer opacity-0 group-hover:opacity-100 checked:opacity-100 transition-opacity">
         </td>
-        <td class="px-6 py-2 whitespace-nowrap text-sm font-medium text-white">{{ $card->phrase }}</td>
+        {{-- No nowrap: an expression frame ("can you hand me the ...") would stretch the column. --}}
+        <td class="px-6 py-2 text-sm font-medium text-white">{{ $card->phrase }}</td>
         <td class="px-6 py-2 text-sm text-gray-300">
             <div class="max-w-xs truncate" title="{{ $card->definition }}">{{ $card->definition }}</div>
         </td>

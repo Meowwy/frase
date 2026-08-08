@@ -20,6 +20,7 @@ use App\Models\Wordbox;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\Rule;
 
 use function Pest\Laravel\get;
 
@@ -282,15 +283,20 @@ Route::middleware('auth')->group(function () {
     Route::post('/cards/{card:id}', function (\Illuminate\Http\Request $request, Card $card) {
         $validatedData = $request->validate([
             'phrase' => ['required', 'string'],
+            'term_type' => ['required', Rule::in(Card::TERM_TYPES)],
             'definition' => ['required', 'string'],
             'translation' => ['required', 'string'],
-            'example_sentence' => ['required', 'string'],
+            // Nullable: an expression card has no example sentence (it is illustrated by
+            // the 3 example sentences instead), and the column is NOT NULL.
+            'example_sentence' => ['nullable', 'string'],
             'example_1' => ['nullable', 'string'],
             'example_2' => ['nullable', 'string'],
             'example_3' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
             'id' => ['required'],
         ]);
+        $validatedData['example_sentence'] ??= '';
+
         // Update the card with the validated data
         $card->update($validatedData);
 
