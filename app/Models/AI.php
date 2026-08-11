@@ -44,13 +44,46 @@ class AI extends Model
     }
 
     /**
+     * CEFR levels that get the definition in the learner's native language: below B2 a
+     * target-language definition is usually harder than the term it explains.
+     */
+    private const NATIVE_DEFINITION_LEVELS = ['A1', 'A2', 'B1'];
+
+    /**
+     * Which language the `definition` field is written in. Resolved here in PHP and
+     * interpolated into the schema, so the model is only ever told one language to
+     * write in — it never decides this itself.
+     */
+    private static function definitionLanguage(?string $level, string $targetLanguage, string $nativeLanguage): string
+    {
+        return in_array($level, self::NATIVE_DEFINITION_LEVELS, true)
+            ? $nativeLanguage
+            : $targetLanguage;
+    }
+
+    /**
+     * Keeps `translation` and `definition` apart. Only needed when both land in the
+     * native language (A1-B1): without a language cue to tell the two fields apart the
+     * model swapped them, returning "hezký; krásný" as the definition of "schön".
+     */
+    private static function fieldContrastRule(string $definitionLanguage, string $nativeLanguage): string
+    {
+        return $definitionLanguage === $nativeLanguage
+            ? " Translation and definition are both in {$nativeLanguage} but are NOT the same: the translation is the equivalent term, the definition explains what it means."
+            : '';
+    }
+
+    /**
      * System-prompt fragment telling the model to classify the term before writing
      * anything else. Shared by all three card generators so the definition of the two
      * types stays in exactly one place.
      */
     private static function typeRules(): string
     {
-        return ' First, decide the term_type, every other field depends on it. The distinction is NOT word count: a naming unit whose meaning you can define is "lexical", while a ready-made utterance that performs a communicative function is an "expression".';
+        // The examples rule and its shape negatives are repeated here on purpose: with
+        // them only in the property description, the nano model returned an empty array
+        // for lexical terms, then full bracketed sentences once it did return three.
+        return ' First, decide the term_type, every other field depends on it. The distinction is NOT word count: a naming unit whose meaning you can define is "lexical", while a ready-made utterance that performs a communicative function is an "expression". A lexical term ALWAYS gets exactly 3 examples, each a short 2-4 word fragment — never a full sentence and never bracketed; an expression gets NO examples at all, just its sentence. Put in each field ONLY what that field asks for — never list examples inside the definition.';
     }
 
     /**
@@ -144,6 +177,7 @@ class AI extends Model
     {
         logger('update 2');
         logger('Obtaining data for '.$phrase);
+        $definitionLanguage = self::definitionLanguage($level, $targetLanguage, $nativeLanguage);
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
             'model' => self::MODEL,
@@ -151,11 +185,11 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard. Keep the term itself as what the learner submitted — fix spelling and put it into its canonical form. Describe that exact term in every field.".self::typeRules().self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard. Keep the term itself as what the learner submitted — fix spelling and put it into its canonical form. Describe that exact term in every field.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
+                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Target language: \"{$targetLanguage}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.",
                 ],
             ],
             'response_format' => [
@@ -169,26 +203,26 @@ class AI extends Model
                             'term_type' => self::termTypeProperty(),
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled; If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]" (e.g. "can you hand me the salt" => "can you hand me the [something]", "I would like to go to the cinema tomorrow" => "I would like to [do something]"). Never mark a slot with dots or an ellipsis. Every other field must describe THIS term.',
+                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled; If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]" (e.g. "can you hand me the salt" => "can you hand me the [something]", "I would like to go to the cinema tomorrow" => "I would like to [do something]"). Never mark a slot with dots or an ellipsis, and if the expression has no variable part use no square brackets at all — never bracket an ordinary word. Every other field must describe THIS term.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "For LEXICAL terms only, and it MUST contain the term inside square brackets exactly once. If term_type is \"lexical\": one short, natural {$targetLanguage} sentence whose context reveals the meaning, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": return the empty string \"\" and nothing else.",
+                                'description' => "Exactly ONE short, natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never write two sentences, and never put the surrounding punctuation inside the brackets. If term_type is \"lexical\": a sentence whose context reveals the meaning, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": write what someone actually SAYS — the expression itself with every \"[something]\"/\"[someone]\" slot filled in with real words and the whole expression wrapped in square brackets, optionally with a short natural clause before or after it. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], please?\" or \"We're leaving in five minutes, so [you better be ready].\"",
                             ],
                             'examples' => [
                                 'type' => 'array',
-                                'description' => "An array of exactly 3 entries in {$targetLanguage}, never bracketed. You MUST always return 3. If term_type is \"lexical\": 2-4 word usage fragments with NO subject pronoun and NO final period, each showing a DIFFERENT common way the term is used — (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase; for \"run\": \"run a business\", \"run out of time\", \"go for a run\". If term_type is \"expression\": 3 COMPLETE, natural sentences that actually use the expression, each in a DIFFERENT everyday situation, with every \"[something]\"/\"[someone]\" slot from the phrase filled in with real words, keeping the pronoun and ending with normal sentence punctuation; for \"I'd rather not\": \"Thanks for the invitation, but I'd rather not.\", \"She asked me to sing in front of everyone, but I'd rather not.\", \"I'd rather not talk about it right now.\" Never use square brackets.",
+                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period, each showing a DIFFERENT common way the term is used — (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase; for \"run\": \"run a business\", \"run out of time\", \"go for a run\". Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
                                 'items' => [
                                     'type' => 'string',
                                 ],
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "The term rendered in {$nativeLanguage}. If term_type is \"lexical\": translate the term. If term_type is \"expression\": give the FUNCTIONAL equivalent, what a native speaker of {$nativeLanguage} would actually say in that same situation. Translate the FRAME, not the learner's original wording: if the phrase contains a placeholder, the translation keeps a matching slot written in {$nativeLanguage} inside square brackets (Czech \"[něco]\", German \"[etwas]\", …) — never leave the English \"[something]\" standing in a {$nativeLanguage} sentence.",
+                                'description' => "The term ITSELF in {$nativeLanguage}, same part of speech; never a sentence and never an explanation. If term_type is \"lexical\": the equivalent word, at most 2 variants separated by \"; \" (\"schön\" => \"hezký; krásný\"). If term_type is \"expression\": EXACTLY ONE functional equivalent — what a native speaker really says there, never literal, never a second variant. Translate the FRAME: a placeholder returns as a {$nativeLanguage} slot (\"[něco]\"), never the English \"[something]\".",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "Written in {$targetLanguage}. If term_type is \"lexical\": a concise dictionary-style definition of the term. If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it. Do not use the term itself.",
+                                'description' => "EXPLAINS the meaning in {$definitionLanguage} — never a translation, an equivalent word or a list of synonyms, and it never contains the term itself. If term_type is \"lexical\": a dictionary-style definition (\"schön\" => \"co vypadá příjemně a líbí se\", NOT \"hezký\"). If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it.",
                             ],
                             'theme' => [
                                 'type' => 'string',
@@ -210,6 +244,7 @@ class AI extends Model
     {
         logger('update 2');
         logger('Obtaining data for '.$phrase);
+        $definitionLanguage = self::definitionLanguage($level, $targetLanguage, $nativeLanguage);
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
             'model' => self::MODEL,
@@ -217,11 +252,11 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard. Keep the term itself as what the learner submitted — fix spelling and put it into its canonical form. The context fixes WHICH sense or situation this card is about, so every field — including all examples — must reflect ONLY that sense and never a different meaning of the term. The context also helps you judge the term_type: it shows how the term is actually being used.".self::typeRules().self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard. Keep the term itself as what the learner submitted — fix spelling and put it into its canonical form. The context fixes WHICH sense or situation this card is about, so every field — including all examples — must reflect ONLY that sense and never a different meaning of the term. The context also helps you judge the term_type: it shows how the term is actually being used.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong), used in this context: \"{$context}\". Target language (write content in this): \"{$targetLanguage}\". Native language (used only for the translation): \"{$nativeLanguage}\".",
+                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong), used in this context: \"{$context}\". Target language: \"{$targetLanguage}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.",
                 ],
             ],
             'response_format' => [
@@ -235,26 +270,26 @@ class AI extends Model
                             'term_type' => self::termTypeProperty(),
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. Keep the meaning it has in the supplied context, but in a general, reusable form that is not tied to the specific subject of that context. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled; If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]" (e.g. "can you hand me the salt" => "can you hand me the [something]", "I would like to go to the cinema tomorrow" => "I would like to [do something]"). Never mark a slot with dots or an ellipsis. Every other field must describe THIS term.',
+                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. Keep the meaning it has in the supplied context, but in a general, reusable form that is not tied to the specific subject of that context. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled; If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]" (e.g. "can you hand me the salt" => "can you hand me the [something]", "I would like to go to the cinema tomorrow" => "I would like to [do something]"). Never mark a slot with dots or an ellipsis, and if the expression has no variable part use no square brackets at all — never bracket an ordinary word. Every other field must describe THIS term.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "For LEXICAL terms only, and it MUST contain the term inside square brackets exactly once. If term_type is \"lexical\": one short, natural {$targetLanguage} sentence whose context reveals the sense the term has in the supplied context, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": return the empty string \"\" and nothing else.",
+                                'description' => "Exactly ONE short, natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never write two sentences, and never put the surrounding punctuation inside the brackets. If term_type is \"lexical\": a sentence whose context reveals the sense the term has in the supplied context, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": write what someone actually SAYS in the situation the supplied context describes — the expression itself with every \"[something]\"/\"[someone]\" slot filled in with real words and the whole expression wrapped in square brackets, optionally with a short natural clause before or after it. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], please?\" or \"We're leaving in five minutes, so [you better be ready].\"",
                             ],
                             'examples' => [
                                 'type' => 'array',
-                                'description' => "An array of exactly 3 entries in {$targetLanguage}, never bracketed. You MUST always return 3. ALL 3 must fit the term's meaning in the supplied context/domain ONLY — never a different sense (e.g. for \"tree\" in a graph-theory context: \"binary tree\", \"spanning tree\", \"root of the tree\" — NOT \"climb a tree\"). If term_type is \"lexical\": 2-4 word usage fragments with NO subject pronoun and NO final period, each showing a DIFFERENT common way the term is used within that meaning — a different inflected form, a preposition it typically pairs with, or a frequent collocation/set phrase. If term_type is \"expression\": 3 COMPLETE, natural sentences that actually use the expression, each in a DIFFERENT everyday situation, with every \"[something]\"/\"[someone]\" slot from the phrase filled in with real words, keeping the pronoun and ending with normal sentence punctuation; for \"I'd rather not\": \"Thanks for the invitation, but I'd rather not.\", \"She asked me to sing in front of everyone, but I'd rather not.\", \"I'd rather not talk about it right now.\" Never use square brackets.",
+                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period, each showing a DIFFERENT common way the term is used — a different inflected form, a preposition it typically pairs with, or a frequent collocation/set phrase. ALL 3 must fit the term's meaning in the supplied context/domain ONLY — never a different sense (e.g. for \"tree\" in a graph-theory context: \"binary tree\", \"spanning tree\", \"root of the tree\" — NOT \"climb a tree\"). Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
                                 'items' => [
                                     'type' => 'string',
                                 ],
                             ],
                             'translation' => [
                                 'type' => 'string',
-                                'description' => "The term rendered in {$nativeLanguage}, matching the meaning it has in the supplied context. If term_type is \"lexical\": translate the term. If term_type is \"expression\": give the FUNCTIONAL equivalent, what a native speaker of {$nativeLanguage} would actually say in that same situation. Translate the FRAME, not the learner's original wording: if the phrase contains a placeholder, the translation keeps a matching slot written in {$nativeLanguage} inside square brackets (Czech \"[něco]\", German \"[etwas]\", …) — never leave the English \"[something]\" standing in a {$nativeLanguage} sentence.",
+                                'description' => "The term ITSELF in {$nativeLanguage} in the meaning it has in the supplied context, same part of speech; never a sentence and never an explanation. If term_type is \"lexical\": the equivalent word, at most 2 variants separated by \"; \" (\"schön\" => \"hezký; krásný\"). If term_type is \"expression\": EXACTLY ONE functional equivalent — what a native speaker really says there, never literal, never a second variant. Translate the FRAME: a placeholder returns as a {$nativeLanguage} slot (\"[něco]\"), never the English \"[something]\".",
                             ],
                             'definition' => [
                                 'type' => 'string',
-                                'description' => "Written in {$targetLanguage}, based on the supplied context. If term_type is \"lexical\": a concise dictionary-style definition of the term. If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it. Do not use the term itself.",
+                                'description' => "EXPLAINS the meaning it has in the supplied context, in {$definitionLanguage} — never a translation, an equivalent word or a list of synonyms, and it never contains the term itself. If term_type is \"lexical\": a dictionary-style definition (\"schön\" => \"co vypadá příjemně a líbí se\", NOT \"hezký\"). If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it.",
                             ],
                             'theme' => [
                                 'type' => 'string',
@@ -320,15 +355,15 @@ class AI extends Model
                             'term_type' => self::termTypeProperty(),
                             'phrase' => [
                                 'type' => 'string',
-                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled, and never add square brackets or a placeholder of any kind; if the Original term is already a multi-word phrase keep it as the learner wrote it (spelling/base-form fixes only), and do NOT expand a single word into a collocation — a one-word term stays one word. If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]". Never mark a slot with dots or an ellipsis. Every other field must describe THIS term.',
+                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled, and never add square brackets or a placeholder of any kind; if the Original term is already a multi-word phrase keep it as the learner wrote it (spelling/base-form fixes only), and do NOT expand a single word into a collocation — a one-word term stays one word. If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]". Never mark a slot with dots or an ellipsis, and if the expression has no variable part use no square brackets at all — never bracket an ordinary word. Every other field must describe THIS term.',
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "For LEXICAL terms only, and it MUST contain the term inside square brackets exactly once. If term_type is \"lexical\": one short, natural {$nativeLanguage} sentence whose context reveals the meaning, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" A sentence without the square brackets is invalid. Keep it clear and easy to read. If term_type is \"expression\": return the empty string \"\" and nothing else — an expression is illustrated by the examples array instead.",
+                                'description' => "Exactly ONE short, natural {$nativeLanguage} sentence containing the term inside square brackets exactly once; never write two sentences, and never put the surrounding punctuation inside the brackets. A sentence without the square brackets is invalid. If term_type is \"lexical\": a sentence whose context reveals the meaning, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": write what someone actually SAYS — the expression itself with every \"[something]\"/\"[someone]\" slot filled in with real words and the whole expression wrapped in square brackets, optionally with a short natural clause before or after it. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], please?\" or \"We're leaving in five minutes, so [you better be ready].\"",
                             ],
                             'examples' => [
                                 'type' => 'array',
-                                'description' => "An array of exactly 3 entries in {$nativeLanguage}, never bracketed. You MUST always return 3. If term_type is \"lexical\": 2-4 word usage fragments with NO subject and NO final period, each showing a DIFFERENT common way the term is used — (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase; give just the fragment (verb+object or preposition+noun), never a whole sentence. If term_type is \"expression\": 3 COMPLETE, natural sentences that actually use the expression, each in a DIFFERENT everyday situation, with every \"[something]\"/\"[someone]\" slot from the phrase filled in with real words, keeping the pronoun and ending with normal sentence punctuation. Never use square brackets.",
+                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$nativeLanguage}, never bracketed — 2-4 word usage fragments with NO subject and NO final period, each showing a DIFFERENT common way the term is used — (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase; give just the fragment (verb+object or preposition+noun), never a whole sentence. Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
                                 'items' => [
                                     'type' => 'string',
                                 ],

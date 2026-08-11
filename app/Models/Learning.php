@@ -9,20 +9,32 @@ use Illuminate\Support\Str;
 
 class Learning extends Model
 {
-    public static function getCardsForLearning($filter)
+    /**
+     * Modes whose front is built from a lexical term's own fields — the blanked example
+     * sentence and the dictionary definition. An expression is a whole utterance, so it
+     * is left out of these decks and practised in the other modes instead.
+     */
+    public const LEXICAL_ONLY_MODES = ['sentences', 'definitions'];
+
+    public static function getCardsForLearning($filter, ?string $mode = null)
     {
         if (is_array($filter)) {
-            return self::getCardsForSelection($filter);
+            return self::getCardsForSelection($filter, $mode);
         }
+
+        $lexicalOnly = self::modeTypeFilter($mode);
+
         if ($filter === 'due') {
             try {
                 $dueCardsCount = Auth::user()->cards()
+                    ->tap($lexicalOnly)
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->count();
 
                 if ($dueCardsCount > 20) {
                     $cards = Auth::user()->cards()
                         ->with('wordbox:id,name')
+                        ->tap($lexicalOnly)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->limit(15)
                         ->get();
@@ -30,6 +42,7 @@ class Learning extends Model
                 } else {
                     $cards = Auth::user()->cards()
                         ->with('wordbox:id,name')
+                        ->tap($lexicalOnly)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->get();
                     session(['more_cards_available' => false]);
@@ -45,6 +58,7 @@ class Learning extends Model
                     ->firstOrFail()
                     ->cards()
                     ->with('wordbox:id,name')
+                    ->tap($lexicalOnly)
                     ->get();
             } catch (\Exception $exception) {
                 $cards = [];
@@ -53,6 +67,7 @@ class Learning extends Model
             try {
                 $theme = Theme::where('name', $filter)->first();
                 $dueCardsCount = Auth::user()->cards()
+                    ->tap($lexicalOnly)
                     ->where('theme_id', $theme->id)
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->count();
@@ -60,6 +75,7 @@ class Learning extends Model
                 if ($dueCardsCount > 20) {
                     $cards = Auth::user()->cards()
                         ->with('wordbox:id,name')
+                        ->tap($lexicalOnly)
                         ->where('theme_id', $theme->id)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->limit(15)
@@ -68,6 +84,7 @@ class Learning extends Model
                 } else {
                     $cards = Auth::user()->cards()
                         ->with('wordbox:id,name')
+                        ->tap($lexicalOnly)
                         ->where('theme_id', $theme->id)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->get();
@@ -83,16 +100,29 @@ class Learning extends Model
     }
 
     /**
+     * Constrain a card query to the types the given mode can actually teach. Returned as
+     * a callable so every query in the selection paths can `tap()` it.
+     */
+    protected static function modeTypeFilter(?string $mode): \Closure
+    {
+        return function ($query) use ($mode) {
+            if (in_array($mode, self::LEXICAL_ONLY_MODES, true)) {
+                $query->where('term_type', '!=', Card::TYPE_EXPRESSION);
+            }
+        };
+    }
+
+    /**
      * Build a learning set from the card-set builder selection:
      * language + (all | general vocabulary | a wordbox) + (due | cram).
      */
-    protected static function getCardsForSelection(array $filter)
+    protected static function getCardsForSelection(array $filter, ?string $mode = null)
     {
         $languageId = $filter['language_id'] ?? null;
         $wordbox = $filter['wordbox'] ?? 'all';
         $scope = $filter['scope'] ?? 'due';
 
-        $query = Auth::user()->cards()->with('wordbox:id,name');
+        $query = Auth::user()->cards()->with('wordbox:id,name')->tap(self::modeTypeFilter($mode));
 
         if ($languageId) {
             $query->where('language_id', $languageId);
@@ -201,7 +231,7 @@ class Learning extends Model
             return self::startConversation();
         }
 
-        $cardsForLearning = self::getCardsForLearning(session('learning_filter'));
+        $cardsForLearning = self::getCardsForLearning(session('learning_filter'), $mode);
         $cards = [];
 
         foreach ($cardsForLearning as $card) {

@@ -286,8 +286,9 @@ Route::middleware('auth')->group(function () {
             'term_type' => ['required', Rule::in(Card::TERM_TYPES)],
             'definition' => ['required', 'string'],
             'translation' => ['required', 'string'],
-            // Nullable: an expression card has no example sentence (it is illustrated by
-            // the 3 example sentences instead), and the column is NOT NULL.
+            // Nullable so the field can be cleared; the column is NOT NULL, hence the
+            // coalesce below. The example phrases are lexical-only and are hidden (but
+            // still submitted) for an expression card.
             'example_sentence' => ['nullable', 'string'],
             'example_1' => ['nullable', 'string'],
             'example_2' => ['nullable', 'string'],

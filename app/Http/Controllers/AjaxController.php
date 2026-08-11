@@ -120,7 +120,13 @@ class AjaxController extends Controller
                 }
             }
 
-            $examples = $output->examples ?? [];
+            // Empty for an expression card (it is illustrated by its example sentence
+            // alone). Drop blanks so a stray [""] from the model doesn't become an
+            // empty example box on the card.
+            $examples = array_values(array_filter(
+                array_map('trim', (array) ($output->examples ?? [])),
+                fn ($example) => $example !== ''
+            ));
 
             $newlyInsertedCard = $user->cards()->create([
                 'phrase' => $output->phrase,
@@ -131,8 +137,7 @@ class AjaxController extends Controller
                 'language_id' => $language->id,
                 'level' => 1,
                 'translation' => $output->translation ?? '',
-                // Blank for expressions — they are illustrated by the 3 example sentences
-                // instead. The column is NOT NULL, so coalesce to an empty string.
+                // The column is NOT NULL, so coalesce to an empty string.
                 'example_sentence' => $output->sentence ?? '',
                 'example_1' => $examples[0] ?? null,
                 'example_2' => $examples[1] ?? null,
