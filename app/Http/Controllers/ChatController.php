@@ -26,16 +26,19 @@ class ChatController extends Controller
 
         $chat['messages'][] = ['role' => 'user', 'content' => $data['message']];
 
-        $usedIds = $chat['used_ids'];
+        // Cast on read: session state survives across requests, so an id that came back
+        // as a string once would break the strict comparisons below and let a cleared
+        // word reappear in the remaining set.
+        $usedIds = array_map('intval', $chat['used_ids']);
         $remaining = array_values(array_filter(
             $chat['target_words'],
-            fn ($w) => ! in_array($w['id'], $usedIds, true)
+            fn ($w) => ! in_array((int) $w['id'], $usedIds, true)
         ));
 
+        // Only the words still left are sent; the model never sees the cleared ones.
         $result = AI::conversationReply(
             $chat['messages'],
             $remaining,
-            $chat['target_words'],
             $this->languageName($chat['language_id']),
             $chat['level'],
             $chat['cache_key'] ?? null,
@@ -46,8 +49,9 @@ class ChatController extends Controller
         }
 
         // The words the learner just used — restricted to the still-remaining set so a
-        // stray id from the model can't corrupt progress.
-        $remainingIds = array_column($remaining, 'id');
+        // stray id can't corrupt progress. used_ids only ever grows, which is what keeps
+        // the "words left" counter monotonic.
+        $remainingIds = array_map('intval', array_column($remaining, 'id'));
         $usedNew = array_values(array_intersect(
             array_map('intval', $result['used_word_ids'] ?? []),
             $remainingIds
@@ -87,19 +91,17 @@ class ChatController extends Controller
 
         $recap = AI::conversationRecap(
             $chat['messages'],
-            $chat['target_words'],
-            $usedIds,
             $this->languageName($chat['language_id']),
             optional($user->nativeLanguage)->name ?? $user->native_language,
             $chat['level'],
         );
         $recap = is_array($recap) ? $recap : [];
 
-        // Server stays authoritative on got/not-got; the recap only shows the mark + term.
+        // Server is the only authority on got/not-got; the recap only shows mark + term.
         $words = array_map(fn ($w) => [
-            'id' => $w['id'],
+            'id' => (int) $w['id'],
             'term' => $w['term'],
-            'got' => in_array($w['id'], $usedIds, true),
+            'got' => in_array((int) $w['id'], $usedIds, true),
         ], $chat['target_words']);
 
         // Spaced-repetition: each used word counts as one correct review (mirrors

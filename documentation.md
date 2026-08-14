@@ -59,8 +59,8 @@ introspection instead of guessing. Key tools (fetch schemas via ToolSearch
   `CardController`, `WordboxController`, `UserController`, `ThemeController`.
 - **Models:** `app/Models` — `Card`, `Wordbox`, `Theme`, `Language`, `User`, `AI`, `Learning`,
   `GapFillExercise`. `$guarded = []` (mass-assignment open). Relationships typed.
-- **AI:** encapsulated in `App\Models\AI`. Chat uses model in `AI::MODEL` (`gpt-5.4-nano`) with
-  `reasoning_effort` = `AI::REASONING_EFFORT` (`low`); embeddings use `text-embedding-3-small`.
+- **AI:** encapsulated in `App\Models\AI`. Chat uses model in `AI::MODEL` (`gpt-5.6-luna`) with
+  `reasoning_effort` = `AI::REASONING_EFFORT` (`medium`); embeddings use `text-embedding-3-small`.
   Reasoning models reject `temperature`. All structured output uses strict `json_schema`.
   Flashcard example sentences wrap the term once as `[term]` (the blanking regex is `/\[.*?\]/`).
 - **Views:** `resources/views`, components in `resources/views/components`. Base layout is

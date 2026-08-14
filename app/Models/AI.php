@@ -12,10 +12,11 @@ class AI extends Model
     use HasFactory;
 
     /**
-     * Chat model used for generating flashcard content.
-     * GPT-5.4 nano: fast and cheap, with reliable structured outputs.
+     * Chat model used for every text generation in the app.
+     * GPT-5.6 luna: follows per-field instructions far more reliably than the
+     * previous nano model, which is what the flashcard schemas depend on.
      */
-    private const MODEL = 'gpt-5.4-nano';
+    private const MODEL = 'gpt-5.6-luna';
 
     /**
      * Default reasoning effort for the chat model. "medium" buys enough
@@ -25,9 +26,12 @@ class AI extends Model
     private const REASONING_EFFORT = 'medium';
 
     /**
-     * Build a strong instruction fragment that constrains the language the model
-     * produces to the learner's CEFR proficiency level. Returns an empty string
-     * when no (or an unknown) level is given, so prompts stay unchanged.
+     * Build an instruction fragment that constrains the language the model produces to
+     * the learner's CEFR proficiency level. Returns an empty string when no (or an
+     * unknown) level is given, so prompts stay unchanged.
+     *
+     * The last sentence is load-bearing: read as a length rule, a beginner level made
+     * the model answer with two- or three-word stubs. The level caps DIFFICULTY only.
      */
     private static function levelInstruction(?string $level): string
     {
@@ -40,7 +44,7 @@ class AI extends Model
             return '';
         }
 
-        return " CRITICAL — the learner's proficiency is CEFR level {$level}: {$description} Keep all vocabulary and grammar at this level. If a given term is harder than this level you may still use it, but every other word around it must stay at level {$level}.";
+        return " The learner is CEFR level {$level}: {$description} Every word and structure around the term must stay at this level; the term itself may be harder. This caps difficulty, not length — never write less than a field asks for.";
     }
 
     /**
@@ -80,10 +84,9 @@ class AI extends Model
      */
     private static function typeRules(): string
     {
-        // The examples rule and its shape negatives are repeated here on purpose: with
-        // them only in the property description, the nano model returned an empty array
-        // for lexical terms, then full bracketed sentences once it did return three.
-        return ' First, decide the term_type, every other field depends on it. The distinction is NOT word count: a naming unit whose meaning you can define is "lexical", while a ready-made utterance that performs a communicative function is an "expression". A lexical term ALWAYS gets exactly 3 examples, each a short 2-4 word fragment — never a full sentence and never bracketed; an expression gets NO examples at all, just its sentence. Put in each field ONLY what that field asks for — never list examples inside the definition.';
+        // The examples rule is repeated here on purpose: with it only in the property
+        // description, the model returned an empty array for lexical terms.
+        return ' Decide the term_type first — every other field depends on it. The distinction is not word count: a naming unit whose meaning you can define is "lexical", a ready-made utterance performing a communicative function is an "expression". A lexical term always gets exactly 3 examples, each a 2-4 word fragment containing the term itself in a different grammatical form, never a sentence and never bracketed; an expression gets none. Put in each field only what that field asks for.';
     }
 
     /**
@@ -96,7 +99,7 @@ class AI extends Model
         return [
             'type' => 'string',
             'enum' => Card::TERM_TYPES,
-            'description' => 'What kind of term this card teaches. Choose "lexical" if it is a naming unit — something you can complete the sentence "X means ..." for. Single words ("cabinet", "reluctant"), collocations and compounds ("traffic jam", "make a decision") and idioms ("under the weather", "a piece of cake", "kick the bucket") are ALL lexical, because each one names a thing, action, quality or concept. Choose "expression" if it is a ready-made utterance or utterance frame that performs a communicative function — something you complete "you say X when you want to ..." for: refusing, requesting, hedging, warning, agreeing, greeting ("I\'d rather not", "I\'d like [something]", "can you hand me the [something]", "you better be ready", "as far as I\'m concerned"). A subject pronoun with a finite verb, a whole clause performing a speech act, or a variable slot all point to "expression". If the learner submitted a whole sentence, where some expression should be, choose "expression".',
+            'description' => 'What kind of term this card teaches. Choose "lexical" if it is a naming unit — you can complete "X means ...". Single words ("cabinet", "reluctant"), collocations and compounds ("traffic jam", "make a decision") and idioms ("under the weather", "kick the bucket") are ALL lexical, because each names a thing, action, quality or concept. Choose "expression" if it is a ready-made utterance or utterance frame performing a communicative function — you complete "you say X when you want to ...": refusing, requesting, hedging, warning, agreeing, greeting ("I\'d rather not", "can you hand me the [something]", "you better be ready", "as far as I\'m concerned"). A subject pronoun with a finite verb, a clause performing a speech act, or a variable slot all point to "expression"; a whole sentence submitted by the learner is an "expression" and gets reduced to its reusable frame.',
         ];
     }
 
@@ -185,7 +188,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard. Keep the term itself as what the learner submitted — fix spelling and put it into its canonical form. Describe that exact term in every field.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard. Never swap it for a different term: fix its spelling, put it into its canonical form, and describe that exact term in every field.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -207,11 +210,11 @@ class AI extends Model
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "Exactly ONE short, natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never write two sentences, and never put the surrounding punctuation inside the brackets. If term_type is \"lexical\": a sentence whose context reveals the meaning, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": write what someone actually SAYS — the expression itself with every \"[something]\"/\"[someone]\" slot filled in with real words and the whole expression wrapped in square brackets, optionally with a short natural clause before or after it. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], please?\" or \"We're leaving in five minutes, so [you better be ready].\"",
+                                'description' => "Exactly ONE natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never put the surrounding punctuation inside the brackets. It must be RICH and ILLUSTRATIVE: at least 6 words besides the term, naming a concrete situation, actor or result, so a learner who does NOT know the term could work out its meaning from the surrounding words alone. A bare frame that gives no clue (\"It is [nice].\", \"He is a [coward].\") is invalid. If term_type is \"lexical\": bracket the term itself in whatever form it takes there — e.g. \"She [broke] her promise to call me the moment she landed.\" If term_type is \"expression\": write what someone actually SAYS — every \"[something]\"/\"[someone]\" slot filled in with real words, the WHOLE expression bracketed once, plus a clause before or after that shows the situation. Never reword the expression and never nest it inside another question. — e.g. \"[Can you hand me the salt], I can't reach it from this side of the table.\"",
                             ],
                             'examples' => [
                                 'type' => 'array',
-                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period, each showing a DIFFERENT common way the term is used — (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase; for \"run\": \"run a business\", \"run out of time\", \"go for a run\". Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
+                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period. EVERY fragment must contain the term itself; one built from a synonym, an antonym or a merely related word is invalid (for \"coward\": \"a complete coward\", NOT \"a brave soldier\"). The phrase field already gives the base/dictionary form, so these must show the term IN USE: give it a DIFFERENT grammatical form in each of the three whenever the term has more than one — past, participle, 3rd person, plural, comparative, case — e.g. for \"break\": \"broke a window\", \"breaking the rules\", \"a broken promise\". Inflections come first; when the term has too few to fill all three, USE a close word-family form for the rest — \"reluctant\" => \"reluctant to change\", \"reluctantly accepted it\", \"her sudden reluctance\" — but never a loosely related word. Repeating the base form twice is a last resort, only for a term with no other form at all. Never start a fragment with a subject pronoun. Vary the kind of use as well: a preposition the term pairs with, a frequent collocation, a set phrase. Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
                                 'items' => [
                                     'type' => 'string',
                                 ],
@@ -252,7 +255,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard. Keep the term itself as what the learner submitted — fix spelling and put it into its canonical form. The context fixes WHICH sense or situation this card is about, so every field — including all examples — must reflect ONLY that sense and never a different meaning of the term. The context also helps you judge the term_type: it shows how the term is actually being used.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
+                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard. Never swap it for a different term: fix its spelling and put it into its canonical form. The context fixes WHICH sense or situation this card is about, so every field — including all examples — must reflect ONLY that sense and never another meaning of the term; it also shows how the term is really used, which helps you judge the term_type.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -274,11 +277,11 @@ class AI extends Model
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "Exactly ONE short, natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never write two sentences, and never put the surrounding punctuation inside the brackets. If term_type is \"lexical\": a sentence whose context reveals the sense the term has in the supplied context, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": write what someone actually SAYS in the situation the supplied context describes — the expression itself with every \"[something]\"/\"[someone]\" slot filled in with real words and the whole expression wrapped in square brackets, optionally with a short natural clause before or after it. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], please?\" or \"We're leaving in five minutes, so [you better be ready].\"",
+                                'description' => "Exactly ONE natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never two sentences, and never put the surrounding punctuation inside the brackets. It must be RICH and ILLUSTRATIVE: at least 6 words besides the term, naming a concrete situation, actor or result, so a learner who does NOT know the term could work out its meaning from the surrounding words alone. A bare frame that gives no clue (\"It is [nice].\") is invalid. If term_type is \"lexical\": show the sense the term has in the supplied context, bracketing the term itself in whatever form it takes there — e.g. \"She [broke] her promise to call me the moment she landed.\" If term_type is \"expression\": write what someone actually SAYS in the situation the supplied context describes — every \"[something]\"/\"[someone]\" slot filled in with real words, the WHOLE expression bracketed once, plus a clause before or after that shows the situation. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], I can't reach it from this side of the table.\"",
                             ],
                             'examples' => [
                                 'type' => 'array',
-                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period, each showing a DIFFERENT common way the term is used — a different inflected form, a preposition it typically pairs with, or a frequent collocation/set phrase. ALL 3 must fit the term's meaning in the supplied context/domain ONLY — never a different sense (e.g. for \"tree\" in a graph-theory context: \"binary tree\", \"spanning tree\", \"root of the tree\" — NOT \"climb a tree\"). Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
+                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period. EVERY fragment must contain the term itself; one built from a synonym, an antonym or a merely related word is invalid. The phrase field already gives the base/dictionary form, so these must show the term IN USE: give it a DIFFERENT grammatical form in each of the three whenever the term has more than one — past, participle, 3rd person, plural, comparative, case — e.g. for \"break\": \"broke a window\", \"breaking the rules\", \"a broken promise\". Inflections come first; when the term has too few to fill all three, USE a close word-family form for the rest — \"reluctant\" => \"reluctant to change\", \"reluctantly accepted it\", \"her sudden reluctance\" — but never a loosely related word. Repeating the base form twice is a last resort, only for a term with no other form at all. Never start a fragment with a subject pronoun. Vary the kind of use as well: a preposition it pairs with, a frequent collocation, a set phrase. ALL 3 must fit the term's meaning in the supplied context/domain ONLY — never a different sense (e.g. for \"tree\" in a graph-theory context: \"binary tree\", \"spanning trees\", \"root of the tree\" — NOT \"climb a tree\"). Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
                                 'items' => [
                                     'type' => 'string',
                                 ],
@@ -319,11 +322,11 @@ class AI extends Model
     {
         logger('Obtaining native-language data for '.$phrase);
 
-        $systemContent = "You are a vocabulary tutor helping a native speaker of {$nativeLanguage} build their vocabulary by learning words and phrases in context. Write every field in {$nativeLanguage}. Keep the term itself as what the learner submitted — fix spelling and put it into its canonical form, but never swap it for a different term. Describe that exact term in every field.";
+        $systemContent = "You are a vocabulary tutor helping a native speaker of {$nativeLanguage} build their vocabulary by learning words and phrases in context. Write every field in {$nativeLanguage}. Never swap the term for a different one: fix its spelling, put it into its canonical form, and describe that exact term in every field.";
         if (! is_null($context)) {
-            $systemContent .= ' The term was seen in a specific context; capture the meaning and use it has there, but in a general, reusable form. That context fixes WHICH sense of the term this card is about, so every field — including all three examples — must reflect ONLY that sense or domain and never a different meaning of the term. The context also helps you judge the term_type.';
+            $systemContent .= ' The term was seen in a specific context, which fixes WHICH sense of the term this card is about: capture that sense in a general, reusable form, and let every field — including all three examples — reflect ONLY that sense or domain. It also helps you judge the term_type.';
         }
-        $systemContent .= " Follow each field's rules exactly.".self::typeRules();
+        $systemContent .= self::typeRules();
 
         $userContent = "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Write everything in {$nativeLanguage}.";
         if (! is_null($context)) {
@@ -359,11 +362,11 @@ class AI extends Model
                             ],
                             'sentence' => [
                                 'type' => 'string',
-                                'description' => "Exactly ONE short, natural {$nativeLanguage} sentence containing the term inside square brackets exactly once; never write two sentences, and never put the surrounding punctuation inside the brackets. A sentence without the square brackets is invalid. If term_type is \"lexical\": a sentence whose context reveals the meaning, with the term itself wrapped in square brackets in whatever form it takes there — e.g. \"She [broke] her promise.\" If term_type is \"expression\": write what someone actually SAYS — the expression itself with every \"[something]\"/\"[someone]\" slot filled in with real words and the whole expression wrapped in square brackets, optionally with a short natural clause before or after it. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], please?\" or \"We're leaving in five minutes, so [you better be ready].\"",
+                                'description' => "Exactly ONE natural {$nativeLanguage} sentence containing the term inside square brackets exactly once; never two sentences, and never put the surrounding punctuation inside the brackets. A sentence without the square brackets is invalid. It must be RICH and ILLUSTRATIVE: at least 6 words besides the term, naming a concrete situation, actor or result, so a reader who does NOT know the term could work out its meaning from the surrounding words alone. A bare frame that gives no clue (\"It is [nice].\") is invalid. If term_type is \"lexical\": bracket the term itself in whatever form it takes there — e.g. \"She [broke] her promise to call me the moment she landed.\" If term_type is \"expression\": write what someone actually SAYS — every \"[something]\"/\"[someone]\" slot filled in with real words, the WHOLE expression bracketed once, plus a clause before or after that shows the situation. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], I can't reach it from this side of the table.\"",
                             ],
                             'examples' => [
                                 'type' => 'array',
-                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$nativeLanguage}, never bracketed — 2-4 word usage fragments with NO subject and NO final period, each showing a DIFFERENT common way the term is used — (1) a different inflected form, (2) a preposition the term typically pairs with, (3) a frequent collocation or set phrase; give just the fragment (verb+object or preposition+noun), never a whole sentence. Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
+                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$nativeLanguage}, never bracketed — 2-4 word usage fragments with NO subject and NO final period, just the fragment (verb+object or preposition+noun) and never a whole sentence. EVERY fragment must contain the term itself; one built from a synonym, an antonym or a merely related word is invalid. The phrase field already gives the base/dictionary form, so these must show the term IN USE: give it a DIFFERENT grammatical form in each of the three whenever the term has more than one — past, participle, person, plural, case, comparative. Inflections come first; when the term has too few to fill all three, USE a close word-family form for the rest — \"reluctant\" => \"reluctant to change\", \"reluctantly accepted it\", \"her sudden reluctance\" — but never a loosely related word. Repeating the base form twice is a last resort, only for a term with no other form at all. Never start a fragment with a subject pronoun. Vary the kind of use as well: a preposition the term pairs with, a frequent collocation, a set phrase. Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
                                 'items' => [
                                     'type' => 'string',
                                 ],
@@ -545,7 +548,7 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a kind conversation partner / teacher in a language-practice. Ask user about a situation that could naturally lead the learner to use these target words: {$terms}. Keep is short and simple. Write ONLY in {$targetLanguage}. Start the chat with only one short message (1-2 short senteces max) and end with a question. Absolute rule: NEVER write, translate, hint at, or spell any of the target words yourself — your job is to make the LEARNER say them.".self::levelInstruction($level),
+                    'content' => "You are a kind conversation partner in a {$targetLanguage} practice chat. Open with ONE short message (1-2 sentences) ending with a question, about an everyday situation that would naturally lead the learner to use these words: {$terms}. Write ONLY in {$targetLanguage} and keep the topic simple and positive. Absolute rule: NEVER write, translate, spell or hint at any of those words yourself — your job is to make the LEARNER say them.".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
@@ -600,38 +603,42 @@ class AI extends Model
      * words the learner used in their latest message (accepting misspellings and any
      * inflected form). Returns ['reply' => string, 'used_word_ids' => int[]] or null.
      *
+     * Only the words still left to elicit are ever sent, and they are sent as plain
+     * terms — no card ids. The model reports the terms it recognised and they are
+     * mapped back to ids here, which is why it can no longer leak an id into its reply
+     * or resurrect a word the learner already cleared.
+     *
      * The message array is built for prompt caching: an invariant system prefix
-     * (role/rules/avoid-list/level — identical for every turn of a chat) sits first so
-     * the growing transcript below it is served from cache, while the only per-turn
-     * changing piece (the shrinking remaining-words list) is a small trailing message
-     * after the prefix. $cacheKey (a per-chat id) is passed as prompt_cache_key to keep
-     * a chat's turns routed to the same cache.
+     * (role/rules/level — identical for every turn of a chat) sits first so the growing
+     * transcript below it is served from cache, while the only per-turn changing piece
+     * (the shrinking remaining-words list) is a small trailing message after it.
+     * $cacheKey (a per-chat id) is passed as prompt_cache_key to keep a chat's turns
+     * routed to the same cache.
      *
      * @param  array<int, array{role:string, content:string}>  $messages  running transcript
      * @param  array<int, array{id:int, term:string}>  $remainingWords  words still to elicit
-     * @param  array<int, array{id:int, term:string}>  $allWords  every target word (never say these)
      */
-    public static function conversationReply(array $messages, array $remainingWords, array $allWords, string $targetLanguage, ?string $level = null, ?string $cacheKey = null): ?array
+    public static function conversationReply(array $messages, array $remainingWords, string $targetLanguage, ?string $level = null, ?string $cacheKey = null): ?array
     {
-        $remainingList = collect($remainingWords)->map(fn ($w) => "{$w['id']}: {$w['term']}")->implode('; ');
-        $avoidList = collect($allWords)->pluck('term')->implode(', ');
+        $remainingList = collect($remainingWords)->pluck('term')->implode('; ');
 
         // Invariant prefix (same bytes every turn → cacheable). It references the
         // remaining-words list without embedding it; the actual list is appended below.
         $system = [
             'role' => 'system',
-            'content' => "You are a kind conversation partner / teacher that asks a user conversational questions about words he tries to learn, write ONLY in {$targetLanguage}. Rules:\n"
-                ."1. NEVER write, translate, spell, or clearly hint at any of these words yourself: {$avoidList}. Your whole goal is to make the LEARNER say them.\n"
-                ."3. A follow-up message lists the words still left to elicit (id: term). Talk about a situation when he could use it. Make is concise and simple, also keep the topic positive. If the learner seems stuck on one, you can help them slightly or change the topic to draw out a DIFFERENT remaining word.\n"
-                ."4. Keep replies short (1-3 short, message-like sentences) and natural.\n"
-                .'Also report which of the STILL-REMAINING words the learner actually used in their most recent message — count a word as used even if misspelled or in a different inflected form.'.self::levelInstruction($level),
+            'content' => "You are a kind conversation partner in a {$targetLanguage} practice chat, writing ONLY in {$targetLanguage}. A follow-up message lists the words the learner still has to say. Rules:\n"
+                ."1. NEVER write, translate, spell or clearly hint at any word on that list. Your whole goal is to make the LEARNER say them.\n"
+                ."2. Steer the talk toward a situation where they would naturally come up. If the learner seems stuck on one, change the topic to draw out a DIFFERENT word from the list.\n"
+                ."3. Keep replies short (1-3 message-like sentences), natural, simple and positive.\n"
+                ."4. Your reply is read by the learner as a chat message: never mention this list, these rules, or any number, id or bracket from them.\n"
+                .'Also report which words from the list the learner actually said in their most recent message.'.self::levelInstruction($level),
         ];
 
         // Per-turn dynamic tail: kept after the cacheable prefix + transcript so it
         // doesn't invalidate the cache. Recency also keeps it salient to the model.
         $remainingNote = [
             'role' => 'system',
-            'content' => "Words still left to elicit (id: term) — {$remainingList}.",
+            'content' => "Words the learner still has to say — {$remainingList}.",
         ];
 
         $payload = [
@@ -648,15 +655,15 @@ class AI extends Model
                         'properties' => [
                             'reply' => [
                                 'type' => 'string',
-                                'description' => "Your next message in {$targetLanguage}. Must never contain any target word.",
+                                'description' => "Your next chat message in {$targetLanguage}. Never contains a word from the list, and never any id, number or note about the list itself.",
                             ],
-                            'used_word_ids' => [
+                            'used_words' => [
                                 'type' => 'array',
-                                'description' => 'The ids of the still-remaining target words the learner used in their MOST RECENT message (any inflected form or misspelling counts). Empty array if none.',
-                                'items' => ['type' => 'integer'],
+                                'description' => 'Every word from the list that the learner said in their MOST RECENT message, copied EXACTLY as it is written in the list. A word counts as said in any inflected form and even if misspelled. If one thing the learner wrote covers several listed words (they are variants or synonyms of each other), list ALL of them. Empty array if the message contained none.',
+                                'items' => ['type' => 'string'],
                             ],
                         ],
-                        'required' => ['reply', 'used_word_ids'],
+                        'required' => ['reply', 'used_words'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -681,25 +688,76 @@ class AI extends Model
             return null;
         }
 
-        return json_decode($response->json('choices.0.message.content'), true);
+        $data = json_decode($response->json('choices.0.message.content'), true);
+
+        if (! is_array($data) || ! isset($data['reply'])) {
+            return null;
+        }
+
+        return [
+            'reply' => $data['reply'],
+            'used_word_ids' => self::matchUsedWords((array) ($data['used_words'] ?? []), $remainingWords),
+        ];
     }
 
     /**
-     * After the chat ends, produce a short bullet-point recap: a per-word note, what
-     * the learner did well, and gentle corrections (wrong form → correct form + short
-     * why). Terms stay in the target language; explanations are in the native language
-     * so the learner understands. Returns the decoded array or null.
+     * Resolve the terms the model reported as "said" back to card ids.
+     *
+     * The model only ever sees terms, so it echoes one back rather than an id. Matching
+     * is deliberately generous — accents and punctuation stripped, plus a substring test
+     * both ways — because the model returns the form the learner actually wrote. It also
+     * means one inflected mention can clear several near-identical target words, which
+     * is the intended behaviour.
+     *
+     * @param  array<int, mixed>  $usedTerms  terms the model reported
+     * @param  array<int, array{id:int, term:string}>  $remainingWords
+     * @return array<int, int>
+     */
+    private static function matchUsedWords(array $usedTerms, array $remainingWords): array
+    {
+        $normalize = fn (string $t) => trim(preg_replace('/\s+/u', ' ', preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', mb_strtolower($t))));
+
+        $ids = [];
+
+        foreach ($usedTerms as $usedTerm) {
+            $used = $normalize((string) $usedTerm);
+            if ($used === '') {
+                continue;
+            }
+
+            foreach ($remainingWords as $word) {
+                $term = $normalize((string) $word['term']);
+                if ($term === '') {
+                    continue;
+                }
+
+                // Substring matching only above 3 characters, so a short term like "a"
+                // cannot sweep up every other word on the list.
+                $loose = min(mb_strlen($term), mb_strlen($used)) >= 4
+                    && (str_contains($used, $term) || str_contains($term, $used));
+
+                if ($term === $used || $loose) {
+                    $ids[] = (int) $word['id'];
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * After the chat ends, produce gentle corrections of the mistakes the learner made
+     * (wrong form → correct form + short why) as bullet fragments. Terms stay in the
+     * target language; explanations are in the native language so the learner
+     * understands. Returns the decoded array or null.
+     *
+     * Which target words were used is NOT asked for: the server already owns that and
+     * overwrites whatever the model would say, so generating it was wasted tokens.
      *
      * @param  array<int, array{role:string, content:string}>  $messages  full transcript
-     * @param  array<int, array{id:int, term:string}>  $targetWords  every word in the set
-     * @param  array<int, int>  $usedIds  ids the server marked used
      */
-    public static function conversationRecap(array $messages, array $targetWords, array $usedIds, string $targetLanguage, string $nativeLanguage, ?string $level = null): ?array
+    public static function conversationRecap(array $messages, string $targetLanguage, string $nativeLanguage, ?string $level = null): ?array
     {
-        $wordList = collect($targetWords)
-            ->map(fn ($w) => "{$w['id']}: {$w['term']} (".(in_array($w['id'], $usedIds) ? 'used' : 'not used').')')
-            ->implode('; ');
-
         $transcript = collect($messages)
             ->map(fn ($m) => ($m['role'] === 'assistant' ? 'Partner' : 'Learner').': '.$m['content'])
             ->implode("\n");
@@ -710,11 +768,11 @@ class AI extends Model
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "You are a supportive language tutor reviewing a {$targetLanguage} practice conversation for a learner whose native language is {$nativeLanguage}. Be concise and encouraging. Write EVERY note, correction and praise as a SHORT BULLET FRAGMENT — never a full sentence. Keep target-language words in {$targetLanguage}; write all explanations and every 'why' in {$nativeLanguage}. Only correct real mistakes the learner actually made; never invent problems.".self::levelInstruction($level),
+                    'content' => "You are a supportive language tutor reviewing a {$targetLanguage} practice conversation for a learner whose native language is {$nativeLanguage}. Look ONLY at the learner's lines. Correct real mistakes they actually made and never invent problems. Write every correction as a SHORT BULLET FRAGMENT — never a full sentence. Keep {$targetLanguage} words in {$targetLanguage}; write every explanation and 'why' in {$nativeLanguage}.".self::levelInstruction($level),
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Target words — 'used' is authoritative (id: term (used/not used)): {$wordList}.\n\nConversation transcript:\n{$transcript}\n\nFor each target word just mirror whether it was used. Then give concrete corrections for any grammar or word-form errors the learner made.",
+                    'content' => "Conversation transcript:\n{$transcript}\n\nGive concrete corrections for any grammar or word-form errors the learner made.",
                 ],
             ],
             'response_format' => [
@@ -725,25 +783,13 @@ class AI extends Model
                     'schema' => [
                         'type' => 'object',
                         'properties' => [
-                            'words' => [
-                                'type' => 'array',
-                                'items' => [
-                                    'type' => 'object',
-                                    'properties' => [
-                                        'id' => ['type' => 'integer', 'description' => 'The target word id.'],
-                                        'got' => ['type' => 'boolean', 'description' => 'Whether the learner used this word (mirror the authoritative used/not-used flag given).'],
-                                    ],
-                                    'required' => ['id', 'got'],
-                                    'additionalProperties' => false,
-                                ],
-                            ],
                             'corrections' => [
                                 'type' => 'array',
                                 'description' => "Short bullet fragments: the learner's wrong form -> correct form - short why (in {$nativeLanguage}). Empty array if there were no real mistakes.",
                                 'items' => ['type' => 'string'],
                             ],
                         ],
-                        'required' => ['words', 'corrections'],
+                        'required' => ['corrections'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -806,7 +852,7 @@ class AI extends Model
                         'properties' => [
                             'scene' => [
                                 'type' => 'string',
-                                'description' => "A short description of the situation, onscene-setting or narration. In {$targetLanguage}.",
+                                'description' => "A short label for the situation, in {$targetLanguage} — no narration, no greeting, no dialogue.",
                             ],
                             'reply' => [
                                 'type' => 'string',
