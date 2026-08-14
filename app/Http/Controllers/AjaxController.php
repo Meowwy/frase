@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\CreateCardJob;
 use App\Jobs\GenerateEmbeddingJob;
 use App\Models\AI;
 use App\Models\Card;
@@ -159,7 +158,6 @@ class AjaxController extends Controller
             $wordbox->cards()->attach($newlyInsertedCard->id);
         }
 
-        // konec obsahu CreateCardJob
         if ($request->expectsJson()) {
             return response()->json(['success' => 'Card for "'.$phrase.'" has been created successfully.']);
         }
@@ -246,11 +244,22 @@ class AjaxController extends Controller
 
     public function saveLearning(Request $request)
     {
-        // Validate the incoming request
-        $results = json_decode($request->input('results'), true);
+        $results = json_decode($request->input('results'), true) ?? [];
+
+        // Scope to the current user's own cards in one query, then skip any id that
+        // isn't in that set — silently ignores both a missing id and an id the user
+        // doesn't own, rather than mutating another user's SRS state.
+        $cards = Auth::user()->cards()
+            ->whereIn('id', array_column($results, 'id'))
+            ->get()
+            ->keyBy('id');
 
         foreach ($results as $r) {
-            $card = Card::find($r['id']);
+            $card = $cards->get($r['id']);
+            if (! $card) {
+                continue;
+            }
+
             $card->next_study_at = Learning::getNextStudyDay($card->level, $r['result']);
             $r['result'] === 1 ? $card->level++ : $card->level = 1;
             $card->last_studied = now();

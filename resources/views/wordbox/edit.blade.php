@@ -79,15 +79,25 @@
                 const cardDiv = document.createElement('div');
                 cardDiv.className = 'bg-white/5 border border-white/10 p-3 rounded-lg flex justify-between items-center group hover:border-red-500/50 transition-colors';
 
+                // Built with createElement/textContent rather than innerHTML template
+                // interpolation — phrase/translation ultimately trace back to
+                // AI-generated (user-influenced) text and must never be parsed as markup.
                 const infoDiv = document.createElement('div');
-                infoDiv.className = 'min-w-0 flex-grow';
-                infoDiv.innerHTML = `
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold truncate">${card.phrase}</span>
-                        <span class="text-white/30">|</span>
-                        <span class="text-white/70 truncate text-sm">${card.translation}</span>
-                    </div>
-                `;
+                infoDiv.className = 'min-w-0 flex-grow flex items-center gap-2';
+
+                const phraseSpan = document.createElement('span');
+                phraseSpan.className = 'font-bold truncate';
+                phraseSpan.textContent = card.phrase;
+
+                const sepSpan = document.createElement('span');
+                sepSpan.className = 'text-white/30';
+                sepSpan.textContent = '|';
+
+                const translationSpan = document.createElement('span');
+                translationSpan.className = 'text-white/70 truncate text-sm';
+                translationSpan.textContent = card.translation;
+
+                infoDiv.append(phraseSpan, sepSpan, translationSpan);
 
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'text-white/30 hover:text-red-500 p-2 transition-colors';
@@ -158,32 +168,58 @@
                         response.cards.forEach(card => {
                             const isAlreadyIn = cards.some(c => c.id === card.id);
 
+                            // Built with createElement/textContent (not innerHTML template
+                            // interpolation, and not a string-built onclick attribute) —
+                            // phrase/translation trace back to AI-generated (user-influenced)
+                            // text and must never be parsed as markup or JS.
                             const cardWrapper = document.createElement('div');
                             cardWrapper.className = 'w-full';
 
-                            // We'll build the HTML similar to x-card-wordbox component
-                            cardWrapper.innerHTML = `
-                                <div class="bg-white/5 rounded-xl border border-transparent hover:border-orange-800 p-2 group transition-colors duration-300 w-full">
-                                    <div class="flex gap-3 justify-between items-center w-full">
-                                        <div class="flex-grow min-w-0">
-                                            <a href="/cards/${card.id}" class="flex gap-2 text-lg font-bold hover:text-blue-400 transition-colors">
-                                                <p class="truncate">${card.phrase}</p>
-                                                <p class="text-white/30">|</p>
-                                                <p class="truncate text-white/70 font-normal text-sm">${card.translation}</p>
-                                            </a>
-                                        </div>
-                                        <div class="flex-shrink-0">
-                                            <button
-                                                id="card-${card.id}"
-                                                onclick="addCard(${card.id}, '${card.phrase.replace(/'/g, "\\'")}', '${card.translation.replace(/'/g, "\\'")}')"
-                                                ${isAlreadyIn ? 'disabled' : ''}
-                                                class="${isAlreadyIn ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'} text-white text-xs font-bold rounded-full px-4 py-2 transition-colors uppercase">
-                                                ${isAlreadyIn ? 'Added' : 'Add'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
+                            const outer = document.createElement('div');
+                            outer.className = 'bg-white/5 rounded-xl border border-transparent hover:border-orange-800 p-2 group transition-colors duration-300 w-full';
+
+                            const row = document.createElement('div');
+                            row.className = 'flex gap-3 justify-between items-center w-full';
+
+                            const infoWrap = document.createElement('div');
+                            infoWrap.className = 'flex-grow min-w-0';
+
+                            const link = document.createElement('a');
+                            link.href = `/cards/${card.id}`;
+                            link.className = 'flex gap-2 text-lg font-bold hover:text-blue-400 transition-colors';
+
+                            const phraseP = document.createElement('p');
+                            phraseP.className = 'truncate';
+                            phraseP.textContent = card.phrase;
+
+                            const sepP = document.createElement('p');
+                            sepP.className = 'text-white/30';
+                            sepP.textContent = '|';
+
+                            const translationP = document.createElement('p');
+                            translationP.className = 'truncate text-white/70 font-normal text-sm';
+                            translationP.textContent = card.translation;
+
+                            link.append(phraseP, sepP, translationP);
+                            infoWrap.appendChild(link);
+
+                            const btnWrap = document.createElement('div');
+                            btnWrap.className = 'flex-shrink-0';
+
+                            const addBtn = document.createElement('button');
+                            addBtn.id = `card-${card.id}`;
+                            addBtn.disabled = isAlreadyIn;
+                            addBtn.textContent = isAlreadyIn ? 'Added' : 'Add';
+                            addBtn.className = (isAlreadyIn ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500') + ' text-white text-xs font-bold rounded-full px-4 py-2 transition-colors uppercase';
+                            addBtn.addEventListener('click', function () {
+                                addCard(card.id, card.phrase, card.translation);
+                            });
+
+                            btnWrap.appendChild(addBtn);
+                            row.append(infoWrap, btnWrap);
+                            outer.appendChild(row);
+                            cardWrapper.appendChild(outer);
+
                             searchResults.appendChild(cardWrapper);
                         });
                     }

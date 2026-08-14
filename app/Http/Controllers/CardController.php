@@ -4,13 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreCardRequest;
 use App\Http\Requests\UpdateCardRequest;
-use App\Jobs\CreateCardJob;
-use App\Models\AI;
+use App\Jobs\GenerateEmbeddingJob;
 use App\Models\Card;
 use App\Models\Theme;
-use App\Models\User;
 use Carbon\Carbon;
-use http\Env\Request;
 use Illuminate\Support\Facades\Auth;
 
 class CardController extends Controller
@@ -106,90 +103,15 @@ class CardController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreCardRequest $request)
-    {
-        /* this method is unused, the functionality is in the Ajax controller */
-        if (Auth::user()->currency_amount <= 0) {
-            return redirect('/');
-        }
-
-        $request->validate([
-            'capturedWord' => ['required', 'string', 'max:40', 'regex:/^[^0-9]*$/'],
-        ]);
-
-        $userId = Auth::id();
-        $phrase = request('capturedWord');
-        if (! request()->filled('capturedWord')) {
-            return redirect('/');
-        }
-
-        // CreateCardJob::dispatch($userId, $phrase);
-        // obsah CreateCardJob
-        $user = Auth::user();
-
-        // Retrieve all themes of the authenticated user
-        $themes = $user->themes()->select('id', 'name')->get();
-
-        if (count($themes) !== 0) {
-            $themeStrings = $themes->map(function ($theme) {
-                return "\"{$theme->name}\"";
-            });
-            $themeString = $themeStrings->implode(',');
-        } else {
-            $themeString = '';
-        }
-
-        $content = AI::getContentForCard($this->phrase, $themeString, $user->target_language, $user->native_language);
-        if (is_null($content)) {
-            logger('The model refused to create the card for '.$this->phrase);
-
-            return;
-        }
-        logger($content);
-        $output = json_decode($content);
-        $user->currency_amount = $user->currency_amount - 1;
-        if ($user->currency_amount < 0) {
-            $user->currency_amount = 0;
-        }
-        $user->save();
-
-        try {
-            $selectedTheme = $themes->firstWhere('name', $output->theme);
-
-            $user->cards()->create([
-                'phrase' => $output->phrase,
-                'theme_id' => ($selectedTheme ? $selectedTheme->id : null),
-                'level' => 1,
-                'translation' => $output->translation,
-                'example_sentence' => $output->sentence,
-                'question' => $output->question,
-                'definition' => $output->definition,
-                'next_study_at' => now(),
-            ]);
-            logger('Card has been created for '.$this->phrase);
-        } catch (\Exception $e) {
-            logger($e->getMessage());
-        }
-        // konec obsahu CreateCardJob
-
-        // return redirect('/');
-        /*return response()->json([
-            'success' => 'Word "' . $phrase . '" has been submitted successfully.',
-            'capturedWord' => $phrase
-        ], 200);*/
-
-        return response(200);
-
-    }
-
-    /**
      * Display the specified resource.
      */
     public function show(Card $card)
     {
-        $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="text-gray-300 font-bold">$1</span>', $card->example_sentence);
+        $this->authorize('view', $card);
+
+        // Escape first so any raw HTML in the AI-generated sentence can't reach the
+        // `{!! !!}` output in the view — only the <span> we add below is trusted.
+        $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="text-gray-300 font-bold">$1</span>', e($card->example_sentence));
 
         if (! is_null($card->theme_id)) {
             $theme = Theme::where('user_id', Auth::id())
@@ -322,6 +244,8 @@ class CardController extends Controller
      */
     public function edit(Card $card)
     {
+        $this->authorize('update', $card);
+
         return view('cards.edit', ['card' => $card]);
     }
 
@@ -330,31 +254,15 @@ class CardController extends Controller
      */
     public function update(UpdateCardRequest $request, Card $card)
     {
-        // Ensure that the card belongs to the authenticated user
-        if ($card->user_id !== Auth::id()) {
-            return redirect()->back()->with('error', 'You do not have permission to update this card.');
-        }
+        $this->authorize('update', $card);
 
-        // Validate and get the validated data from the request
-        $validatedData = $request->validated([
-            'phrase' => ['required', 'string'],
-            'definition' => ['required', 'string'],
-            'translation' => ['required', 'string'],
-            'question' => ['required', 'string'],
-            'example_sentence' => ['required', 'string'],
-            'id' => ['required'],
-            'theme_id' => ['required'],
-        ]);
+        $validatedData = $request->validated();
+        // The column is NOT NULL; nullable in the request so the field can be cleared.
+        $validatedData['example_sentence'] ??= '';
 
-        if ($validatedData['theme_id'] === '-1') {
-            $validatedData['theme_id'] = null;
-        }
-
-        // Update the card with the validated data
         $card->update($validatedData);
 
-        // Redirect back with a success message
-        return redirect('/');
+        return redirect('/cards/'.$card->id);
     }
 
     /**
@@ -427,29 +335,35 @@ class CardController extends Controller
         return view('cards.add', ['themes' => $themesArray]);
     }
 
+    /**
+     * Manually create a card (no AI involved) — the /add form.
+     */
     public function save(StoreCardRequest $request)
     {
-        $request->validate([
-            'phrase' => ['required', 'string'],
-            'definition' => ['required', 'string'],
-            'translation' => ['required', 'string'],
-            'example_sentence' => ['required', 'string'],
-            'question' => ['required', 'string'],
-            'theme_id' => ['required'],
-        ]);
+        $user = Auth::user();
 
-        $user = User::find($this->userId);
+        $language = $user->currentSaveLanguage();
+        if (! $language) {
+            return redirect('/profile/edit');
+        }
 
-        $user->cards()->create([
+        $card = $user->cards()->create([
             'phrase' => $request->phrase,
             'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
+            'language_id' => $language->id,
             'level' => 1,
             'translation' => $request->translation,
-            'example_sentence' => $request->sentence,
-            'question' => $request->question,
+            'example_sentence' => $request->example_sentence,
+            'example_1' => $request->example_1,
+            'example_2' => $request->example_2,
+            'example_3' => $request->example_3,
+            'note' => $request->note,
             'definition' => $request->definition,
             'next_study_at' => now(),
         ]);
-        logger('Card has been created for '.$this->phrase);
+        GenerateEmbeddingJob::dispatch($card);
+        logger('Card has been created for '.$request->phrase);
+
+        return redirect('/');
     }
 }

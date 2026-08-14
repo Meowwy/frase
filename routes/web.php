@@ -12,17 +12,11 @@ use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WordboxController;
-use App\Jobs\GenerateEmbeddingJob;
 use App\Models\Card;
 use App\Models\Learning;
-use App\Models\User;
-use App\Models\Wordbox;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\Rule;
-
-use function Pest\Laravel\get;
 
 Route::get('/', function () {
     if (! Auth::check()) {
@@ -245,70 +239,16 @@ Route::middleware('auth')->group(function () {
 
         return redirect('/cards');
     });
-    Route::post('/cards/new', function (\Illuminate\Http\Request $request) {
-        $request->validate([
-            'phrase' => ['required', 'string', 'max:40', 'min:2'],
-            'definition' => ['required', 'string'],
-        ]);
-
-        $user = Auth::user();
-
-        $language = $user->currentSaveLanguage();
-        if (! $language) {
-            return redirect('/profile/edit');
-        }
-
-        $card = $user->cards()->create([
-            'phrase' => $request->phrase,
-            'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
-            'language_id' => $language->id,
-            'level' => 1,
-            'translation' => $request->translation,
-            'example_sentence' => $request->example_sentence,
-            'example_1' => $request->example_1,
-            'example_2' => $request->example_2,
-            'example_3' => $request->example_3,
-            'note' => $request->note,
-            'definition' => $request->definition,
-            'next_study_at' => now(),
-        ]);
-        GenerateEmbeddingJob::dispatch($card);
-        logger('Card has been created for '.$request->phrase);
-
-        return redirect('/');
-    });
     Route::get('/add', [CardController::class, 'create']);
 
-    // Route::post('/cards/{card:id}', [CardController::class, 'update']);
-    Route::post('/cards/{card:id}', function (\Illuminate\Http\Request $request, Card $card) {
-        $validatedData = $request->validate([
-            'phrase' => ['required', 'string'],
-            'term_type' => ['required', Rule::in(Card::TERM_TYPES)],
-            'definition' => ['required', 'string'],
-            'translation' => ['required', 'string'],
-            // Nullable so the field can be cleared; the column is NOT NULL, hence the
-            // coalesce below. The example phrases are lexical-only and are hidden (but
-            // still submitted) for an expression card.
-            'example_sentence' => ['nullable', 'string'],
-            'example_1' => ['nullable', 'string'],
-            'example_2' => ['nullable', 'string'],
-            'example_3' => ['nullable', 'string'],
-            'note' => ['nullable', 'string'],
-            'id' => ['required'],
-        ]);
-        $validatedData['example_sentence'] ??= '';
-
-        // Update the card with the validated data
-        $card->update($validatedData);
-
-        // Redirect back with a success message
-        return redirect('/cards/'.$card->id);
-    });
+    Route::post('/cards/{card:id}', [CardController::class, 'update']);
 
     Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
     Route::post('/capture-target', [AjaxController::class, 'setCaptureTarget'])->name('capture-target');
 
     Route::get('/cards/{card}/synonyms', function (Card $card) {
+        abort_unless(Auth::user()->can('view', $card), 403);
+
         return response()->json([
             'synonyms' => $card->synonyms()->with('synonymCard:id,phrase,translation')->get(),
             'related_terms' => $card->relatedTerms()->with('relatedCard:id,phrase,translation')->get(),
@@ -319,7 +259,6 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/themes/manage', [ThemeController::class, 'create']);
     Route::post('/saveThemes', [ThemeController::class, 'store'])->name('saveThemes');
-    Route::post('/generateThemes', [ThemeController::class, 'generate'])->name('generate');
 
     Route::post('/test', [CardController::class, 'show']);
 

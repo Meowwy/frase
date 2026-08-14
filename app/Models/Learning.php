@@ -14,7 +14,7 @@ class Learning extends Model
      * sentence and the dictionary definition. An expression is a whole utterance, so it
      * is left out of these decks and practised in the other modes instead.
      */
-    public const LEXICAL_ONLY_MODES = ['sentences', 'definitions'];
+    public const LEXICAL_ONLY_MODES = ['sentences', 'sentences_write', 'definitions'];
 
     public static function getCardsForLearning($filter, ?string $mode = null)
     {
@@ -110,6 +110,28 @@ class Learning extends Model
                 $query->where('term_type', '!=', Card::TYPE_EXPRESSION);
             }
         };
+    }
+
+    /**
+     * Split a bracketed example sentence around its blank: the text before and after the
+     * `[term]`, plus the exact form the brackets hide. The typed answer is checked against
+     * that inflected form, not the card's base-form `phrase`.
+     */
+    protected static function sentenceParts(Card $card): array
+    {
+        $sentence = (string) $card->example_sentence;
+
+        if (! preg_match('/\[(.*?)\]/', $sentence, $matches, PREG_OFFSET_CAPTURE)) {
+            return ['before' => $sentence, 'answer' => $card->phrase, 'after' => ''];
+        }
+
+        [$blank, $offset] = $matches[0];
+
+        return [
+            'before' => substr($sentence, 0, $offset),
+            'answer' => $matches[1][0],
+            'after' => substr($sentence, $offset + strlen($blank)),
+        ];
     }
 
     /**
@@ -240,6 +262,9 @@ class Learning extends Model
 
             $entry = match ($mode) {
                 'sentences' => ['front' => $blankedSentence, 'back' => $card->phrase, 'hint' => $card->translation],
+                // Writing variant of Sentences: the front is the sentence split around the
+                // blank so the view can render an inline input between the two halves.
+                'sentences_write' => ['back' => $card->phrase, 'hint' => $card->translation] + self::sentenceParts($card),
                 'words' => ['front' => $card->translation, 'back' => $card->phrase, 'hint' => $blankedSentence],
                 'definitions' => ['front' => $card->definition, 'back' => $card->phrase, 'hint' => $card->translation],
                 default => null,
@@ -254,7 +279,7 @@ class Learning extends Model
 
         $cardsForJS = 'let cards = '.json_encode($cards).';';
 
-        return view('learning.index', ['cards' => $cardsForJS, 'cardCount' => count($cards)]);
+        return view('learning.index', ['cards' => $cardsForJS, 'cardCount' => count($cards), 'mode' => $mode]);
     }
 
     /**

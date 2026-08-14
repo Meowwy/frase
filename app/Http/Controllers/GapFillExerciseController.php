@@ -6,14 +6,12 @@ use App\Jobs\GenerateGapFillJob;
 use App\Models\GapFillExercise;
 use App\Models\Wordbox;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class GapFillExerciseController extends Controller
 {
     public function store(Request $request, Wordbox $wordbox)
     {
-        // Gate check if needed - assuming standard Laravel setup
-        // Gate::authorize('update', $wordbox);
+        $this->authorize('update', $wordbox);
 
         $exercise = $wordbox->gapFillExercises()->create([
             'theme_preference' => $request->theme_preference,
@@ -28,7 +26,7 @@ class GapFillExerciseController extends Controller
 
     public function show(GapFillExercise $exercise)
     {
-        // Gate::authorize('view', $exercise);
+        $this->authorize('view', $exercise);
 
         $allExercises = $exercise->wordbox->gapFillExercises()
             ->orderBy('created_at', 'asc')
@@ -39,6 +37,8 @@ class GapFillExerciseController extends Controller
 
     public function status(GapFillExercise $exercise)
     {
+        $this->authorize('view', $exercise);
+
         return response()->json([
             'status' => $exercise->status,
             'url' => route('gap-fill.show', $exercise),
@@ -47,7 +47,7 @@ class GapFillExerciseController extends Controller
 
     public function destroy(GapFillExercise $exercise)
     {
-        // Gate::authorize('delete', $exercise);
+        $this->authorize('delete', $exercise);
 
         $wordboxId = $exercise->wordbox_id;
         $exercise->delete();

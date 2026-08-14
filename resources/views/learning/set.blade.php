@@ -76,13 +76,16 @@
                 <span id="noCardsSentence" class="hidden">No cards to review</span>
             </x-section-heading>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-center">
-                <x-panel class="mode-panel">
-                    <div class="py-8">
-                        <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                            <a href="#" class="mode-link" data-mode="sentences">Sentences</a>
-                        </h3>
-                        <p class="text-sm mt-4">Recall the word from English sentence with blank space.</p>
-                    </div>
+                {{-- Sentences comes in two halves: flip a card, or type the word in. --}}
+                <x-panel class="mode-panel !p-0 overflow-hidden divide-y divide-white/10">
+                    <a href="#" class="mode-link group/half flex-1 p-4 flex flex-col justify-center" data-mode="sentences">
+                        <h3 class="group-hover/half:text-blue-600 text-xl text-bold transition-colors duration-100">Sentences</h3>
+                        <p class="text-sm mt-2">Recall the word from a sentence with blank space.</p>
+                    </a>
+                    <a href="#" class="mode-link group/half flex-1 p-4 flex flex-col justify-center" data-mode="sentences_write">
+                        <h3 class="group-hover/half:text-blue-600 text-xl text-bold transition-colors duration-100">Writing</h3>
+                        <p class="text-sm mt-2">Type the missing word into the sentence.</p>
+                    </a>
                 </x-panel>
                 <x-panel class="mode-panel">
                     <div class="py-8">

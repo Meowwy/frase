@@ -2,9 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AI;
 use App\Models\Theme;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -104,23 +102,6 @@ class ThemeController extends Controller
         }
 
         return redirect('/profile');
-    }
-
-    public function generate()
-    {
-        $language = Auth::user()->currentSaveLanguage();
-
-        $phrases = Auth::user()->cards()
-            ->when($language, fn ($q) => $q->where('language_id', $language->id))
-            ->orderBy('created_at', 'desc')
-            ->limit(100)
-            ->pluck('phrase');
-
-        // Convert the collection of phrases into a semicolon-separated string
-        $phraseString = $phrases->implode('; ');
-        $themes = AI::generateThemes($phraseString, optional($language)->name ?? Auth::user()->target_language);
-
-        dd($themes);
     }
 
     /**

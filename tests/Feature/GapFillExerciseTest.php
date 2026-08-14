@@ -1,5 +1,7 @@
 <?php
 
+namespace Tests\Feature;
+
 use App\Jobs\GenerateGapFillJob;
 use App\Models\GapFillExercise;
 use App\Models\User;
@@ -30,8 +32,10 @@ class GapFillExerciseTest extends TestCase
         Queue::assertPushed(GenerateGapFillJob::class);
     }
 
-    public function test_user_can_view_processing_page(): void
+    public function test_user_can_view_pending_exercise(): void
     {
+        // gap-fill.show renders the pending/processing state in-page (with client-side
+        // polling) rather than a separate view — see docs/gap-fill.md.
         $user = User::factory()->create();
         $wordbox = Wordbox::factory()->create(['user_id' => $user->id]);
         $exercise = GapFillExercise::create([
@@ -42,7 +46,7 @@ class GapFillExerciseTest extends TestCase
         $response = $this->actingAs($user)->get(route('gap-fill.show', $exercise));
 
         $response->assertStatus(200);
-        $response->assertViewIs('gap-fill.processing');
+        $response->assertViewIs('gap-fill.show');
     }
 
     public function test_user_can_view_completed_exercise(): void

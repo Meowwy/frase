@@ -26,7 +26,8 @@ class SeachController extends Controller
             ->get();
 
         foreach ($cards as $card) {
-            $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="font-bold">$1</span>', $card->example_sentence);
+            // Escape first — the result is rendered with {!! !!}, only the <span> we add is trusted.
+            $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="font-bold">$1</span>', e($card->example_sentence));
         }
 
         return view('search.index', ['cards' => $cards, 'searchTerm' => $searchTerm]);
@@ -45,7 +46,7 @@ class SeachController extends Controller
             ->get();
 
         foreach ($foundCards as $card) {
-            $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="font-bold">$1</span>', $card->example_sentence);
+            $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="font-bold">$1</span>', e($card->example_sentence));
         }
 
         if ($request->ajax()) {
