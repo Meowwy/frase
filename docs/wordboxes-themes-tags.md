@@ -32,11 +32,16 @@ treats a card as belonging to at most one at a time by `sync()`-ing rather than 
 
 ## Themes — legacy grouping, still live but not actively extended
 
-A `Theme` (`themes` table, per-language like everything else) is an older, flatter category the
-AI assigns to a card at capture time (see [ai-integration](ai-integration.md)/[cards](cards.md) "Capture flow" — up to 20
-themes per language are offered as candidates, and a new one is auto-created if none fit).
+A `Theme` (`themes` table, per-language like everything else) is an older, flatter category.
 `Theme::cards()` is a plain `hasMany` — a card has **at most one** theme (`cards.theme_id`,
 nullable, `onDelete('set null')`), unlike the many-to-many wordbox relationship.
+
+The AI no longer assigns a theme at capture time — `AjaxController@index` creates every new card
+with `theme_id` unset (see [ai-integration](ai-integration.md)/[cards](cards.md) "Capture flow").
+A card can still get a theme via the manual card-creation path (`theme_id` is one of the fields
+on `/add`, see [cards](cards.md)); the "AI-suggested theme" behaviour used to live in
+`AI::getContentForCard`/`WithContext`/`Native`'s `theme` schema property, which has been removed
+from all three.
 
 - The **dashboard** (`/`) still lists themes with total/due card counts (`withCount`) as one of
   its browsing surfaces, and links each one to `/cards?theme=<name>` — the vocabulary list's

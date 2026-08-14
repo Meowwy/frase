@@ -108,19 +108,21 @@ for **both** types, so the Sentences learning mode works for expressions too.
 ## Card generation variants
 
 Three near-identical generators, each returning a JSON string with `term_type`, `phrase`,
-`sentence`, `examples`, `definition`, `theme`, and (except the native variant) `translation`.
-All are called from `AjaxController@index` (see [cards](cards.md) for how the result is mapped onto the
-`cards` row); none run on a queue — card creation is synchronous.
+`sentence`, `examples`, `definition`, and (except the native variant) `translation`. None of them
+assign a `theme` — a card's `theme_id` is left unset at capture time; see
+[wordboxes-themes-tags](wordboxes-themes-tags.md) for how themes are managed now. All are called from
+`AjaxController@index` (see [cards](cards.md) for how the result is mapped onto the `cards` row);
+none run on a queue — card creation is synchronous.
 
-- **`AI::getContentForCard($phrase, $themes, $targetLanguage, $nativeLanguage, $level = null)`**
+- **`AI::getContentForCard($phrase, $targetLanguage, $nativeLanguage, $level = null)`**
   — the default bilingual generator, no extra context.
-- **`AI::getContentForCardWithContext($phrase, $themes, $targetLanguage, $nativeLanguage,
+- **`AI::getContentForCardWithContext($phrase, $targetLanguage, $nativeLanguage,
   $context, $level = null)`** — same shape, plus a `$context` string (the sentence/snippet the
   learner saw the term in). The context **fixes which sense/domain** the card is about, so
   **every** field — including all three example fragments — must reflect only that meaning
   (e.g. "tree" in a graph-theory context → "binary tree", "spanning tree", never "climb a tree").
   This constraint is stated in both the system prompt and the `examples` property description.
-- **`AI::getContentForCardNative($phrase, $themes, $nativeLanguage, $context = null)`** — the
+- **`AI::getContentForCardNative($phrase, $nativeLanguage, $context = null)`** — the
   **monolingual** variant, used when the save destination *is* the user's native language
   (`AjaxController@index` branches on `$language->id === $user->native_language_id`). Every
   field is written in the native language, there is **no `translation`** (schema omits it; the

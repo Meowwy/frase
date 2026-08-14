@@ -67,16 +67,15 @@ Steps for the AI-assisted path, in order:
    caller). See [multi-language](multi-language.md) for the save-destination picker itself.
 3. **Duplicate check**: case-insensitive `phrase` match within the same language — a 409 (or a
    plain redirect) if it already exists.
-4. Build the theme list for that language (up to 20 names) to hand the AI as candidates.
-5. Pick which `AI::` generator to call (native destination → monolingual; else with/without
+4. Pick which `AI::` generator to call (native destination → monolingual; else with/without
    `context` — see [ai-integration](ai-integration.md)).
-6. Decode the JSON result. If the returned `theme` doesn't match an existing one and the user has
-   fewer than 20 themes for this language, a new `Theme` row is created and used.
-7. `examples` from the AI response are trimmed and **blank entries filtered out** — the model
+5. `examples` from the AI response are trimmed and **blank entries filtered out** — the model
    still occasionally returns a stray `[""]` even though it's asked for exactly 3 for a lexical
    term, so this guards against an empty box on the card page.
-8. Create the `Card` row, dispatch `GenerateEmbeddingJob` (see [search-and-linking](search-and-linking.md)), and attach
-   the resolved wordbox if one was chosen.
+6. Create the `Card` row (`theme_id` left `null` — the AI no longer assigns a theme at capture
+   time, see [wordboxes-themes-tags](wordboxes-themes-tags.md)), dispatch `GenerateEmbeddingJob`
+   (see [search-and-linking](search-and-linking.md)), and attach the resolved wordbox if one was
+   chosen.
 
 `AjaxController@setCaptureTarget` (`POST /capture-target`) is the endpoint the save-destination
 picker on the dashboard calls to persist the chosen language/wordbox into the session (and, for

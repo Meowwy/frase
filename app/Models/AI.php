@@ -176,7 +176,7 @@ class AI extends Model
         return $response->json('choices.0.message.content');
     }
 
-    public static function getContentForCard(string $phrase, string $themes, string $targetLanguage, string $nativeLanguage, ?string $level = null)
+    public static function getContentForCard(string $phrase, string $targetLanguage, string $nativeLanguage, ?string $level = null)
     {
         logger('update 2');
         logger('Obtaining data for '.$phrase);
@@ -227,12 +227,8 @@ class AI extends Model
                                 'type' => 'string',
                                 'description' => "EXPLAINS the meaning in {$definitionLanguage} — never a translation, an equivalent word or a list of synonyms, and it never contains the term itself. If term_type is \"lexical\": a dictionary-style definition (\"schön\" => \"co vypadá příjemně a líbí se\", NOT \"hezký\"). If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it.",
                             ],
-                            'theme' => [
-                                'type' => 'string',
-                                'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
-                            ],
                         ],
-                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'translation', 'definition', 'theme'],
+                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'translation', 'definition'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -243,7 +239,7 @@ class AI extends Model
         // return $response;
     }
 
-    public static function getContentForCardWithContext(string $phrase, string $themes, string $targetLanguage, string $nativeLanguage, string $context, ?string $level = null)
+    public static function getContentForCardWithContext(string $phrase, string $targetLanguage, string $nativeLanguage, string $context, ?string $level = null)
     {
         logger('update 2');
         logger('Obtaining data for '.$phrase);
@@ -294,12 +290,8 @@ class AI extends Model
                                 'type' => 'string',
                                 'description' => "EXPLAINS the meaning it has in the supplied context, in {$definitionLanguage} — never a translation, an equivalent word or a list of synonyms, and it never contains the term itself. If term_type is \"lexical\": a dictionary-style definition (\"schön\" => \"co vypadá příjemně a líbí se\", NOT \"hezký\"). If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it.",
                             ],
-                            'theme' => [
-                                'type' => 'string',
-                                'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
-                            ],
                         ],
-                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'translation', 'definition', 'theme'],
+                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'translation', 'definition'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -318,7 +310,7 @@ class AI extends Model
      * language and there is no translation. Handles both the plain and the
      * context-supplied cases via the optional $context argument.
      */
-    public static function getContentForCardNative(string $phrase, string $themes, string $nativeLanguage, ?string $context = null)
+    public static function getContentForCardNative(string $phrase, string $nativeLanguage, ?string $context = null)
     {
         logger('Obtaining native-language data for '.$phrase);
 
@@ -375,12 +367,8 @@ class AI extends Model
                                 'type' => 'string',
                                 'description' => "Written in {$nativeLanguage}. If term_type is \"lexical\": a concise dictionary-style definition of the term. If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it. Do not use the term itself.",
                             ],
-                            'theme' => [
-                                'type' => 'string',
-                                'description' => "Pick the single best-fitting category from this list: \"{$themes}\" (copy it exactly). If none fit, create a short new category.",
-                            ],
                         ],
-                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'definition', 'theme'],
+                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'definition'],
                         'additionalProperties' => false,
                     ],
                 ],

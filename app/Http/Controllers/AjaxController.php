@@ -61,18 +61,6 @@ class AjaxController extends Controller
 
             return redirect('/');
         }
-        // Retrieve the user's themes for this language
-        $themes = $user->themes()->where('language_id', $language->id)->select('id', 'name')->get();
-
-        if (count($themes) !== 0) {
-            $themeStrings = $themes->take(20)->map(function ($theme) {
-                return "\"{$theme->name}\"";
-            });
-            $themeString = $themeStrings->implode(',');
-        } else {
-            $themeString = 'no categories defined';
-        }
-
         $targetLanguage = $language->name;
         $nativeLanguage = optional($user->nativeLanguage)->name ?? $user->native_language;
         $level = $user->levelForLanguage($language);
@@ -82,11 +70,11 @@ class AjaxController extends Controller
         $isNative = $user->native_language_id && (int) $language->id === (int) $user->native_language_id;
 
         if ($isNative) {
-            $content = AI::getContentForCardNative($capturedWord, $themeString, $language->name, $context);
+            $content = AI::getContentForCardNative($capturedWord, $language->name, $context);
         } elseif (is_null($context)) {
-            $content = AI::getContentForCard($capturedWord, $themeString, $targetLanguage, $nativeLanguage, $level);
+            $content = AI::getContentForCard($capturedWord, $targetLanguage, $nativeLanguage, $level);
         } else {
-            $content = AI::getContentForCardWithContext($capturedWord, $themeString, $targetLanguage, $nativeLanguage, $context, $level);
+            $content = AI::getContentForCardWithContext($capturedWord, $targetLanguage, $nativeLanguage, $context, $level);
         }
         if (is_null($content)) {
             logger('The model refused to create the card for '.$request->capturedWord);
@@ -101,24 +89,6 @@ class AjaxController extends Controller
             }
             $user->save();*/
 
-            $selectedTheme = $themes->firstWhere('name', strtolower($output->theme));
-
-            $recentThemeId = null;
-
-            if (is_null($selectedTheme)) {
-                $themeCount = $user->themes()->where('language_id', $language->id)->count();
-                if ($themeCount < 20) {
-                    $user->themes()->create([
-                        'name' => strtolower($output->theme),
-                        'language_id' => $language->id,
-                    ]);
-                    $recentThemeId = $user->themes()
-                        ->where('language_id', $language->id)
-                        ->orderBy('created_at', 'desc')
-                        ->value('id');
-                }
-            }
-
             // Empty for an expression card (it is illustrated by its example sentence
             // alone). Drop blanks so a stray [""] from the model doesn't become an
             // empty example box on the card.
@@ -132,7 +102,6 @@ class AjaxController extends Controller
                 'term_type' => in_array($output->term_type ?? null, Card::TERM_TYPES, true)
                     ? $output->term_type
                     : Card::TYPE_LEXICAL,
-                'theme_id' => ($selectedTheme ? $selectedTheme->id : $recentThemeId),
                 'language_id' => $language->id,
                 'level' => 1,
                 'translation' => $output->translation ?? '',
