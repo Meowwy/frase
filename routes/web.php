@@ -71,6 +71,11 @@ Route::get('/', function () {
         })
         ->values();
 
+    $recentCards = Auth::user()->cards()
+        ->latest()
+        ->take(5)
+        ->get(['id', 'phrase', 'translation']);
+
     $saveLanguage = Auth::user()->currentSaveLanguage();
     $saveLanguageId = $saveLanguage?->id;
     $saveLanguageName = $saveLanguage?->name;
@@ -92,6 +97,7 @@ Route::get('/', function () {
         'targetLanguages' => $targetLanguages,
         'wordboxesByLanguage' => $wordboxesByLanguage,
         'dueLanguages' => $dueLanguages,
+        'recentCards' => $recentCards,
         'saveLanguageId' => $saveLanguageId,
         'saveLanguageName' => $saveLanguageName,
         'saveWordboxId' => $saveWordboxId,

@@ -167,6 +167,30 @@
             </div>
         </section>
 
+        @if($recentCards->isNotEmpty())
+            <section class="mb-8">
+                <h2 class="text-lg font-bold mb-4">Recently added</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-700 bg-white/5">
+                        <thead>
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Term</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Translation</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700">
+                        @foreach($recentCards as $card)
+                            <tr class="hover:bg-white/10 cursor-pointer" onclick="window.location='/cards/{{ $card->id }}'">
+                                <td class="px-6 py-2 text-sm font-medium text-white">{{ $card->phrase }}</td>
+                                <td class="px-6 py-2 text-sm text-gray-300">{{ $card->translation }}</td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
+
         <section>
             <div class="bg-white/5 rounded-xl border border-white/10 p-4">
                 <div class="flex">
