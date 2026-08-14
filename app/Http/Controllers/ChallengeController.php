@@ -25,6 +25,12 @@ class ChallengeController extends Controller
     /** Conversation Challenge Game: turns the learner must clear to win. */
     private const GAME_MAX_TURNS = 10;
 
+    /** Conversation Challenge Game: lives the learner starts with (one lost per mistake). */
+    private const GAME_LIVES = 3;
+
+    /** Conversation Challenge Game: defensive cap on how many mistakes one turn can report. */
+    private const GAME_MAX_MISTAKES_PER_TURN = 4;
+
     /**
      * Show the Conversation Challenge setup page: pick a language and start.
      */
@@ -95,11 +101,16 @@ class ChallengeController extends Controller
                 'cache_key' => 'game-'.$user->id.'-'.Str::uuid()->toString(),
                 'current_task' => null,
                 'survived' => 0,
+                'lives_left' => self::GAME_LIVES,
+                'mistakes' => [],
                 'scene_display' => null,
                 'scene_id' => null,
             ]]);
 
-            return view('challenge.game', ['maxTurns' => self::GAME_MAX_TURNS]);
+            return view('challenge.game', [
+                'maxTurns' => self::GAME_MAX_TURNS,
+                'lives' => self::GAME_LIVES,
+            ]);
         }
 
         // Stable per-chat key so every turn is routed to the same prompt cache.
@@ -291,10 +302,11 @@ class ChallengeController extends Controller
     }
 
     /**
-     * Game: play one turn. Judge the learner's answer against the current task, then either
-     * advance the scene with the next task (pass) or end the game (fail, or 10 turns cleared).
-     * A pass = task accomplished AND no clear grammar/word mistake; any failure ends the game
-     * and returns the AI's short explanation as the feedback. On end the result (turns
+     * Game: play one turn. The AI only reports what it found in the learner's message (whether
+     * the task was accomplished + a list of individual mistakes); every game rule is applied
+     * here: each mistake costs one life, a missed task costs one life, the game ends when the
+     * lives run out (loss) or all 10 turns are cleared (win), and every mistake is collected in
+     * the session so the whole list can be shown when the game ends. On end the result (turns
      * survived + whether all 10 were cleared) is stored and the session is cleared.
      */
     public function gameMessage(Request $request)
@@ -328,28 +340,33 @@ class ChallengeController extends Controller
         }
 
         $taskCompleted = (bool) ($result['task_completed'] ?? false);
-        $hasError = (bool) ($result['has_error'] ?? false);
-        $passed = $taskCompleted && ! $hasError;
+        $turn = ($chat['survived'] ?? 0) + 1;
+
+        // Everything below is the server's call — the AI only reported what it saw.
+        $turnMistakes = $this->collectMistakes($result, $taskCompleted, $turn);
+
+        $chat['mistakes'] = array_merge($chat['mistakes'] ?? [], $turnMistakes);
+        $chat['lives_left'] = max(0, ($chat['lives_left'] ?? self::GAME_LIVES) - count($turnMistakes));
 
         $payload = [
             'task_completed' => $taskCompleted,
-            'has_error' => $hasError,
-            'passed' => $passed,
-            'mistake' => $result['mistake'] ?? '',
+            'mistake_count' => count($turnMistakes),
+            'lives_left' => $chat['lives_left'],
         ];
 
-        if (! $passed) {
-            // Failed task (A) or made a mistake (B) — game over.
+        // Out of lives — game over, with every mistake made along the way.
+        if ($chat['lives_left'] <= 0) {
             $this->finishGame($chat, false);
 
             return response()->json(array_merge($payload, [
                 'ended' => true,
                 'completed' => false,
                 'turns_survived' => $chat['survived'],
+                'mistakes' => $chat['mistakes'],
             ]));
         }
 
-        // Passed: count it and continue in character.
+        // Survived the turn: count it and continue in character.
         $chat['survived']++;
         $chat['messages'][] = ['role' => 'assistant', 'content' => $result['reply'] ?? ''];
 
@@ -362,6 +379,7 @@ class ChallengeController extends Controller
                 'completed' => true,
                 'turns_survived' => $chat['survived'],
                 'reply' => $result['reply'] ?? '',
+                'mistakes' => $chat['mistakes'],
             ]));
         }
 
@@ -375,6 +393,57 @@ class ChallengeController extends Controller
             'reply' => $result['reply'] ?? '',
             'suggestion' => $chat['current_task'],
         ]));
+    }
+
+    /**
+     * Turn one AI turn result into the list of mistakes that cost the learner a life: every
+     * language mistake it reported (deduplicated, capped) plus one for a task it judged not
+     * accomplished. Entries without an explanation are dropped — an unexplained mistake would
+     * cost a life the learner could not learn from.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array<int, array{turn:int, type:string, quote:string, explanation:string}>
+     */
+    private function collectMistakes(array $result, bool $taskCompleted, int $turn): array
+    {
+        $mistakes = [];
+
+        if (! $taskCompleted) {
+            $mistakes[] = [
+                'turn' => $turn,
+                'type' => 'task',
+                'quote' => '',
+                'explanation' => trim((string) ($result['task_feedback'] ?? '')),
+            ];
+        }
+
+        $seen = [];
+
+        foreach (is_array($result['mistakes'] ?? null) ? $result['mistakes'] : [] as $mistake) {
+            if (! is_array($mistake) || trim((string) ($mistake['explanation'] ?? '')) === '') {
+                continue;
+            }
+
+            // The same mistake reported twice must not cost two lives.
+            $fingerprint = mb_strtolower(trim((string) ($mistake['quote'] ?? '')).'|'.trim($mistake['explanation']));
+            if (isset($seen[$fingerprint])) {
+                continue;
+            }
+            $seen[$fingerprint] = true;
+
+            $mistakes[] = [
+                'turn' => $turn,
+                'type' => 'language',
+                'quote' => trim((string) ($mistake['quote'] ?? '')),
+                'explanation' => trim($mistake['explanation']),
+            ];
+
+            if (count($mistakes) >= self::GAME_MAX_MISTAKES_PER_TURN) {
+                break;
+            }
+        }
+
+        return $mistakes;
     }
 
     /**

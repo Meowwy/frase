@@ -1137,25 +1137,26 @@ class AI extends Model
 
     /**
      * Play one GAME turn. Judges the learner's MOST RECENT message against the task they were
-     * set ($task), then — only relevant when they pass — continues the scene in character and
-     * sets the next task. In ONE call it returns:
+     * set ($task), then continues the scene in character and sets the next task. In ONE call:
      *   - task_completed: did the message convey the information the task asked for?
-     *   - has_error: is there a CLEAR grammar mistake or a clearly wrong word for the situation?
-     *     (typos / fast-typing slips / spelling are IGNORED — same rule as the other chat modes.)
-     *   - mistake: short {$nativeLanguage} explanation of what went wrong + the correct form
-     *     (only when task_completed is false OR has_error is true; empty otherwise).
-     *   - reply: the next in-character line in {$targetLanguage} (used only if the learner passed).
-     *   - suggestion: the next task in {$nativeLanguage} (used only if the learner passed).
+     *   - task_feedback: short {$nativeLanguage} explanation of what information was missing
+     *     (only when task_completed is false; empty otherwise).
+     *   - mistakes: EVERY individual language mistake in that message, listed separately, each
+     *     with the wrong fragment and a short {$nativeLanguage} explanation + correct form.
+     *     Typos / fast-typing slips are IGNORED — same rule as the other chat modes.
+     *   - reply: the next in-character line in {$targetLanguage}.
+     *   - suggestion: the next task in {$nativeLanguage}.
      *
-     * The caller decides the game outcome: a pass is task_completed AND NOT has_error; any
-     * failure ends the game and shows 'mistake' as the feedback.
+     * The AI only *reports* mistakes — the caller owns the whole game: it costs one life per
+     * listed mistake (plus one for a missed task), ends the game when the lives run out or the
+     * turn limit is cleared, and collects the mistakes for the end-of-game summary.
      *
      * Built for prompt caching: an invariant system prefix (role/rules/level) sits first so the
      * growing transcript is cache-served; the per-turn-changing task is a small trailing system
      * message. $cacheKey routes a game's turns to the same cache.
      *
      * @param  array<int, array{role:string, content:string}>  $messages  running transcript (last entry = learner's latest message)
-     * @return array{task_completed:bool, has_error:bool, mistake:string, reply:string, suggestion:string}|null
+     * @return array{task_completed:bool, task_feedback:string, mistakes:array<int, array{quote:string, explanation:string}>, reply:string, suggestion:string}|null
      */
     public static function challengeGameReply(array $messages, string $task, string $targetLanguage, string $nativeLanguage, ?string $level = null, ?string $cacheKey = null): ?array
     {
@@ -1163,10 +1164,10 @@ class AI extends Model
             'role' => 'system',
             'content' => "You are running a spoken-{$targetLanguage} practice GAME for a learner whose native language is {$nativeLanguage}. Each turn the learner is given a task (what to convey) and writes a reply in {$targetLanguage}. You must do all of the following:\n"
                 ."1. Judge whether their MOST RECENT message accomplishes the task they were given (set task_completed). They pass as long as they convey the required information in {$targetLanguage} — accept any correct wording; do not require specific phrasing.\n"
-                ."2. Check that message for a CLEAR grammar mistake or a clearly wrong word for the situation (set has_error). Flag ONLY real errors in grammar, spelling or an obviously wrong word choice.\n"
-                ."3. If task_completed is false OR has_error is true, write 'mistake': a short {$nativeLanguage} explanation of what was wrong (the missing information and/or the grammar/word mistake) and the correct form. Otherwise leave 'mistake' empty.\n"
-                ."4. If task_completed is true AND has_error is false, fill this: 'reply': continue the scene in character, ONLY in {$targetLanguage}, 1-2 short natural sentences that react to what they said and prompt the next response.\n"
-                ."5. If task_completed is true AND has_error is false, fill this: 'suggestion': the next task — a concise {$nativeLanguage} instruction of what to convey next in {$targetLanguage}, specific and to the point in a few words, describing only the INFORMATION to convey and NEVER prescribing a grammar structure or specific words. Be creative and make the conversation diverse.".self::levelInstruction($level),
+                ."2. If task_completed is false, write 'task_feedback': a short {$nativeLanguage} explanation of what information was missing. Otherwise leave it empty.\n"
+                ."3. List in 'mistakes' EVERY individual language mistake in that message, each as its OWN entry: the exact wrong fragment ('quote', copied from their message in {$targetLanguage}) and a short {$nativeLanguage} 'explanation' naming the mistake and giving the correct form. Count only REAL errors — grammar, word form, word order, or a clearly wrong word for the situation. IGNORE typos, spelling slips, missing accents/diacritics and capitalisation. Never list the same mistake twice, and never list more than 4. Return an empty array when the message is correct.\n"
+                ."4. 'reply': continue the scene in character, ONLY in {$targetLanguage}, 1-2 short natural sentences that react to what they said and prompt the next response. Stay in character and NEVER mention the mistakes here.\n"
+                ."5. 'suggestion': the next task — a concise {$nativeLanguage} instruction of what to convey next in {$targetLanguage}, specific and to the point in a few words, describing only the INFORMATION to convey and NEVER prescribing a grammar structure or specific words. Be creative and make the conversation diverse.".self::levelInstruction($level),
         ];
 
         // Per-turn-changing task goes in a trailing system message (kept out of the cached prefix).
@@ -1191,24 +1192,39 @@ class AI extends Model
                                 'type' => 'boolean',
                                 'description' => 'True if the learner\'s latest message conveyed the information the task asked for.',
                             ],
-                            'has_error' => [
-                                'type' => 'boolean',
-                                'description' => 'True if the message has a clear grammar or spelling mistake or a clearly wrong word for the situation.',
-                            ],
-                            'mistake' => [
+                            'task_feedback' => [
                                 'type' => 'string',
-                                'description' => "Short {$nativeLanguage} explanation of what was wrong and the correct form. Empty when task_completed is true and has_error is false.",
+                                'description' => "Short {$nativeLanguage} explanation of what information was missing. Empty when task_completed is true.",
+                            ],
+                            'mistakes' => [
+                                'type' => 'array',
+                                'description' => 'One entry per individual language mistake in the latest message; empty when it is correct. Never more than 4, never the same mistake twice. Typos, spelling, accents and capitalisation are not mistakes.',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'quote' => [
+                                            'type' => 'string',
+                                            'description' => "The exact wrong fragment copied from the learner's message, in {$targetLanguage}.",
+                                        ],
+                                        'explanation' => [
+                                            'type' => 'string',
+                                            'description' => "Short {$nativeLanguage} explanation naming the mistake and giving the correct form.",
+                                        ],
+                                    ],
+                                    'required' => ['quote', 'explanation'],
+                                    'additionalProperties' => false,
+                                ],
                             ],
                             'reply' => [
                                 'type' => 'string',
-                                'description' => "The next in-character line in {$targetLanguage}.",
+                                'description' => "The next in-character line in {$targetLanguage}. Never mentions the mistakes.",
                             ],
                             'suggestion' => [
                                 'type' => 'string',
                                 'description' => "The next task in {$nativeLanguage}; no grammar prescribed. Don't be monotonous.",
                             ],
                         ],
-                        'required' => ['task_completed', 'has_error', 'mistake', 'reply', 'suggestion'],
+                        'required' => ['task_completed', 'task_feedback', 'mistakes', 'reply', 'suggestion'],
                         'additionalProperties' => false,
                     ],
                 ],

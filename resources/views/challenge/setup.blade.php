@@ -47,7 +47,7 @@
                             You'll speak with an AI partner out loud. It corrects you verbally as you go, and you'll see the transcript on screen.
                         </p>
                         <p class="text-xs text-white/40 mt-2" id="gameHint" style="display:none;">
-                            We pick a random situation and set you a task each turn. Say it right — accomplish the task with no clear grammar mistakes — and you move on. One slip and the game ends. Last as many turns as you can, up to 10.
+                            We pick a random situation and set you a task each turn. You start with 3 lives — every mistake costs one, and a missed task costs one too. Last as many turns as you can, up to 10, before the lives run out.
                         </p>
                     </div>
 

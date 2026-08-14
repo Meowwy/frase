@@ -1,4 +1,4 @@
-@props(['maxTurns' => 10])
+@props(['maxTurns' => 10, 'lives' => 3])
 <x-html-layout>
     <div class="max-w-2xl mx-auto relative">
         <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-4">
@@ -8,9 +8,17 @@
             <span>Home</span>
         </a>
 
-        <div class="mb-3 flex items-baseline justify-between">
+        <div class="mb-3 flex items-baseline justify-between gap-3">
             <h1 class="text-lg font-bold">Conversation game</h1>
-            <span class="text-sm text-white/60">Turn <span id="turnCounter" class="font-bold text-white">1</span> / {{ $maxTurns }}</span>
+            <div class="flex items-baseline gap-4">
+                {{-- Lives: one heart per remaining life, spent ones dimmed. --}}
+                <span id="lives" class="text-base leading-none" title="Each mistake costs a life">
+                    @for ($i = 0; $i < $lives; $i++)
+                        <span class="heart text-[#ff6f61]">♥</span>
+                    @endfor
+                </span>
+                <span class="text-sm text-white/60">Turn <span id="turnCounter" class="font-bold text-white">1</span> / {{ $maxTurns }}</span>
+            </div>
         </div>
 
         {{-- Scene setup (native language), shown once the opening loads. --}}
@@ -41,11 +49,14 @@
             </button>
         </div>
 
-        {{-- Feedback (revealed once the game ends). --}}
+        {{-- Feedback (revealed once the game ends): the score + every mistake made. --}}
         <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5">
             <h3 id="recapHeading" class="text-lg font-semibold mb-3"></h3>
-            <p id="recapMistake" class="hidden text-sm text-white/85 mb-3"></p>
             <p id="recapScore" class="text-sm text-white/60"></p>
+            <div id="recapMistakes" class="hidden mt-5">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-white/40 mb-2">Your mistakes</h4>
+                <ul id="recapMistakeList" class="space-y-3"></ul>
+            </div>
             <div class="mt-5">
                 <a href="/conversation" class="inline-flex items-center gap-2 rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors">Play again</a>
                 <a href="/" class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors ml-2">Home</a>
@@ -57,6 +68,7 @@
         $(document).ready(function () {
             const csrf = '{{ csrf_token() }}';
             const maxTurns = {{ $maxTurns }};
+            const maxLives = {{ $lives }};
 
             const $thread = $('#thread');
             const $input = $('#chatInput');
@@ -123,12 +135,24 @@
                 return '<span class="inline-flex items-center gap-1 ' + cls + '"><span>' + mark + '</span><span>' + (ok ? okText : badText) + '</span></span>';
             }
 
-            function renderVerdict(cell, taskDone, hasError) {
-                cell.removeClass('flex items-center').addClass('flex items-center')
-                    .html(
-                        chip(taskDone, 'Task done', 'Task not completed') +
-                        chip(!hasError, 'No errors', 'Grammar mistake')
-                    );
+            // Per-turn verdict: task + mistake count. The explanations stay hidden until the end.
+            function renderVerdict(cell, taskDone, mistakeCount, livesLeft) {
+                const lost = maxLives - livesLeft;
+                let html = chip(taskDone, 'Task done', 'Task not completed') +
+                    chip(mistakeCount === 0, 'No mistakes', mistakeCount + (mistakeCount === 1 ? ' mistake' : ' mistakes'));
+
+                if (lost > 0) {
+                    html += '<span class="text-white/40">' + livesLeft + '/' + maxLives + ' ♥ left</span>';
+                }
+
+                cell.html(html);
+            }
+
+            function renderLives(livesLeft) {
+                $('#lives .heart').each(function (i) {
+                    $(this).toggleClass('text-[#ff6f61]', i < livesLeft)
+                           .toggleClass('text-white/15', i >= livesLeft);
+                });
             }
 
             function lockComposer() {
@@ -142,24 +166,43 @@
                 el.style.height = el.scrollHeight + 'px';
             }
 
+            // One entry per mistake the learner made during the whole game.
+            function renderMistakes(mistakes) {
+                const $list = $('#recapMistakeList').empty();
+                if (!mistakes || !mistakes.length) {
+                    $('#recapMistakes').addClass('hidden');
+                    return;
+                }
+
+                $.each(mistakes, function (_, m) {
+                    const item = $('<li>').addClass('rounded-lg border border-white/10 bg-white/5 px-4 py-3');
+                    const head = $('<div>').addClass('flex items-baseline gap-2 mb-1');
+                    head.append($('<span>').addClass('text-xs uppercase tracking-wide text-white/40').text('Turn ' + m.turn));
+                    if (m.type === 'task') {
+                        head.append($('<span>').addClass('text-xs text-orange-300').text('Task not completed'));
+                    } else if (m.quote) {
+                        head.append($('<span>').addClass('text-sm text-red-400 line-through').text(m.quote));
+                    }
+                    item.append(head);
+                    item.append($('<p>').addClass('text-sm text-white/85').text(m.explanation));
+                    $list.append(item);
+                });
+
+                $('#recapMistakes').removeClass('hidden');
+            }
+
             function showFeedback(data) {
                 const $heading = $('#recapHeading');
-                const $mistake = $('#recapMistake');
 
                 if (data.completed) {
                     $heading.text('🎉 You cleared all ' + maxTurns + ' turns!').addClass('text-green-400');
-                    $mistake.addClass('hidden').empty();
                 } else {
-                    $heading.text('Game over').addClass('text-orange-300');
-                    if (data.mistake) {
-                        $mistake.text(data.mistake).removeClass('hidden');
-                    } else {
-                        $mistake.addClass('hidden').empty();
-                    }
+                    $heading.text('Game over — you ran out of lives').addClass('text-orange-300');
                 }
 
                 const n = data.turns_survived || 0;
                 $('#recapScore').text('You lasted ' + n + ' ' + (n === 1 ? 'turn' : 'turns') + '.');
+                renderMistakes(data.mistakes);
                 $('#recapPanel').removeClass('hidden')[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
@@ -176,7 +219,8 @@
 
                 $.post('/conversation/game/message', { message: text, _token: csrf }, function (data) {
                     hideTyping();
-                    renderVerdict(cell, data.task_completed, data.has_error);
+                    renderVerdict(cell, data.task_completed, data.mistake_count, data.lives_left);
+                    renderLives(data.lives_left);
 
                     if (data.ended) {
                         ended = true;
@@ -187,7 +231,7 @@
                         return;
                     }
 
-                    // Passed — advance to the next task.
+                    // Still alive — advance to the next task.
                     $turnCounter.text((data.turns_survived || 0) + 1);
                     appendAssistant(data.reply);
                     appendTask(data.suggestion);
