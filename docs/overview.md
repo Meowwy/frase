@@ -110,6 +110,21 @@ question: **does it depend only on source code, or on the environment it runs in
   `bash "$f" -e`, which passes `-e` to the script as a positional argument instead of enabling
   `errexit` — that is how the broken `route:cache` went unnoticed. A boot script failing now
   stops the machine from starting, which surfaces in `fly logs` instead of silently degrading.
+- **OPcache** caches compiled PHP bytecode in shared memory so the ~9k files of `vendor/` and
+  `app/` are not re-parsed on every request. It is a *separate* apt package
+  (`php8.4-opcache` in `.fly/php/packages/8.4.txt`) and the image installs with
+  `--no-install-recommends`, so it has to be listed explicitly or it is simply absent.
+  Tuning lives in `.fly/fpm/conf.d/99-opcache.ini`, which is copied into
+  `/etc/php/8.4/fpm/conf.d/`. **The `99-` prefix matters**: apt's own `10-opcache.ini` carries
+  the `zend_extension=opcache.so` line, so a file named `10-opcache.ini` would replace it and
+  silently disable OPcache while appearing to configure it.
+  - `opcache.validate_timestamps=0` is safe *because* the image is immutable and `config:cache`
+    completes before supervisor starts php-fpm. It drops a `stat()` per included file per
+    request. The trade-off is that code changes only take effect via a new deploy.
+  - `opcache.save_comments=1` must stay: Laravel and several packages read docblocks by
+    reflection.
+  - JIT is left off (`opcache.jit_buffer_size` defaults to 0). This app is I/O-bound on SQLite
+    and the OpenAI API, so JIT would add risk for no measurable gain.
 - `fly.toml` uses `auto_stop_machines = 'suspend'`, which restores the machine from a RAM
   snapshot and **skips the entrypoint entirely** on resume. The boot-time work above therefore
   only runs on the first boot after a deploy, after a crash, or when Fly evicts a suspended
