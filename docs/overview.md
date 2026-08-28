@@ -79,6 +79,41 @@ several **learning modes** (see [learning-flow](learning-flow.md)) or practises 
   code still links to them (see [cards](cards.md) for `theme=` query links, [learning-flow](learning-flow.md) for the
   theme-based `/filterCardsForLearning/{filter}` entry point). Don't assume a route with an odd
   name is dead — check for inbound links first.
+- **Route names must be unique across `web.php` and `api.php`.** `php artisan route:cache` now
+  runs at image build time (see [Deployment](#deployment-flyio)), and a duplicate `->name()`
+  makes it throw `LogicException: ... Another route has already been assigned name [...]`, which
+  fails the whole `fly deploy`. This is deliberate — it used to fail silently at boot instead,
+  leaving production permanently un-cached. The web and API capture endpoints share a controller
+  but not a name: `captureWordAjax` (web) vs `captureWordApi` (`POST /api/addWordAPI`).
+
+## Deployment (Fly.io)
+
+Deployment follows the [build/release/run](https://12factor.net/build-release-run) split, so that
+a cold start does as little work as possible. Which bucket a step belongs in comes down to one
+question: **does it depend only on source code, or on the environment it runs in?**
+
+- **Build time** (`Dockerfile` step 4, baked into the image): `composer install
+  --optimize-autoloader --no-dev`, then `optimize:clear` followed by `route:cache`, `view:cache`
+  and `event:cache`. These are pure functions of the source, so they are identical on every
+  machine and every boot. They are chained with `&&`, so a broken route or Blade template fails
+  the deploy rather than the running site.
+- **Boot time** (`.fly/scripts/`, run by `.fly/entrypoint.sh` in alphabetical order):
+  `00_storage_init.sh` (volume layout), `caches.sh` → **`config:cache` only**, `db.sh` →
+  `migrate --force`.
+  - `config:cache` cannot move to build time: it freezes `env()` values into
+    `bootstrap/cache/config.php`, and Fly secrets (`APP_KEY`, `OPENAI_API_KEY`, …) only exist on
+    the running machine. Caching it during build would bake in `null`.
+  - `migrate` cannot move to a Fly `[deploy] release_command` either: release machines run with
+    **no volumes attached**, and the SQLite database lives on the `storage_dir` volume, so it
+    would migrate a throwaway file.
+- `.fly/entrypoint.sh` runs each script as `bash -e "$f" || exit 1`. It previously read
+  `bash "$f" -e`, which passes `-e` to the script as a positional argument instead of enabling
+  `errexit` — that is how the broken `route:cache` went unnoticed. A boot script failing now
+  stops the machine from starting, which surfaces in `fly logs` instead of silently degrading.
+- `fly.toml` uses `auto_stop_machines = 'suspend'`, which restores the machine from a RAM
+  snapshot and **skips the entrypoint entirely** on resume. The boot-time work above therefore
+  only runs on the first boot after a deploy, after a crash, or when Fly evicts a suspended
+  machine to fully stopped.
 
 ## Controllers & models
 

@@ -20,7 +20,7 @@ Route::post('/extension/login', function (Request $request) {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/addWordAPI', [AjaxController::class, 'index'])->name('captureWordAjax');
+    Route::post('/addWordAPI', [AjaxController::class, 'index'])->name('captureWordApi');
 
     // Save destinations for the browser extension dropdown: one flat list of
     // "{language} - {wordbox|general}" options, grouped by language (alphabetical),
