@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use GuzzleHttp\Promise\Promise;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Process\Exceptions\ProcessFailedException;
@@ -28,51 +27,53 @@ class FlyIoService
         return Http::async()
             ->withToken($this->getAuthToken())
             ->acceptJson()
-            ->contentType("application/json")
-            ->post('https://api.fly.io/graphql', ["query" => "query {currentUser {email} organizations {nodes{id slug name type viewerRole}}}"]);
+            ->contentType('application/json')
+            ->post('https://api.fly.io/graphql', ['query' => 'query {currentUser {email} organizations {nodes{id slug name type viewerRole}}}']);
     }
 
     public function askOrganizationName(array $organizations, Command $command): string
     {
         $organizationNames = [];
-        foreach ($organizations as $organization)
-        {
-            $organizationNames[] = $organization["type"] == "PERSONAL" ? "Personal" : $organization["name"];
+        foreach ($organizations as $organization) {
+            $organizationNames[] = $organization['type'] == 'PERSONAL' ? 'Personal' : $organization['name'];
         }
 
-        if (sizeOf($organizationNames) == 1)
-        {
+        if (count($organizationNames) == 1) {
             $command->line("Auto-selected '$organizationNames[0]' since it is the only organization found on Fly.io .");
+
             return $organizations[0]['slug'];
         }
 
-        $choice = $command->choice("Select the organization where you want to deploy the app", $organizationNames);
+        $choice = $command->choice('Select the organization where you want to deploy the app', $organizationNames);
         $index = array_search($choice, $organizationNames);
 
-        if ($choice == "Cancel") return "";
+        if ($choice == 'Cancel') {
+            return '';
+        }
 
-        return $organizations[$index]["slug"];
+        return $organizations[$index]['slug'];
     }
 
     public function askPrimaryRegion(string $regionsJson, Command $command)
     {
         $regions = [];
-        foreach (json_decode($regionsJson, true) as $region)
-        {
-            $regions[] = $region['Code'] . " - " . $region['Name'];
+        foreach (json_decode($regionsJson, true) as $region) {
+            $regions[] = $region['Code'].' - '.$region['Name'];
         }
+
         return substr($command->choice("Select your app's primary region", $regions), 0, 3);
     }
 
-
     public function validateAppName($appName): string
     {
-        if (!$appName) $appName = "--generate-name";
-
-        if (!preg_match("/^[a-z0-9-]+$/", $appName))
-        {
-            throw new ProcessFailedException(Process::result("", "App names are only allowed to contain lowercase, numbers and hyphens.", -1));
+        if (! $appName) {
+            $appName = '--generate-name';
         }
+
+        if (! preg_match('/^[a-z0-9-]+$/', $appName)) {
+            throw new ProcessFailedException(Process::result('', 'App names are only allowed to contain lowercase, numbers and hyphens.', -1));
+        }
+
         return $appName;
     }
 
@@ -82,10 +83,9 @@ class FlyIoService
             ->throw();
 
         // In case app name is auto generated, extract app name from creation message
-        if ($appName == '--generate-name')
-        {
+        if ($appName == '--generate-name') {
             $appName = explode('New app created:', $result->output())[1];
-            $appName = str_replace(array("\r", "\n", ' '), '', $appName);
+            $appName = str_replace(["\r", "\n", ' '], '', $appName);
         }
 
         return $appName;
@@ -95,10 +95,9 @@ class FlyIoService
     {
         // $secrets should be an array of key-value pairs where the key is the secret's name and the value is the secret's value
 
-        $secretsString = " ";
-        foreach ($secrets as $secretName => $secretValue)
-        {
-            $secretsString = $secretsString . "$secretName=$secretValue ";
+        $secretsString = ' ';
+        foreach ($secrets as $secretName => $secretValue) {
+            $secretsString = $secretsString."$secretName=$secretValue ";
         }
 
         Process::run("fly secrets set $secretsString -a $appName --stage")
@@ -107,30 +106,38 @@ class FlyIoService
 
     private function getAuthToken(): string
     {
-        $result = Process::run("fly auth token")
+        $result = Process::run('fly auth token')
             ->throw();
+
         return $result->output();
     }
 
     public function getLaravelAppName(): string
     {
-        if (!file_exists('fly.toml')) return '';
+        if (! file_exists('fly.toml')) {
+            return '';
+        }
         $tomlArray = Toml::parseFile('fly.toml');
+
         return array_key_exists('app', $tomlArray) ? $tomlArray['app'] : '';
     }
 
     public function getLaravelOrganization(): string
     {
-        $result = Process::run("fly status --json")
+        $result = Process::run('fly status --json')
             ->throw();
         $statusArray = json_decode($result->output(), true);
+
         return $statusArray['Organization']['Slug'];
     }
 
     public function getLaravelPrimaryRegion(): string
     {
-        if (!file_exists('fly.toml')) return '';
+        if (! file_exists('fly.toml')) {
+            return '';
+        }
         $tomlArray = Toml::parseFile('fly.toml');
+
         return array_key_exists('primary_region', $tomlArray) ? $tomlArray['primary_region'] : '';
     }
 }

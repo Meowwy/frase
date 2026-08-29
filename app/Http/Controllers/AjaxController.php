@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\GenerateEmbeddingJob;
-use App\Models\AI;
 use App\Models\Card;
 use App\Models\Language;
 use App\Models\Learning;
@@ -61,61 +59,17 @@ class AjaxController extends Controller
 
             return redirect('/');
         }
-        $targetLanguage = $language->name;
-        $nativeLanguage = optional($user->nativeLanguage)->name ?? $user->native_language;
-        $level = $user->levelForLanguage($language);
-
-        // Saving into the native language builds monolingual vocabulary: every field is
-        // generated in the native language and the card has no translation.
-        $isNative = $user->native_language_id && (int) $language->id === (int) $user->native_language_id;
-
-        if ($isNative) {
-            $content = AI::getContentForCardNative($capturedWord, $language->name, $context);
-        } elseif (is_null($context)) {
-            $content = AI::getContentForCard($capturedWord, $targetLanguage, $nativeLanguage, $level);
-        } else {
-            $content = AI::getContentForCardWithContext($capturedWord, $targetLanguage, $nativeLanguage, $context, $level);
-        }
-        if (is_null($content)) {
-            logger('The model refused to create the card for '.$request->capturedWord);
-            // return;
-        }
+        // Two AI calls behind this: one to decide the card's shape and fix the term, one
+        // to write that shape's fields. See Card::createFromTerm / docs/ai-integration.md.
         try {
-            $cleanedContent = trim($content);
-            $output = json_decode($cleanedContent);
-            /*$user->currency_amount = $user->currency_amount - 1;
-            if ($user->currency_amount < 0) {
-                $user->currency_amount = 0;
-            }
-            $user->save();*/
+            $newlyInsertedCard = Card::createFromTerm($user, $language, $capturedWord, $context);
+        } catch (\Exception $e) {
+            logger('Card creation threw for "'.$capturedWord.'": '.$e->getMessage());
+            $newlyInsertedCard = null;
+        }
 
-            // Empty for an expression card (it is illustrated by its example sentence
-            // alone). Drop blanks so a stray [""] from the model doesn't become an
-            // empty example box on the card.
-            $examples = array_values(array_filter(
-                array_map('trim', (array) ($output->examples ?? [])),
-                fn ($example) => $example !== ''
-            ));
-
-            $newlyInsertedCard = $user->cards()->create([
-                'phrase' => $output->phrase,
-                'term_type' => in_array($output->term_type ?? null, Card::TERM_TYPES, true)
-                    ? $output->term_type
-                    : Card::TYPE_LEXICAL,
-                'language_id' => $language->id,
-                'level' => 1,
-                'translation' => $output->translation ?? '',
-                // The column is NOT NULL, so coalesce to an empty string.
-                'example_sentence' => $output->sentence ?? '',
-                'example_1' => $examples[0] ?? null,
-                'example_2' => $examples[1] ?? null,
-                'example_3' => $examples[2] ?? null,
-                'definition' => $output->definition,
-                'next_study_at' => now(),
-            ]);
-            GenerateEmbeddingJob::dispatch($newlyInsertedCard);
-            logger('Card has been created for '.$output->phrase);
-        } catch (\Exception) {
+        // A model refusal, a failed request or an unparseable answer all arrive as null.
+        if (is_null($newlyInsertedCard)) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'There was an error while creating the card.'], 500);
             }
@@ -131,14 +85,9 @@ class AjaxController extends Controller
             return response()->json(['success' => 'Card for "'.$phrase.'" has been created successfully.']);
         }
 
-        return redirect('/');
-
-        /*return response()->json([
-            'success' => 'Word "' . $phrase . '" has been submitted successfully.',
-            'capturedWord' => $phrase
-        ], 200);*/
-
-        // return response(200);
+        // Flashed so the dashboard can offer the "learn it in a phrase instead" nudge on
+        // a single-word card, right at the moment the learner just captured it.
+        return redirect('/')->with('captured_card_id', $newlyInsertedCard->id);
     }
 
     /**

@@ -31,18 +31,20 @@ fixed.
 
 1. **The term is the learner's own word.** The model must never swap it for a different term: it
    spelling-corrects and reduces it to a canonical form, but the *field content* must always
-   describe that exact term. For a `lexical` term this is the **base/dictionary form**
-   (`broken` → `break`). For an `expression` it is a **reusable frame** (see Term types below).
-   A single word submitted by the learner is **kept as a single word** — the model must not
-   expand it into a collocation — and an existing multi-word phrase is kept as written (only
-   spelling/base-form fixes).
+   describe that exact term. A **single word** is reduced to its **base/dictionary form**
+   (`broken` → `break`, `vetting` → `vet`) and **kept as a single word** — never expanded into a
+   collocation. An existing **multi-word phrase is kept as written** (spelling fixes only): its
+   internal grammar is part of the phrase, so `vetting candidates` does *not* become
+   `vet candidates`. An `expression` becomes a **reusable frame** (see Card shapes below).
+   Since the two-call split this is no longer only a prompt rule — `phrase` is produced by call 1
+   and passed *into* call 2 as an input, so the content call has no opportunity to drift.
 2. **The example `sentence` bracket rule.** It must contain the term wrapped in square brackets
    **exactly once**, in whatever inflected form it takes there (`[term]`), because the learning
    UI's blanking regex is `/\[.*?\]/` (see [learning-flow](learning-flow.md) and [cards](cards.md)) — this is what turns
    the sentence into a flashcard front and what the "Sentences — writing" mode checks the typed
    answer against. Punctuation must stay outside the brackets.
 3. **The `sentence` must be rich enough to guess the term from.** There is an explicit floor:
-   "at least 6-8 words besides the term, naming a concrete situation, actor or result, so a
+   "at least 6 words besides the term, naming a concrete situation, actor or result, so a
    learner who does not know the term could work out its meaning from the surrounding words
    alone," with a worked negative in the schema (`"It is [nice]."` is explicitly called invalid).
    Without a numeric floor, the model wrote near-empty frames, especially at low CEFR levels,
@@ -52,6 +54,10 @@ fixed.
    once answered `coward` with the fragment `"a brave soldier"` (a fragment about the *opposite*
    concept). Each negative rule in the schema descriptions was added in direct response to one
    observed failure like this — they read like an itemized bug list because that's what they are.
+   The bracket rule earned a worked negative of its own (`"a rooted tree with three levels"`, NOT
+   `"a rooted [tree] with three levels"`) after the model bracketed fragments for `tree` in a
+   graph-theory context, and `Card::persist()` now strips brackets defensively as well — see
+   [cards](cards.md) for why a bracket in a fragment is actively harmful, not just untidy.
 5. **CEFR level caps difficulty, never length.** `AI::levelInstruction()` and the
    `config/proficiency.php` descriptions describe which words/structures are allowed at a level,
    and end with an explicit sentence saying so ("This caps difficulty, not length — never write
@@ -61,78 +67,168 @@ fixed.
    term from. Where a prompt genuinely wants brevity (chat turns, recap bullets), it says so
    itself, separately from the level instruction.
 
-## Term types (`cards.term_type`)
+## Card shapes and `cards.term_type`
 
-Every card is classified at capture as either `lexical` or `expression`
-(`Card::TYPE_LEXICAL` / `Card::TYPE_EXPRESSION`, `Card::TERM_TYPES`). The axis is **naming unit
-vs. ready-made utterance**, *not* word count:
+Card creation is **two calls**: a router (`AI::analyzeTerm`) that decides the shape and fixes the
+term, then one of three generators that writes that shape's fields. The shapes:
+
+| Shape | What it is | `phrase` | `word` | `examples` |
+|---|---|---|---|---|
+| **word** | a naming unit the learner gave as one word, with no phrase to be had | the word, base form | `null` | 3 natural phrases the word occurs in |
+| **phrase** | a naming unit of several words - typed as such, inferred from context, or picked from a word card's suggestions | the phrase, canonical | the focus word **in the form the phrase uses**, else `null` | *empty* |
+| **expression** | a ready-made utterance or utterance frame | reusable frame with `[something]` slots | `null` | *empty* |
+
+`term_type` on the row is unchanged and still binary: `expression` → `TYPE_EXPRESSION`, the other
+two → `TYPE_LEXICAL`. So `Learning::modeTypeFilter`, the `/cards` type filter and the user-facing
+type `<select>` in `cards/edit.blade.php` all work exactly as before. The word/phrase distinction
+needs **no column**: a word card is the lexical card that *has* `example_*` fragments.
+
+The axis between lexical and expression is unchanged — **naming unit vs. ready-made utterance**,
+*not* word count:
 
 - **`lexical`** — a naming unit; answers *"X means …"*. Single words (`cabinet`),
   collocations/compounds (`traffic jam`, `make a decision`), and **idioms**
   (`under the weather`, `kick the bucket`) are all lexical, because each names a concept.
+  The test for an idiom is **substitution**: one ordinary word of a single part of speech can
+  stand in its place in a neutral third-person sentence — *under the weather* → ill,
+  *kick the bucket* → die, *a piece of cake* → easy.
 - **`expression`** — a ready-made utterance or utterance *frame* performing a communicative
   function (refusing, requesting, hedging, warning, greeting); answers *"you say X when you want
   to …"*: `I'd rather not`, `can you hand me the [something]`, `you better be ready`.
 
-A pasted **full sentence** is not a third type — it is normalized into the reusable frame
+A pasted **full sentence** is not a fourth shape — it is normalized into the reusable frame
 (`I would like to go to the cinema tomorrow` → `I would like to [do something]`) and classified
 `expression`.
 
+**Idioms are the hard case, and they used to fall the wrong way.** `not my cup of tea` was
+classified `lexical`, because every cue the router had for `expression` was *grammatical* — a
+subject pronoun with a finite verb, a speech-act clause, a variable slot — and that phrase has
+none of them, while the one semantic cue in the prompt ("idioms are lexical") argued actively for
+the wrong answer. So a fixed phrase was pulled toward `lexical` no matter what it did.
+
+Two rules now separate them, and both are in `card_kind`'s description:
+
+1. **The substitution test above**, stated as the *condition* for an idiom being lexical rather
+   than as a blanket grant.
+2. **Speaker anchoring.** A phrase containing `my` / `me` / `I` / `you` / `we` (or the language's
+   equivalent), or stating the speaker's stance, evaluation, reaction or willingness rather than
+   naming anything, is an `expression` **even as a fragment with no finite verb**: `not my cup of
+   tea`, `fine by me`, `no skin off my nose`, `over my dead body`. This is the discriminating
+   feature — *under the weather* describes a state anyone can be in, *not my cup of tea* cannot be
+   said without the speaker being in it.
+
+The tie-break is explicit: when *"X means …"* and *"you say X when you want to …"* both seem to
+fit, **expression wins**. That direction is deliberate — it is the side the router was observed
+erring on, and the cost is asymmetric: a misfiled expression gets a dictionary definition and a
+word-for-word translation, which is simply wrong for it, whereas a misfiled naming unit merely
+gets a usage note that is a little wordy.
+
 The column is `string` with a **DB-level default of `'lexical'`** (migration
 `2026_08_08_000001_add_term_type_to_cards_table`), which backfills existing rows and covers the
-legacy creation paths (`CreateCardJob`, `CallAIJob`, the manual-create route closure — all dead,
-see [overview](overview.md)) without touching them. The type is assigned by the AI at capture but is
-**user-correctable**: `cards/edit.blade.php` renders it as a `<x-forms.select>` and the update
-route validates it with `Rule::in(Card::TERM_TYPES)`.
+manual `/add` path (`CardController::save`, which never sets it). The type is assigned at capture
+but is **user-correctable**: `cards/edit.blade.php` renders it as a `<x-forms.select>` and the
+update route validates it with `Rule::in(Card::TERM_TYPES)`.
 
-### Type-conditional field generation
+## Why two calls
 
-All three card generators (below) classify **and** generate in a *single* call. `term_type` is
-the **first property** in every schema — strict structured outputs emit keys in schema order, so
-the model commits to the type before writing the fields that depend on it. This is what makes a
-separate classifier call unnecessary (no extra latency on the capture path). Two helpers hold the
-shared text so it's defined once: `AI::typeRules()` (system-prompt fragment defining the two
-types) and `AI::termTypeProperty()` (the shared `term_type` schema property).
+Card generation used to classify **and** generate in one call, with `term_type` first in the schema
+so the model committed to the type before the fields that depend on it. That worked only because
+both types shared one output shape.
 
-| Field | `lexical` | `expression` |
-|---|---|---|
-| `phrase` | base/dictionary form, **never bracketed** | canonical frame — pronoun + contraction kept, situation-specific tail dropped, each variable part as a **dictionary-style bracketed placeholder** `[something]` / `[someone]` / `[somewhere]` / `[do something]` (never `...`) |
-| `definition` | dictionary-style definition | **usage note** ("used to politely refuse something you have been offered") — same language rule as lexical, see below |
-| `translation` | word-level, ≤2 variants separated by `; ` | **exactly one** functional equivalent — what a native speaker actually says in that situation, explicitly *not* literal, no `;`. It translates the **frame**, so a slot reappears as a placeholder **in the native language** (`[něco]`, `[etwas]`) — never the English `[something]` |
-| `sentence` | one sentence, term bracketed once | one sentence using the expression in an everyday situation, every `[something]` slot filled with **real words** and the **whole expression** bracketed once |
-| `examples` | 3 × 2-4 word collocation fragments, no final period | **empty array** — an expression is illustrated by its sentence alone |
+They no longer do: a word card has `examples`, a phrase card has `word` and no examples, an
+expression card has neither. A strict `json_schema` **cannot be conditional**, so a single call
+would mean one union schema policed by "return an empty array if …" instructions — precisely the
+pattern that once made the model return an empty `examples` array for lexical terms, and that the
+duplicated rule in the old `typeRules()` existed to paper over. Splitting is the structural fix.
 
-`examples` never contains square brackets, and the "bracket the term exactly once" rule holds
-for **both** types, so the Sentences learning mode works for expressions too.
+The larger payoff is prompt rule #1 above: `phrase` is now an **input** to the content call, so
+"never swap the learner's term" is guaranteed by construction rather than by instruction.
 
-## Card generation variants
+The cost is one extra round trip. It is kept small: `analyzeTerm` uses a tiny schema and
+`reasoning_effort: 'low'` (the precedent set by the chat-turn methods), and its whole answer is a
+few dozen tokens. The **browser extension shares this endpoint** and pays the same latency — see
+[browser-extension](browser-extension.md).
 
-Three near-identical generators, each returning a JSON string with `term_type`, `phrase`,
-`sentence`, `examples`, `definition`, and (except the native variant) `translation`. None of them
-assign a `theme` — a card's `theme_id` is left unset at capture time; see
-[wordboxes-themes-tags](wordboxes-themes-tags.md) for how themes are managed now. All are called from
-`AjaxController@index` (see [cards](cards.md) for how the result is mapped onto the `cards` row);
-none run on a queue — card creation is synchronous.
+### Call 1 — `AI::analyzeTerm($term, $termLanguage, $context = null): ?array`
 
-- **`AI::getContentForCard($phrase, $targetLanguage, $nativeLanguage, $level = null)`**
-  — the default bilingual generator, no extra context.
-- **`AI::getContentForCardWithContext($phrase, $targetLanguage, $nativeLanguage,
-  $context, $level = null)`** — same shape, plus a `$context` string (the sentence/snippet the
-  learner saw the term in). The context **fixes which sense/domain** the card is about, so
-  **every** field — including all three example fragments — must reflect only that meaning
-  (e.g. "tree" in a graph-theory context → "binary tree", "spanning tree", never "climb a tree").
-  This constraint is stated in both the system prompt and the `examples` property description.
-- **`AI::getContentForCardNative($phrase, $nativeLanguage, $context = null)`** — the
-  **monolingual** variant, used when the save destination *is* the user's native language
-  (`AjaxController@index` branches on `$language->id === $user->native_language_id`). Every
-  field is written in the native language, there is **no `translation`** (schema omits it; the
-  card stores `translation = ''` since the column is `NOT NULL`), and no CEFR steering is
-  applied (a user isn't learning their own language, so a difficulty cap doesn't apply). Takes
-  an optional `$context` to cover both the plain and context-supplied cases in one method,
-  rather than needing a fourth variant.
+One method covers every case: bilingual vs. native and CEFR level are irrelevant to a decision
+about shape and canonical form. Returns
+`{card_kind: 'word'|'phrase'|'expression', phrase, word, submitted_form}` — the last two as empty
+strings when they do not apply, normalized to `null` in PHP.
 
-`AjaxController@index` picks between them: native destination → `getContentForCardNative`;
-otherwise `getContentForCardWithContext` if a context was supplied, else `getContentForCard`.
+- **`card_kind` is first in the schema**, for the same key-order reason the old `term_type` was.
+- **`phrase`** carries prompt rule #1, with the base-form reduction promoted to the *first* clause
+  rather than buried mid-paragraph — the old wording let `vetting` through unreduced.
+- **`word`** is only filled for a `phrase` card built around a single word the learner gave, and
+  must be spelled as the phrase spells it. See [cards](cards.md) for the invariant and the PHP
+  guard that enforces it.
+- **`submitted_form`** is the learner's own inflected form when they typed one (`vetting` for
+  `vet`). The form someone types is the form they met the word in, so the word card uses it to make
+  **exactly one** of its suggestions read the way they encountered it. It is an AI field rather
+  than a PHP comparison against the raw input because the raw input may be misspelled (`runing`),
+  and feeding a misspelling into example generation would poison it.
+
+### Call 2 — three generators
+
+```
+AI::generateWordCard($phrase, $submittedForm, $language, $nativeLanguage, $context, $level)
+AI::generatePhraseCard($phrase, $focusWord, $language, $nativeLanguage, $context, $level)
+AI::generateExpressionCard($phrase, $language, $nativeLanguage, $context, $level)
+```
+
+**`$nativeLanguage === null` means a monolingual native-language card.** That single flag replaces
+the whole former `getContentForCardNative` variant: it drops `translation` from both `properties`
+and `required`, and skips `levelInstruction()`/`fieldContrastRule()` (a user isn't learning their
+own language, so a difficulty cap doesn't apply). `$context === null` drops the sense-fixing
+clauses. Three methods therefore cover the six cases the three old near-duplicate generators did;
+`getContentForCard`, `getContentForCardWithContext` and `getContentForCardNative` are gone, and so
+are `typeRules()` and `termTypeProperty()`, absorbed into `analyzeTerm`.
+
+`levelInstruction()`, `definitionLanguage()` and `fieldContrastRule()` are unchanged and still
+shared. All four calls go through one private `requestCardJson()` helper, which checks
+`successful()` and `refusal`, logs, and returns a **decoded array** or `null` — the old card
+generators were the only methods in this file that did none of that and returned a raw string for
+the caller to parse.
+
+Every generator writes about the card's **target**, which is `word ?? phrase` — see
+[cards](cards.md) "What the card is built around". For two of the three shapes that is trivially
+the Term itself; the phrase card is where it bites, so `generatePhraseCard` branches on
+`$focusWord` and is the only generator that does:
+
+| Field | `word` | `phrase` **with** a focus word | `phrase` **without** one | `expression` |
+|---|---|---|---|---|
+| `word` | *(absent)* | **first in the schema**: the focus word as this phrase spells it | *(absent)* | *(absent)* |
+| `sentence` | term bracketed once, in whatever form it takes | whole phrase present, **only the focus word** bracketed | the **whole phrase** bracketed once | whole expression bracketed once, every slot filled with real words |
+| `translation` | word-level, ≤2 variants separated by `; ` | the **focus word**, in the sense the phrase gives it | the **whole phrase** - a natural equivalent, never word-by-word, ≤2 variants | **exactly one** functional equivalent, not literal, slots localized (`[něco]`, never `[something]`) |
+| `definition` | dictionary-style | what the **focus word** means inside this phrase | what the **whole phrase** means | **usage note** ("used to politely refuse something you have been offered") |
+| `examples` | **3 natural phrases the word occurs in**, 2-3 words each | *(absent)* | *(absent)* | *(absent)* |
+
+These rules exist because of specific observed failures, and removing one reopens it:
+
+- **`examples` are phrases, not an inflection drill.** The old prompt demanded "a DIFFERENT
+  grammatical form in each of the three", which is the opposite of what these are for now: each
+  fragment is a click target that can become a real card, so it must use the term in the form
+  `phrase` gives it.
+- **`submitted_form` is confined to exactly one example.** Written as "at least one", it took the
+  card over: asked for `vet` typed as `vetting`, the model wrote all three examples *and* the
+  translation (`prověřování`, the noun) about `vetting`, so a card whose term was `vet` never
+  showed `vet` anywhere. The system prompt and the `translation` description now both say that
+  every other field describes the term as given.
+- **`generatePhraseCard`'s `word` property is placed first**, and is omitted entirely when no
+  focus word was supplied. First, for the same key-order reason `card_kind` is first: every other
+  field on a focused phrase card is written *about* that word, so the model has to settle which
+  form of it the phrase uses before it writes any of them. (It was briefly last, from the earlier
+  design where the whole phrase was the target and the single word had to be kept from pulling the
+  other fields toward it — that inverted with the target rule above.)
+- **Suggestions and inferred phrases are capped at 2-3 words.** A fragment is a click target that
+  becomes a real card's `phrase`, and a long one buries the word it exists to teach: "an
+  adversarial relationship", not "an adversarial relationship between rival teams". The same cap is
+  written into `analyzeTerm`'s `phrase` description, which otherwise lifts whole clauses out of a
+  sentence the learner pasted as context.
+
+Both callers are on the `Card` model, not in a controller — `Card::createFromTerm()` (call 1 + call
+2) and `Card::createFromPhrase()` (call 2 only, for the suggestion-click path). See
+[cards](cards.md).
 
 ### CEFR level and the `definition` language
 
@@ -147,9 +243,10 @@ no level is set) it's in the **target** language — below B2 a target-language 
 usually harder to read than the term it explains. This is **not** left to the model to decide:
 `AI::definitionLanguage($level, $target, $native)` resolves it in PHP and the resolved language
 name is interpolated straight into the `definition` property description, so the model is only
-ever told one language to write in. Consequently the two bilingual user messages say "Target
+ever told one language to write in. Consequently every bilingual user message says "Target
 language: … Native language: … Each field says which of the two it must be written in" rather
-than labelling the native one as translation-only.
+than labelling the native one as translation-only. For a monolingual native card
+(`$nativeLanguage === null`) it resolves to the card's own language either way.
 
 **Field-collision guard**: once `definition` is native, it shares a language with `translation`,
 and the model started **swapping them** — e.g. German `schön` came back with definition
@@ -272,8 +369,14 @@ chats — a two-turn chat won't see much benefit, a ten-turn one will.
 
 ## Failure handling
 
-Every method in this file returns `null` (or, for the two-shot card generators, an unparseable
-content string) on refusal or a non-2xx response, and logs via `Log::error`/`logger()` first.
-Every caller must check for `null`/failure before proceeding — see [overview](overview.md)'s "AI Integration"
-coding-standard note. None of these methods throw on an API failure; they degrade to `null` so
-the caller can show the user a plain retry message instead of a 500.
+Every method in this file returns `null` on refusal or a non-2xx response, and logs via
+`Log::error`/`logger()` first. Every caller must check for `null`/failure before proceeding — see
+[overview](overview.md)'s "AI Integration" coding-standard note. None of these methods throw on an
+API failure; they degrade to `null` so the caller can show the user a plain retry message instead
+of a 500.
+
+The card-creation path used to be the exception — its three generators checked nothing and returned
+a raw string, and `AjaxController` had its `return` on a null response **commented out**, so a
+failed call fell through into `trim(null)` and surfaced as a generic caught error. Both are fixed:
+`requestCardJson()` does the checking for all four calls, and a `null` from `Card::createFromTerm()`
+is now handled explicitly.

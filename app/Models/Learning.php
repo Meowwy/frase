@@ -114,15 +114,16 @@ class Learning extends Model
 
     /**
      * Split a bracketed example sentence around its blank: the text before and after the
-     * `[term]`, plus the exact form the brackets hide. The typed answer is checked against
-     * that inflected form, not the card's base-form `phrase`.
+     * `[term]`, plus the exact form the brackets hide. The answer is that inflected form,
+     * never the card's base-form `phrase` — the brackets hold the card's target in the
+     * form this sentence happens to use it in.
      */
     protected static function sentenceParts(Card $card): array
     {
         $sentence = (string) $card->example_sentence;
 
         if (! preg_match('/\[(.*?)\]/', $sentence, $matches, PREG_OFFSET_CAPTURE)) {
-            return ['before' => $sentence, 'answer' => $card->phrase, 'after' => ''];
+            return ['before' => $sentence, 'answer' => $card->target(), 'after' => ''];
         }
 
         [$blank, $offset] = $matches[0];
@@ -261,12 +262,19 @@ class Learning extends Model
             $wordbox = $card->wordbox->first()?->name ?? '';
 
             $entry = match ($mode) {
-                'sentences' => ['front' => $blankedSentence, 'back' => $card->phrase, 'hint' => $card->translation],
+                // The back is the form the brackets actually hide, not `phrase`: the gap is
+                // what the learner has to produce, and on a focused phrase card that is the
+                // focus word, with the rest of the phrase still visible around it.
+                'sentences' => ['front' => $blankedSentence, 'back' => self::sentenceParts($card)['answer'], 'hint' => $card->translation],
                 // Writing variant of Sentences: the front is the sentence split around the
-                // blank so the view can render an inline input between the two halves.
-                'sentences_write' => ['back' => $card->phrase, 'hint' => $card->translation] + self::sentenceParts($card),
-                'words' => ['front' => $card->translation, 'back' => $card->phrase, 'hint' => $blankedSentence],
-                'definitions' => ['front' => $card->definition, 'back' => $card->phrase, 'hint' => $card->translation],
+                // blank so the view can render an inline input between the two halves. Its
+                // answer comes out of that same split, so there is no separate back.
+                'sentences_write' => ['hint' => $card->translation] + self::sentenceParts($card),
+                // The front is the target's own translation, and the definition defines the
+                // target — so the answer is the target: the focus word on a phrase card built
+                // around one, the whole term otherwise.
+                'words' => ['front' => $card->translation, 'back' => $card->target(), 'hint' => $blankedSentence],
+                'definitions' => ['front' => $card->definition, 'back' => $card->target(), 'hint' => $card->translation],
                 default => null,
             };
 

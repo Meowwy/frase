@@ -150,6 +150,23 @@
             @endif
         </section>
 
+        {{-- Nudge right after capture: a single-word card can be traded for one built
+             around a phrase that word occurs in. Renders nothing for phrase/expression
+             cards, since those carry no suggestions. --}}
+        @if($capturedCard)
+            <section class="mt-6">
+                <div class="bg-white/5 rounded-xl border border-white/10 p-4">
+                    <p class="mb-3">
+                        Saved <span class="font-bold">{{ $capturedCard->phrase }}</span>.
+                    </p>
+                    <x-phrase-suggestions :card="$capturedCard"/>
+                    <a href="/cards/{{ $capturedCard->id }}" class="text-sm text-white/60 hover:text-white transition-colors">
+                        Open the card
+                    </a>
+                </div>
+            </section>
+        @endif
+
         <section class="my-8 mb-12">
             <div class="bg-white/5 rounded-xl border border-white/10 p-4">
                 @if($dueLanguages->isNotEmpty())
@@ -181,7 +198,7 @@
                         <tbody class="divide-y divide-gray-700">
                         @foreach($recentCards as $card)
                             <tr class="hover:bg-white/10 cursor-pointer" onclick="window.location='/cards/{{ $card->id }}'">
-                                <td class="px-6 py-2 text-sm font-medium text-white">{{ $card->phrase }}</td>
+                                <td class="px-6 py-2 text-sm text-white">{!! $card->phraseHtml() !!}</td>
                                 <td class="px-6 py-2 text-sm text-gray-300">{{ $card->translation }}</td>
                             </tr>
                         @endforeach

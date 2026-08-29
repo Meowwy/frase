@@ -75,13 +75,30 @@ front/back/hint mapping depending on `$mode`:
 
 | Mode | front | back | hint |
 |---|---|---|---|
-| `sentences` | `example_sentence` with the bracketed span replaced by `...` | `phrase` | `translation` |
-| `sentences_write` | *(see below — split, not a single front)* | `phrase` | `translation` |
-| `words` | `translation` | `phrase` | the blanked sentence |
-| `definitions` | `definition` | `phrase` | `translation` |
+| `sentences` | `example_sentence` with the bracketed span replaced by `...` | **the bracketed form** | `translation` |
+| `sentences_write` | *(see below — split, not a single front)* | *(none — the split carries `answer`)* | `translation` |
+| `words` | `translation` | **`Card::target()`** | the blanked sentence |
+| `definitions` | `definition` | **`Card::target()`** | `translation` |
+
+**Every mode's answer is the card's target, never `phrase` as such.** `Card::target()` is
+`word ?? phrase` — see [cards](cards.md) "What the card is built around" — and it is what the
+front of each mode is actually asking for: `words` shows the target's translation and `definitions`
+shows the target's definition, so on a phrase card built around a focus word both must accept the
+**word**, not the whole phrase the learner is only shown for context.
+
+The two Sentences modes take the answer from the sentence itself instead, because the gap is the
+question: whatever the brackets hide is what the learner has to produce. That is the target too,
+but in the form *this* sentence inflects it into, which `phrase` (a base form) would not match —
+so `sentences` reveals `Learning::sentenceParts($card)['answer']` as its back, the same string
+`sentences_write` grades against. `sentences_write` therefore carries no `back` at all; its
+`answer` key is the one source of truth, and the flip-card `back` element is not rendered in that
+mode anyway.
 
 The blanking uses the same `/\[.*?\]/` regex the sentence-bracket prompt rule exists to support
-(see [ai-integration](ai-integration.md)). The full set is serialized as a JS variable
+(see [ai-integration](ai-integration.md)). On a phrase card built around a focus word the brackets
+hold **that word**, so the blank hides the word and both Sentences modes are about the word, with
+the rest of the phrase left visible around the gap as the context that makes it recallable. The
+full set is serialized as a JS variable
 (`let cards = [...];`) and handed to `learning/index.blade.php`, which drives the whole session
 **client-side** — no per-card request during review.
 
@@ -127,8 +144,8 @@ Flip/Wrong/Correct for a single **Check → Next** button.
 `Learning::sentenceParts($card)` splits `example_sentence` around the **first** `[...]` into
 `before`/`answer`/`after` — so the checked answer is the **exact inflected form the sentence
 actually hides**, not the card's base-form `phrase` (a sentence with no brackets at all falls
-back to using the whole sentence as `before` and `phrase` as the answer, so the mode degrades
-gracefully instead of erroring).
+back to using the whole sentence as `before` and `Card::target()` as the answer, so the mode
+degrades gracefully instead of erroring).
 
 Checking is entirely **client-side** (no request, same pattern as the gap-fill exercise checker)
 and deliberately **forgiving about form, not spelling**: `isAnswerCorrect()` lowercases, collapses
@@ -141,6 +158,12 @@ text stays visible and the correct answer is revealed **below** the sentence aft
 Grading is then automatic: **Next** feeds the boolean comparison straight into the same
 `advance(correct)` function the Wrong/Correct buttons in the other modes call — it's the same
 repeat-until-correct path, just fed a computed result instead of a manual button press.
+
+**A checked answer is final** — `check()` sets the input `readOnly` and nothing takes that back
+before the next card. Letting a wrong answer be corrected in place was tried and reverted: it
+would have been redundant, because a wrong card is not lost anyway. It stays in the deck and comes
+round again in the same session, so the learner gets their second attempt there, on a card they
+have to type from scratch rather than one with the answer already on screen.
 
 **Keyboard**: `Enter` checks while the input is editable; the page's shared spacebar shortcut
 (used to flip/advance cards in the other modes) skips text inputs only while they're editable, so

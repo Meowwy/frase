@@ -77,32 +77,6 @@ class AI extends Model
             : '';
     }
 
-    /**
-     * System-prompt fragment telling the model to classify the term before writing
-     * anything else. Shared by all three card generators so the definition of the two
-     * types stays in exactly one place.
-     */
-    private static function typeRules(): string
-    {
-        // The examples rule is repeated here on purpose: with it only in the property
-        // description, the model returned an empty array for lexical terms.
-        return ' Decide the term_type first — every other field depends on it. The distinction is not word count: a naming unit whose meaning you can define is "lexical", a ready-made utterance performing a communicative function is an "expression". A lexical term always gets exactly 3 examples, each a 2-4 word fragment containing the term itself in a different grammatical form, never a sentence and never bracketed; an expression gets none. Put in each field only what that field asks for.';
-    }
-
-    /**
-     * The shared `term_type` schema property. Placed FIRST in every card schema on
-     * purpose: strict structured outputs emit keys in schema order, so the model
-     * commits to the type before generating the fields that depend on it.
-     */
-    private static function termTypeProperty(): array
-    {
-        return [
-            'type' => 'string',
-            'enum' => Card::TERM_TYPES,
-            'description' => 'What kind of term this card teaches. Choose "lexical" if it is a naming unit — you can complete "X means ...". Single words ("cabinet", "reluctant"), collocations and compounds ("traffic jam", "make a decision") and idioms ("under the weather", "kick the bucket") are ALL lexical, because each names a thing, action, quality or concept. Choose "expression" if it is a ready-made utterance or utterance frame performing a communicative function — you complete "you say X when you want to ...": refusing, requesting, hedging, warning, agreeing, greeting ("I\'d rather not", "can you hand me the [something]", "you better be ready", "as far as I\'m concerned"). A subject pronoun with a finite verb, a clause performing a speech act, or a variable slot all point to "expression"; a whole sentence submitted by the learner is an "expression" and gets reduced to its reusable frame.',
-        ];
-    }
-
     public static function getEmbedding(string $text): ?array
     {
         $response = Http::withToken(config('services.openai.secret'))
@@ -176,206 +150,391 @@ class AI extends Model
         return $response->json('choices.0.message.content');
     }
 
-    public static function getContentForCard(string $phrase, string $targetLanguage, string $nativeLanguage, ?string $level = null)
+    /**
+     * Shared plumbing for the four card-creation calls: one strict-schema chat
+     * completion, decoded into an array. Returns null on a refusal, a non-2xx response
+     * or an unparseable body, having logged it first — same contract as every other
+     * method in this file, so every caller checks for null.
+     */
+    private static function requestCardJson(array $messages, string $schemaName, array $properties, string $reasoningEffort = self::REASONING_EFFORT): ?array
     {
-        logger('update 2');
-        logger('Obtaining data for '.$phrase);
-        $definitionLanguage = self::definitionLanguage($level, $targetLanguage, $nativeLanguage);
         $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
             'model' => self::MODEL,
-            'reasoning_effort' => self::REASONING_EFFORT,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term into one flashcard. Never swap it for a different term: fix its spelling, put it into its canonical form, and describe that exact term in every field.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Target language: \"{$targetLanguage}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.",
-                ],
-            ],
+            'reasoning_effort' => $reasoningEffort,
+            'messages' => $messages,
             'response_format' => [
                 'type' => 'json_schema',
                 'json_schema' => [
-                    'name' => 'get_information_for_card',
+                    'name' => $schemaName,
                     'strict' => true,
                     'schema' => [
                         'type' => 'object',
-                        'properties' => [
-                            'term_type' => self::termTypeProperty(),
-                            'phrase' => [
-                                'type' => 'string',
-                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled; If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]" (e.g. "can you hand me the salt" => "can you hand me the [something]", "I would like to go to the cinema tomorrow" => "I would like to [do something]"). Never mark a slot with dots or an ellipsis, and if the expression has no variable part use no square brackets at all — never bracket an ordinary word. Every other field must describe THIS term.',
-                            ],
-                            'sentence' => [
-                                'type' => 'string',
-                                'description' => "Exactly ONE natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never put the surrounding punctuation inside the brackets. It must be RICH and ILLUSTRATIVE: at least 6 words besides the term, naming a concrete situation, actor or result, so a learner who does NOT know the term could work out its meaning from the surrounding words alone. A bare frame that gives no clue (\"It is [nice].\", \"He is a [coward].\") is invalid. If term_type is \"lexical\": bracket the term itself in whatever form it takes there — e.g. \"She [broke] her promise to call me the moment she landed.\" If term_type is \"expression\": write what someone actually SAYS — every \"[something]\"/\"[someone]\" slot filled in with real words, the WHOLE expression bracketed once, plus a clause before or after that shows the situation. Never reword the expression and never nest it inside another question. — e.g. \"[Can you hand me the salt], I can't reach it from this side of the table.\"",
-                            ],
-                            'examples' => [
-                                'type' => 'array',
-                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period. EVERY fragment must contain the term itself; one built from a synonym, an antonym or a merely related word is invalid (for \"coward\": \"a complete coward\", NOT \"a brave soldier\"). The phrase field already gives the base/dictionary form, so these must show the term IN USE: give it a DIFFERENT grammatical form in each of the three whenever the term has more than one — past, participle, 3rd person, plural, comparative, case — e.g. for \"break\": \"broke a window\", \"breaking the rules\", \"a broken promise\". Inflections come first; when the term has too few to fill all three, USE a close word-family form for the rest — \"reluctant\" => \"reluctant to change\", \"reluctantly accepted it\", \"her sudden reluctance\" — but never a loosely related word. Repeating the base form twice is a last resort, only for a term with no other form at all. Never start a fragment with a subject pronoun. Vary the kind of use as well: a preposition the term pairs with, a frequent collocation, a set phrase. Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
-                                'items' => [
-                                    'type' => 'string',
-                                ],
-                            ],
-                            'translation' => [
-                                'type' => 'string',
-                                'description' => "The term ITSELF in {$nativeLanguage}, same part of speech; never a sentence and never an explanation. If term_type is \"lexical\": the equivalent word, at most 2 variants separated by \"; \" (\"schön\" => \"hezký; krásný\"). If term_type is \"expression\": EXACTLY ONE functional equivalent — what a native speaker really says there, never literal, never a second variant. Translate the FRAME: a placeholder returns as a {$nativeLanguage} slot (\"[něco]\"), never the English \"[something]\".",
-                            ],
-                            'definition' => [
-                                'type' => 'string',
-                                'description' => "EXPLAINS the meaning in {$definitionLanguage} — never a translation, an equivalent word or a list of synonyms, and it never contains the term itself. If term_type is \"lexical\": a dictionary-style definition (\"schön\" => \"co vypadá příjemně a líbí se\", NOT \"hezký\"). If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it.",
-                            ],
-                        ],
-                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'translation', 'definition'],
+                        'properties' => $properties,
+                        // Strict structured outputs require every property to be required.
+                        'required' => array_keys($properties),
                         'additionalProperties' => false,
                     ],
                 ],
             ],
         ]);
 
-        return $response->json('choices.0.message.content');
-        // return $response;
-    }
+        if (! $response->successful()) {
+            Log::error("{$schemaName} request failed: ".$response->status().' - '.$response->body());
 
-    public static function getContentForCardWithContext(string $phrase, string $targetLanguage, string $nativeLanguage, string $context, ?string $level = null)
-    {
-        logger('update 2');
-        logger('Obtaining data for '.$phrase);
-        $definitionLanguage = self::definitionLanguage($level, $targetLanguage, $nativeLanguage);
-        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+            return null;
+        }
 
-            'model' => self::MODEL,
-            'reasoning_effort' => self::REASONING_EFFORT,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => "You are a vocabulary tutor turning a learner's Term (seen in a specific context) into one flashcard. Never swap it for a different term: fix its spelling and put it into its canonical form. The context fixes WHICH sense or situation this card is about, so every field — including all examples — must reflect ONLY that sense and never another meaning of the term; it also shows how the term is really used, which helps you judge the term_type.".self::typeRules().self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level),
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "Original term: \"{$phrase}\" (fix the spelling if it is wrong), used in this context: \"{$context}\". Target language: \"{$targetLanguage}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.",
-                ],
-            ],
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'name' => 'get_information_for_card_with_context',
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'term_type' => self::termTypeProperty(),
-                            'phrase' => [
-                                'type' => 'string',
-                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. Keep the meaning it has in the supplied context, but in a general, reusable form that is not tied to the specific subject of that context. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled; If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]" (e.g. "can you hand me the salt" => "can you hand me the [something]", "I would like to go to the cinema tomorrow" => "I would like to [do something]"). Never mark a slot with dots or an ellipsis, and if the expression has no variable part use no square brackets at all — never bracket an ordinary word. Every other field must describe THIS term.',
-                            ],
-                            'sentence' => [
-                                'type' => 'string',
-                                'description' => "Exactly ONE natural {$targetLanguage} sentence containing the term inside square brackets exactly once; never two sentences, and never put the surrounding punctuation inside the brackets. It must be RICH and ILLUSTRATIVE: at least 6 words besides the term, naming a concrete situation, actor or result, so a learner who does NOT know the term could work out its meaning from the surrounding words alone. A bare frame that gives no clue (\"It is [nice].\") is invalid. If term_type is \"lexical\": show the sense the term has in the supplied context, bracketing the term itself in whatever form it takes there — e.g. \"She [broke] her promise to call me the moment she landed.\" If term_type is \"expression\": write what someone actually SAYS in the situation the supplied context describes — every \"[something]\"/\"[someone]\" slot filled in with real words, the WHOLE expression bracketed once, plus a clause before or after that shows the situation. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], I can't reach it from this side of the table.\"",
-                            ],
-                            'examples' => [
-                                'type' => 'array',
-                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$targetLanguage}, never bracketed — 2-4 word usage fragments with NO subject pronoun and NO final period. EVERY fragment must contain the term itself; one built from a synonym, an antonym or a merely related word is invalid. The phrase field already gives the base/dictionary form, so these must show the term IN USE: give it a DIFFERENT grammatical form in each of the three whenever the term has more than one — past, participle, 3rd person, plural, comparative, case — e.g. for \"break\": \"broke a window\", \"breaking the rules\", \"a broken promise\". Inflections come first; when the term has too few to fill all three, USE a close word-family form for the rest — \"reluctant\" => \"reluctant to change\", \"reluctantly accepted it\", \"her sudden reluctance\" — but never a loosely related word. Repeating the base form twice is a last resort, only for a term with no other form at all. Never start a fragment with a subject pronoun. Vary the kind of use as well: a preposition it pairs with, a frequent collocation, a set phrase. ALL 3 must fit the term's meaning in the supplied context/domain ONLY — never a different sense (e.g. for \"tree\" in a graph-theory context: \"binary tree\", \"spanning trees\", \"root of the tree\" — NOT \"climb a tree\"). Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
-                                'items' => [
-                                    'type' => 'string',
-                                ],
-                            ],
-                            'translation' => [
-                                'type' => 'string',
-                                'description' => "The term ITSELF in {$nativeLanguage} in the meaning it has in the supplied context, same part of speech; never a sentence and never an explanation. If term_type is \"lexical\": the equivalent word, at most 2 variants separated by \"; \" (\"schön\" => \"hezký; krásný\"). If term_type is \"expression\": EXACTLY ONE functional equivalent — what a native speaker really says there, never literal, never a second variant. Translate the FRAME: a placeholder returns as a {$nativeLanguage} slot (\"[něco]\"), never the English \"[something]\".",
-                            ],
-                            'definition' => [
-                                'type' => 'string',
-                                'description' => "EXPLAINS the meaning it has in the supplied context, in {$definitionLanguage} — never a translation, an equivalent word or a list of synonyms, and it never contains the term itself. If term_type is \"lexical\": a dictionary-style definition (\"schön\" => \"co vypadá příjemně a líbí se\", NOT \"hezký\"). If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it.",
-                            ],
-                        ],
-                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'translation', 'definition'],
-                        'additionalProperties' => false,
-                    ],
-                ],
-            ],
-        ]);
+        if ($response->json('choices.0.message.refusal')) {
+            Log::error("{$schemaName} refused: ".$response->json('choices.0.message.refusal'));
 
-        return $response->json('choices.0.message.content');
-        // return $response;
+            return null;
+        }
+
+        $decoded = json_decode((string) $response->json('choices.0.message.content'), true);
+
+        if (! is_array($decoded)) {
+            Log::error("{$schemaName} returned an unparseable body.");
+
+            return null;
+        }
+
+        return $decoded;
     }
 
     /**
-     * Build a monolingual flashcard entirely in the learner's own native language.
+     * CALL 1 of card creation. Decides which of the three card shapes the learner's term
+     * needs, and fixes the exact term the card will be built around. It writes no card
+     * content — that is call 2 (generateWordCard/generatePhraseCard/generateExpressionCard).
      *
-     * Used when the save destination is the user's native language: the learner is
-     * building vocabulary in their own language, so every field is written in that
-     * language and there is no translation. Handles both the plain and the
-     * context-supplied cases via the optional $context argument.
+     * Why this is a separate call at all: the three shapes need three DIFFERENT output
+     * schemas (a word card has `examples`, the other two do not; a phrase card has
+     * `word`), and a strict json_schema cannot be conditional. Deciding the shape inside
+     * the generation call would mean one union schema policed by "return an empty array
+     * if ..." instructions — the exact pattern that once made the model return an empty
+     * `examples` array for lexical terms.
+     *
+     * The bigger payoff is that `phrase` is produced HERE and passed INTO call 2 as an
+     * input, so "never swap the learner's term for a different one" stops being a prompt
+     * rule the model can drift from and becomes structurally guaranteed.
+     *
+     * Runs at reasoning_effort "low": the schema is tiny and the whole answer is a few
+     * dozen tokens, so the capture path pays only a short extra round trip.
+     *
+     * Returns ['card_kind' => 'word'|'phrase'|'expression', 'phrase' => string,
+     * 'word' => string, 'submitted_form' => string] or null on failure.
      */
-    public static function getContentForCardNative(string $phrase, string $nativeLanguage, ?string $context = null)
+    public static function analyzeTerm(string $term, string $termLanguage, ?string $context = null): ?array
     {
-        logger('Obtaining native-language data for '.$phrase);
+        logger('Analyzing term '.$term);
 
-        $systemContent = "You are a vocabulary tutor helping a native speaker of {$nativeLanguage} build their vocabulary by learning words and phrases in context. Write every field in {$nativeLanguage}. Never swap the term for a different one: fix its spelling, put it into its canonical form, and describe that exact term in every field.";
-        if (! is_null($context)) {
-            $systemContent .= ' The term was seen in a specific context, which fixes WHICH sense of the term this card is about: capture that sense in a general, reusable form, and let every field — including all three examples — reflect ONLY that sense or domain. It also helps you judge the term_type.';
-        }
-        $systemContent .= self::typeRules();
+        $system = "You are a vocabulary tutor triaging a learner's Term before a flashcard is written for it. You do not write any card content here: you only decide which of three shapes the card must take, and fix the exact term the card will be built around. Never swap the Term for a different one — you only correct its spelling and its form.";
 
-        $userContent = "Original term: \"{$phrase}\" (fix the spelling if it is wrong). Write everything in {$nativeLanguage}.";
         if (! is_null($context)) {
-            $userContent .= " Used in this context: \"{$context}\".";
+            $system .= ' The learner also supplied the context they met the Term in. It fixes WHICH sense or domain the card is about, it helps you judge the shape, and — when the Term is a single word — it may contain a natural phrase that word occurs in, which makes a far better card than the bare word.';
         }
 
-        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+        $user = "Term: \"{$term}\". Language: \"{$termLanguage}\".";
+        if (! is_null($context)) {
+            $user .= " Context: \"{$context}\".";
+        }
 
-            'model' => self::MODEL,
-            'reasoning_effort' => self::REASONING_EFFORT,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => $systemContent,
+        return self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'analyze_term',
+            [
+                // First in the schema on purpose: strict structured outputs emit keys in
+                // schema order, so the model commits to the shape before writing the
+                // fields whose rules depend on it.
+                'card_kind' => [
+                    'type' => 'string',
+                    'enum' => ['word', 'phrase', 'expression'],
+                    'description' => 'Which of three shapes this card must take. First settle the naming-unit vs. utterance axis, which is NOT about word count. Choose "expression" if the Term is a ready-made utterance or utterance frame performing a communicative function — you complete "you say X when you want to ...": refusing, requesting, hedging, warning, agreeing, greeting ("I\'d rather not", "can you hand me the salt", "you better be ready", "as far as I\'m concerned"). A subject pronoun with a finite verb, a clause performing a speech act, or a variable slot all point to "expression"; a whole sentence submitted by the learner is an "expression" and gets reduced to its reusable frame. A fixed idiom is NOT automatically a naming unit, so test it before calling it lexical: an idiom is a naming unit only if one ordinary word of a single part of speech could stand in its place in a neutral third-person sentence — "under the weather" => ill, "kick the bucket" => die, "a piece of cake" => easy. If instead the Term is anchored to the speaker or the hearer — it contains "my", "me", "I", "you"... or that language\'s equivalent — or it states the speaker\'s own stance, evaluation, reaction or willingness rather than naming something, then it is an "expression" even when it is only a fragment with no finite verb: "not my cup of tea", "fine by me". Decide by asking which of two sentences is true of the Term: "X means ..." (a naming unit => lexical) or "you say X when you want to ..." (=> expression). When both seem to fit, the speaker-anchored or stance-taking reading WINS and the Term is an "expression". Otherwise the Term is a naming unit whose meaning you can define ("X means ..."), and you split those in two. Choose "phrase" if the card should be built around several words: the learner typed a multi-word term ("traffic jam", "make a decision", and naming-unit idioms like "under the weather"), OR they typed ONE word and the supplied context gives a natural phrase that word occurs in. Choose "word" if the card is built around a single word alone: the learner typed one word and gave no context, or the context only names a topic or domain and contains no natural phrase around that word.',
                 ],
-                [
-                    'role' => 'user',
-                    'content' => $userContent,
+                'phrase' => [
+                    'type' => 'string',
+                    'description' => 'The exact term this card is built around; every field of the card will describe THIS. Always fix spelling mistakes first. If card_kind is "word": reduce the learner\'s single word to its base/dictionary form — broken => break, running => run, mice => mouse, vetting => vet — and keep it ONE word; never expand a single word into a collocation. If card_kind is "phrase": either the multi-word term the learner typed, kept as they wrote it with spelling fixes only (its internal grammar is part of the phrase, so "vetting candidates" stays "vetting candidates" and is NOT reduced to "vet candidates"), or the natural phrase their single word occurs in according to the supplied context, in a general reusable form that is not tied to the specific subject of that context ("we need to vet the new candidate" for the word "vet" => "vet a candidate"). Keep an inferred phrase SHORT — the minimal collocation that carries the meaning, normally 2 or 3 words and never more than 4: for "relationship" seen in "the two teams have had an adversarial relationship for years" return "an adversarial relationship", NOT "an adversarial relationship between rival teams". Never invent a phrase the context does not support. If card_kind is "expression": the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]" ("can you hand me the salt" => "can you hand me the [something]", "I would like to go to the cinema tomorrow" => "I would like to [do something]"). Never mark a slot with dots or an ellipsis, and if the expression has no variable part use no square brackets at all — never bracket an ordinary word.',
+                ],
+                'word' => [
+                    'type' => 'string',
+                    'description' => 'Only when card_kind is "phrase" AND the learner submitted a single word that you built that phrase around: that word, spelled EXACTLY as it appears inside the phrase field, so it can be found there as a plain substring. For the word "vet" in the phrase "vet a candidate" return "vet"; in the phrase "vetting candidates" return "vetting", NOT the base form "vet" — always the form the phrase itself uses. Return an empty string in every other case, including a multi-word term the learner typed themselves, a "word" card and an "expression" card.',
+                ],
+                'submitted_form' => [
+                    'type' => 'string',
+                    'description' => 'Only when card_kind is "word" AND the learner typed that word in an inflected form that the phrase field reduced to a base form: their own form, with the spelling corrected. Learner typed "vetting" and phrase is "vet" => "vetting"; learner typed "runing" and phrase is "run" => "running". This records the form they actually met the word in. Return an empty string when the learner already gave the base form, and always for "phrase" and "expression" cards.',
                 ],
             ],
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'name' => 'get_information_for_card_native',
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'term_type' => self::termTypeProperty(),
-                            'phrase' => [
-                                'type' => 'string',
-                                'description' => 'The term this card teaches, taken from the Original term; always fix spelling mistakes. If term_type is "lexical": reduce it to its base/dictionary form (e.g. broken => break, running => run, mice => mouse), correctly spelled, and never add square brackets or a placeholder of any kind; if the Original term is already a multi-word phrase keep it as the learner wrote it (spelling/base-form fixes only), and do NOT expand a single word into a collocation — a one-word term stays one word. If term_type is "expression": give the canonical, reusable form — KEEP the subject pronoun and any contraction, drop the situation-specific tail, and write each variable part as a dictionary-style placeholder in square brackets, "[something]" / "[someone]" / "[somewhere]" / "[do something]". Never mark a slot with dots or an ellipsis, and if the expression has no variable part use no square brackets at all — never bracket an ordinary word. Every other field must describe THIS term.',
-                            ],
-                            'sentence' => [
-                                'type' => 'string',
-                                'description' => "Exactly ONE natural {$nativeLanguage} sentence containing the term inside square brackets exactly once; never two sentences, and never put the surrounding punctuation inside the brackets. A sentence without the square brackets is invalid. It must be RICH and ILLUSTRATIVE: at least 6 words besides the term, naming a concrete situation, actor or result, so a reader who does NOT know the term could work out its meaning from the surrounding words alone. A bare frame that gives no clue (\"It is [nice].\") is invalid. If term_type is \"lexical\": bracket the term itself in whatever form it takes there — e.g. \"She [broke] her promise to call me the moment she landed.\" If term_type is \"expression\": write what someone actually SAYS — every \"[something]\"/\"[someone]\" slot filled in with real words, the WHOLE expression bracketed once, plus a clause before or after that shows the situation. Never reword the expression and never nest it inside another question — e.g. \"[Can you hand me the salt], I can't reach it from this side of the table.\"",
-                            ],
-                            'examples' => [
-                                'type' => 'array',
-                                'description' => "If term_type is \"lexical\": you MUST return exactly 3 entries in {$nativeLanguage}, never bracketed — 2-4 word usage fragments with NO subject and NO final period, just the fragment (verb+object or preposition+noun) and never a whole sentence. EVERY fragment must contain the term itself; one built from a synonym, an antonym or a merely related word is invalid. The phrase field already gives the base/dictionary form, so these must show the term IN USE: give it a DIFFERENT grammatical form in each of the three whenever the term has more than one — past, participle, person, plural, case, comparative. Inflections come first; when the term has too few to fill all three, USE a close word-family form for the rest — \"reluctant\" => \"reluctant to change\", \"reluctantly accepted it\", \"her sudden reluctance\" — but never a loosely related word. Repeating the base form twice is a last resort, only for a term with no other form at all. Never start a fragment with a subject pronoun. Vary the kind of use as well: a preposition the term pairs with, a frequent collocation, a set phrase. Returning fewer than 3 for a lexical term is invalid. If term_type is \"expression\": return an empty array — an expression is illustrated by its sentence alone.",
-                                'items' => [
-                                    'type' => 'string',
-                                ],
-                            ],
-                            'definition' => [
-                                'type' => 'string',
-                                'description' => "Written in {$nativeLanguage}. If term_type is \"lexical\": a concise dictionary-style definition of the term. If term_type is \"expression\": a short usage note saying what the speaker is doing and when you say it. Do not use the term itself.",
-                            ],
-                        ],
-                        'required' => ['term_type', 'phrase', 'sentence', 'examples', 'definition'],
-                        'additionalProperties' => false,
-                    ],
-                ],
-            ],
-        ]);
+            'low',
+        );
+    }
 
-        return $response->json('choices.0.message.content');
+    /**
+     * CALL 2, shape "word": a card built around one word, whose three example fragments
+     * are natural phrases that word occurs in. Those fragments are click targets in the
+     * UI — each one can become the phrase of a replacement card — which is why they must
+     * be usable phrases rather than the inflection drill this prompt used to ask for.
+     *
+     * $submittedForm is the learner's own inflected form when they typed one ("vetting"
+     * for the term "vet"): at least one fragment then uses that form, so the card shows
+     * the word the way they actually met it.
+     *
+     * $nativeLanguage === null means a MONOLINGUAL native-language card: no translation
+     * field at all and no CEFR steering (a learner is not "learning" their own language).
+     */
+    public static function generateWordCard(string $phrase, ?string $submittedForm, string $language, ?string $nativeLanguage, ?string $context = null, ?string $level = null): ?array
+    {
+        logger('Generating a word card for '.$phrase);
+
+        $isNative = is_null($nativeLanguage);
+        $definitionLanguage = self::definitionLanguage($level, $language, $nativeLanguage ?? $language);
+
+        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term, which is a single word. The Term is already fixed and correctly spelled: never swap it, never expand it into a longer phrase, and describe that exact word in every field.";
+
+        // Repeated here on purpose: with this rule only in the property description, the
+        // model returned an empty examples array.
+        $system .= ' You must return exactly 3 examples, each a short natural phrase the Term really occurs in — never a sentence, never merely the Term in another grammatical form, and NEVER containing square brackets: only the sentence field is ever bracketed, the examples are plain text. Put in each field only what that field asks for.';
+
+        if (! is_null($submittedForm)) {
+            // The learner's own form is a relatability cue for ONE example, nothing more.
+            // Left looser than this it took over the whole card: asked for "vet" typed as
+            // "vetting", the model wrote all three examples and the translation
+            // ("prověřování", the noun) about "vetting", so the card never showed "vet".
+            $system .= " The learner typed the Term as \"{$submittedForm}\". EXACTLY ONE of the three examples uses that form; the other two use the Term as given above. Every other field — the sentence, the translation and the definition — is about the Term as given and never about the learner's form.";
+        }
+
+        if (! is_null($context)) {
+            $system .= ' The context the learner supplied fixes WHICH sense or domain this card is about, so every field — including all three examples — must reflect ONLY that sense and never another meaning of the Term.';
+        }
+
+        if ($isNative) {
+            $system .= " The learner is a native speaker of {$language} building vocabulary in their own language: write every field in {$language}, and the card has no translation.";
+        } else {
+            $system .= self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level);
+        }
+
+        $user = $isNative
+            ? "Term: \"{$phrase}\". Write everything in \"{$language}\"."
+            : "Term: \"{$phrase}\". Target language: \"{$language}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.";
+        if (! is_null($submittedForm)) {
+            $user .= " The learner typed it as \"{$submittedForm}\".";
+        }
+        if (! is_null($context)) {
+            $user .= " It was seen in this context: \"{$context}\".";
+        }
+
+        $sentence = "Exactly ONE natural {$language} sentence containing the Term inside square brackets exactly once, never two sentences; never put the surrounding punctuation inside the brackets. It must be RICH and ILLUSTRATIVE: at least 6 words besides the Term, naming a concrete situation, actor or result, so a learner who does NOT know the Term could work out its meaning from the surrounding words alone. A bare frame that gives no clue (\"It is [nice].\", \"He is a [coward].\") is invalid. Bracket the Term itself in whatever form it takes there — e.g. \"She [broke] her promise to call me the moment she landed.\"";
+
+        $examples = "Exactly 3 entries in {$language}: SHORT phrases of 2 or 3 words — that the Term naturally and commonly occurs in: a frequent collocation, a preposition it pairs with, a set phrase. Keep only the words that carry the collocation and cut every extra detail: for \"relationship\" write \"an adversarial relationship\", NOT \"an adversarial relationship between rival teams\". Each is a fragment and never a whole sentence: NO subject pronoun and NO final period. NEVER put square brackets around anything: these strings are saved and shown exactly as written. EVERY entry must contain the Term itself.";
+        $examples .= is_null($submittedForm)
+            ? ' and do not put it into any other grammatical form.'
+            : ", EXCEPT for EXACTLY ONE of the three, which uses the learner's own form \"{$submittedForm}\" instead — the other two use the Term as given (for the Term \"vet\" with the learner's form \"vetting\": \"vet a candidate\", \"vet applicants\", \"thorough vetting\"). No other form of the Term is ever allowed.";
+
+        $translation = "The Term ITSELF in {$nativeLanguage}, same part of speech; never a sentence and never an explanation. The equivalent word, at most 2 variants separated by \"; \" (\"schön\" => \"hezký; krásný\").";
+
+        if (! is_null($submittedForm)) {
+            $translation .= " Translate the Term exactly as given above, NOT the form \"{$submittedForm}\" the learner typed.";
+        }
+
+        $definition = "EXPLAINS the meaning in {$definitionLanguage} — never a translation, an equivalent word or a list of synonyms, and it never contains the Term itself. A dictionary-style definition.";
+
+        if (! is_null($context)) {
+            $sentence .= ' Show the sense the Term has in the supplied context.';
+            $examples .= ' ALL 3 must fit the Term\'s meaning in the supplied context or domain ONLY.';
+            $translation .= ' In the meaning it has in the supplied context.';
+            $definition .= ' In the meaning it has in the supplied context.';
+        }
+
+        $properties = [
+            'sentence' => ['type' => 'string', 'description' => $sentence],
+            'examples' => [
+                'type' => 'array',
+                'items' => ['type' => 'string'],
+                'description' => $examples,
+            ],
+        ];
+
+        if (! $isNative) {
+            $properties['translation'] = ['type' => 'string', 'description' => $translation];
+        }
+
+        $properties['definition'] = ['type' => 'string', 'description' => $definition];
+
+        return self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'generate_word_card',
+            $properties,
+        );
+    }
+
+    /**
+     * CALL 2, shape "phrase": a lexical card whose Term is a multi-word phrase — one the
+     * learner typed, one inferred from their context, or one they picked from a word
+     * card's suggestions.
+     *
+     * $focusWord decides what the card is ABOUT, and it is the only branch in here:
+     *
+     * - given — the learner is learning that single word and the phrase is only the
+     *   structure that makes it memorable, so translation, definition and the sentence's
+     *   brackets are all about the WORD, in the sense it carries inside this phrase.
+     * - null — the whole phrase IS the thing being learnt (the learner typed it, or it is
+     *   an idiom), so every field is about the phrase as a unit.
+     *
+     * That is the same rule the other two shapes already follow: a word card's target is
+     * its single word, an expression card's is the whole utterance. See docs/cards.md,
+     * "What the card is built around".
+     *
+     * Either way the card gets no example fragments — the phrase is illustrated by its
+     * sentence alone.
+     */
+    public static function generatePhraseCard(string $phrase, ?string $focusWord, string $language, ?string $nativeLanguage, ?string $context = null, ?string $level = null): ?array
+    {
+        logger('Generating a phrase card for '.$phrase);
+
+        $isNative = is_null($nativeLanguage);
+        $isFocused = ! is_null($focusWord);
+        $definitionLanguage = self::definitionLanguage($level, $language, $nativeLanguage ?? $language);
+
+        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term, which is a multi-word phrase. The Term is already fixed and correctly spelled, so never swap it, never shorten it and never reword it. This card gets no example fragments — it is illustrated by its sentence alone.";
+
+        if ($isFocused) {
+            $system .= " What the learner is actually learning is the single word \"{$focusWord}\" inside that phrase; the phrase is only the structure that makes the word memorable. So this card is built around the WORD: the translation translates the word and the definition explains the word, both in the sense it carries inside this Term. The sentence and the definition place the word in the setting the Term (and the supplied context) gives it, but never treat the phrase as the thing being learnt: never translate the phrase as a unit and never define it as a unit. Fill the word field FIRST and write every other field about that word.";
+        } else {
+            $system .= ' The learner is learning this phrase as a whole, so the card is built around the WHOLE phrase.';
+        }
+
+        if (! is_null($context)) {
+            $system .= ' The context the learner supplied fixes WHICH sense or domain this card is about, so every field must reflect ONLY that sense.';
+        }
+
+        if ($isNative) {
+            $system .= " The learner is a native speaker of {$language} building vocabulary in their own language: write every field in {$language}, and the card has no translation.";
+        } else {
+            $system .= self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level);
+        }
+
+        $user = $isNative
+            ? "Term: \"{$phrase}\". Write everything in \"{$language}\"."
+            : "Term: \"{$phrase}\". Target language: \"{$language}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.";
+        if ($isFocused) {
+            $user .= " The word this card is about: \"{$focusWord}\".";
+        }
+        if (! is_null($context)) {
+            $user .= " It was seen in this context: \"{$context}\".";
+        }
+
+        $richness = 'It must be RICH and ILLUSTRATIVE: at least 6 words besides the Term, naming a concrete situation, actor or result, so a learner who does NOT know it could work out the meaning from the surrounding words alone.';
+
+        if ($isFocused) {
+            $sentence = "Exactly ONE natural {$language} sentence. It contains the WHOLE Term exactly as given above, but the square brackets go around the WORD alone — exactly once, and never any surrounding punctuation inside them. Bracket the word in the form the word field returns, which is the form the Term itself uses. {$richness} E.g. for the word \"vet\" in the Term \"vet a candidate\": \"The HR team will [vet] a candidate carefully before the second interview.\"";
+
+            $translation = "The WORD alone in {$nativeLanguage} — the equivalent word in the same part of speech, in the meaning it carries inside the Term. At most 2 variants separated by \"; \". Never translate the Term as a whole, never render it word by word, never a sentence and never an explanation.";
+
+            $definition = "EXPLAINS what the WORD means in {$definitionLanguage}, in the sense it carries inside the Term — never a translation, an equivalent word or a list of synonyms, and it never contains the word itself. You may mention the setting the Term puts it in, but what you define is the word, not the phrase.";
+        } else {
+            $sentence = "Exactly ONE natural {$language} sentence containing the WHOLE phrase inside square brackets exactly once; never put the surrounding punctuation inside the brackets and never bracket only part of the phrase. {$richness} Bracket the phrase in whatever form it takes there — e.g. \"The HR team will [vet every candidate] before the second interview.\"";
+
+            $translation = "The WHOLE phrase in {$nativeLanguage} — the natural equivalent a native speaker would really use for the same thing, never a word-by-word literal rendering. At most 2 variants separated by \"; \". Never a sentence and never an explanation.";
+
+            $definition = "EXPLAINS what the WHOLE phrase means in {$definitionLanguage} — never a translation, an equivalent phrase or a list of synonyms, and it never contains the phrase itself.";
+        }
+
+        if (! is_null($context)) {
+            $sentence .= ' Show the sense it has in the supplied context.';
+            $translation .= ' In the meaning it has in the supplied context.';
+            $definition .= ' In the meaning it has in the supplied context.';
+        }
+
+        $properties = [];
+
+        if ($isFocused) {
+            // FIRST in the schema, not last: strict structured outputs emit keys in schema
+            // order, and every other field is now written about this word, so the model
+            // must settle which form of it the Term uses before it writes any of them.
+            $properties['word'] = [
+                'type' => 'string',
+                'description' => "The single word this card is about, \"{$focusWord}\", spelled EXACTLY as it appears inside the Term above so it can be found there as a plain substring. In the Term \"vet a candidate\" the word \"vet\" returns \"vet\"; in the Term \"vetting candidates\" it returns \"vetting\", NOT the base form — always the form this Term itself uses. Return an empty string only if the word genuinely does not occur in the Term at all.",
+            ];
+        }
+
+        $properties['sentence'] = ['type' => 'string', 'description' => $sentence];
+
+        if (! $isNative) {
+            $properties['translation'] = ['type' => 'string', 'description' => $translation];
+        }
+
+        $properties['definition'] = ['type' => 'string', 'description' => $definition];
+
+        return self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'generate_phrase_card',
+            $properties,
+        );
+    }
+
+    /**
+     * CALL 2, shape "expression": a ready-made utterance or utterance frame. Unchanged in
+     * substance from the expression branch of the old single-call generators — an
+     * expression is illustrated by its sentence alone and gets no example fragments.
+     */
+    public static function generateExpressionCard(string $phrase, string $language, ?string $nativeLanguage, ?string $context = null, ?string $level = null): ?array
+    {
+        logger('Generating an expression card for '.$phrase);
+
+        $isNative = is_null($nativeLanguage);
+        $definitionLanguage = self::definitionLanguage($level, $language, $nativeLanguage ?? $language);
+
+        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term, which is a ready-made utterance or utterance frame — a whole thing you SAY, not a naming unit. The Term is already fixed and correctly spelled, so never swap it and never reword it; every field describes that exact expression. An expression gets no example fragments — it is illustrated by its sentence alone.";
+
+        if (! is_null($context)) {
+            $system .= ' The context the learner supplied fixes WHICH situation this card is about, so every field must reflect ONLY that use.';
+        }
+
+        if ($isNative) {
+            $system .= " The learner is a native speaker of {$language} building vocabulary in their own language: write every field in {$language}, and the card has no translation.";
+        } else {
+            $system .= self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level);
+        }
+
+        $user = $isNative
+            ? "Term: \"{$phrase}\". Write everything in \"{$language}\"."
+            : "Term: \"{$phrase}\". Target language: \"{$language}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.";
+        if (! is_null($context)) {
+            $user .= " It was seen in this context: \"{$context}\".";
+        }
+
+        $sentence = "Exactly ONE natural {$language} sentence. Write what someone actually SAYS: every \"[something]\" or \"[someone]\" slot in the Term filled in with real words, the WHOLE expression bracketed once, plus a clause before or after that shows the situation. Never reword the expression. Bracket EXACTLY the Term and nothing more: if the Term is a fragment (\"not my cup of tea\"), the subject and verb that carry it stay OUTSIDE the brackets — \"That kind of music is [not my cup of tea], so I would rather listen to something quieter.\"";
+
+        $translation = "EXACTLY ONE functional equivalent in {$nativeLanguage} — what a native speaker really says in that situation, never literal, never a second variant and never a \";\". Translate the FRAME: a placeholder returns as a slot in {$nativeLanguage}.";
+
+        $definition = "EXPLAINS the expression in {$definitionLanguage} — a short usage note saying what the speaker is doing and when you say it (\"used to politely refuse something you have been offered\"). Never a translation, an equivalent phrase or a list of synonyms, and it never contains the expression itself.";
+
+        $properties = [
+            'sentence' => ['type' => 'string', 'description' => $sentence],
+        ];
+
+        if (! $isNative) {
+            $properties['translation'] = ['type' => 'string', 'description' => $translation];
+        }
+
+        $properties['definition'] = ['type' => 'string', 'description' => $definition];
+
+        return self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'generate_expression_card',
+            $properties,
+        );
     }
 
     public static function generateThemes(string $phrases, string $targetLanguage)

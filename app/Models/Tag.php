@@ -9,7 +9,8 @@ class Tag extends Model
 {
     use HasFactory;
 
-    public function cards(){
+    public function cards()
+    {
         return $this->belongsToMany(Card::class);
     }
 }

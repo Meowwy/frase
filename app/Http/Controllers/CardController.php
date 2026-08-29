@@ -147,7 +147,7 @@ class CardController extends Controller
 
         $linkedCards = $card->linkedCards()
             ->orderBy('phrase')
-            ->get(['cards.id', 'phrase', 'translation']);
+            ->get(['cards.id', 'phrase', 'word', 'translation']);
 
         $card->load('language');
         $wordbox = $card->wordbox()->first();
@@ -181,7 +181,7 @@ class CardController extends Controller
             ->where('phrase', 'like', '%'.$q.'%')
             ->orderBy('phrase')
             ->limit(10)
-            ->get(['id', 'phrase', 'translation']);
+            ->get(['id', 'phrase', 'word', 'translation']);
 
         return response()->json(['results' => $results]);
     }
@@ -208,7 +208,100 @@ class CardController extends Controller
         $card->linkedCards()->syncWithoutDetaching([$other->id]);
         $other->linkedCards()->syncWithoutDetaching([$card->id]);
 
-        return response()->json(['card' => $other->only('id', 'phrase', 'translation')]);
+        return response()->json([
+            // phrase_html carries the focus-word emphasis so the row the JS appends
+            // matches the server-rendered rows in cards/_linked_rows.blade.php.
+            'card' => $other->only('id', 'phrase', 'translation') + ['phrase_html' => $other->phraseHtml()],
+        ]);
+    }
+
+    /**
+     * Replace a single-word card with one built around a phrase that word occurs in —
+     * the "learn it in a phrase instead" nudge on the card detail page and right after
+     * capture. The learner picks one of the card's own suggested phrases; that phrase
+     * becomes a new card, this card's history moves onto it, and this card is deleted.
+     *
+     * The replacement is an in-place upgrade, so everything organizational AND the SRS
+     * schedule carries over: a card studied for weeks doesn't restart at level 1 just
+     * because the learner sharpened what it teaches.
+     */
+    public function learnAsPhrase(\Illuminate\Http\Request $request, Card $card)
+    {
+        $this->authorize('update', $card);
+
+        $data = $request->validate(['phrase' => ['required', 'string']]);
+
+        // Only the card's own suggestions are acceptable targets — the click targets are
+        // server-known, so there is no reason to accept arbitrary text here.
+        $phrase = trim($data['phrase']);
+        if (! in_array($phrase, $card->suggestedPhrases(), true)) {
+            return response()->json(['message' => 'That phrase is not one of this card\'s suggestions.'], 422);
+        }
+
+        $exists = Auth::user()->cards()
+            ->where('language_id', $card->language_id)
+            ->whereRaw('LOWER(phrase) = ?', [mb_strtolower($phrase)])
+            ->first();
+
+        if ($exists) {
+            return response()->json([
+                'message' => 'You already have a card for "'.$phrase.'".',
+                'redirect' => '/cards/'.$exists->id,
+            ], 409);
+        }
+
+        $linkedIds = $card->linkedCards()->pluck('cards.id')->all();
+        $wordboxIds = $card->wordbox()->pluck('wordboxes.id')->all();
+
+        try {
+            $new = \Illuminate\Support\Facades\DB::transaction(function () use ($card, $phrase, $linkedIds, $wordboxIds) {
+                $new = Card::createFromPhrase(
+                    Auth::user(),
+                    $card->language,
+                    $phrase,
+                    // The old card's term is the word the learner set out to learn; the
+                    // stored `word` comes back in the form this phrase actually uses.
+                    $card->phrase,
+                    $card->context,
+                );
+
+                // The original must survive a failed generation.
+                if (is_null($new)) {
+                    throw new \RuntimeException('Could not generate the phrase card.');
+                }
+
+                $new->forceFill([
+                    'level' => $card->level,
+                    'last_studied' => $card->last_studied,
+                    'next_study_at' => $card->next_study_at,
+                    'note' => $card->note,
+                ])->save();
+
+                $new->wordbox()->sync($wordboxIds);
+
+                // Links are stored as two mirrored rows, so attach in both directions.
+                foreach ($linkedIds as $linkedId) {
+                    $new->linkedCards()->syncWithoutDetaching([$linkedId]);
+                    Card::find($linkedId)?->linkedCards()->syncWithoutDetaching([$new->id]);
+                }
+
+                // Detach every pivot row before deleting, so none is left orphaned.
+                $card->wordbox()->detach();
+                foreach ($linkedIds as $linkedId) {
+                    $card->linkedCards()->detach($linkedId);
+                    Card::find($linkedId)?->linkedCards()->detach($card->id);
+                }
+                $card->delete();
+
+                return $new;
+            });
+        } catch (\Throwable $e) {
+            logger('learnAsPhrase failed for card '.$card->id.': '.$e->getMessage());
+
+            return response()->json(['message' => 'There was an error while creating the card.'], 500);
+        }
+
+        return response()->json(['redirect' => '/cards/'.$new->id]);
     }
 
     /**

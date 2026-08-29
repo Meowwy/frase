@@ -74,7 +74,14 @@ Route::get('/', function () {
     $recentCards = Auth::user()->cards()
         ->latest()
         ->take(5)
-        ->get(['id', 'phrase', 'translation']);
+        ->get(['id', 'phrase', 'word', 'translation']);
+
+    // The card the learner just captured, flashed by AjaxController@index. Lets the
+    // dashboard offer the "learn it in a phrase instead" nudge at the moment of highest
+    // intent, instead of only on the card's own page.
+    $capturedCard = session('captured_card_id')
+        ? Auth::user()->cards()->find(session('captured_card_id'))
+        : null;
 
     $saveLanguage = Auth::user()->currentSaveLanguage();
     $saveLanguageId = $saveLanguage?->id;
@@ -98,6 +105,7 @@ Route::get('/', function () {
         'wordboxesByLanguage' => $wordboxesByLanguage,
         'dueLanguages' => $dueLanguages,
         'recentCards' => $recentCards,
+        'capturedCard' => $capturedCard,
         'saveLanguageId' => $saveLanguageId,
         'saveLanguageName' => $saveLanguageName,
         'saveWordboxId' => $saveWordboxId,
@@ -236,6 +244,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/cards/{card:id}/links', [CardController::class, 'link']);
     Route::delete('/cards/{card:id}/links/{other:id}', [CardController::class, 'unlink']);
     Route::post('/cards/{card:id}/note', [CardController::class, 'saveNote']);
+    // Replace a single-word card with one built around a phrase that word occurs in.
+    Route::post('/cards/{card:id}/learn-as-phrase', [CardController::class, 'learnAsPhrase']);
     Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
         if ($card) {

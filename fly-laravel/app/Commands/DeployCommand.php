@@ -31,40 +31,34 @@ class DeployCommand extends Command
      */
     public function handle()
     {
-        try
-        {
+        try {
             $process = Process::timeout(600)
-                              ->start("fly deploy", function (string $type, string $output) {
-                                  echo $output;
-                              });
+                ->start('fly deploy', function (string $type, string $output) {
+                    echo $output;
+                });
             $result = $process->wait()
-                              ->throw();
+                ->throw();
 
             $this->line($result->output());
 
-            //if --open is added, run 'fly open' before quitting.
-            if ($this->option('open'))
-            {
-                Process::run("fly open")
-                       ->throw();
-                $this->info("opened app.");
+            // if --open is added, run 'fly open' before quitting.
+            if ($this->option('open')) {
+                Process::run('fly open')
+                    ->throw();
+                $this->info('opened app.');
             }
-        }
-        catch (ProcessFailedException $e)
-        {
+        } catch (ProcessFailedException $e) {
             $this->error($e->result->errorOutput());
+
             return CommandAlias::FAILURE;
         }
 
-        //finalize
+        // finalize
         return CommandAlias::SUCCESS;
     }
 
     /**
      * Define the command's schedule.
-     *
-     * @param Schedule $schedule
-     * @return void
      */
     public function schedule(Schedule $schedule): void
     {

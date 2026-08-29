@@ -22,8 +22,8 @@ class SessionController extends Controller
     public function store(Request $request)
     {
         $attributes = request()->validate([
-           'email' => ['required','email'],
-           'password' => ['required'],
+            'email' => ['required', 'email'],
+            'password' => ['required'],
         ]);
 
         if (! Auth::attempt($attributes)) {

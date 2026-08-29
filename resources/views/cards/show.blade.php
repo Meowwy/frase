@@ -13,7 +13,11 @@
             {{-- An expression phrase ("can you hand me the ...") is far longer than a
                  lexical one, so the heading wraps instead of overflowing. --}}
             <div class="min-w-0 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span class="text-3xl sm:text-4xl font-bold break-words">{{$card->phrase}}</span>
+                {{-- font-medium, not font-bold: phraseHtml() bolds the focus word inside
+                     the phrase, which only reads as emphasis if the rest is lighter. The
+                     detail page underlines it too — this is the one place the card is
+                     read closely, so it's worth spelling out which word is being learnt. --}}
+                <span class="text-3xl sm:text-4xl font-medium break-words">{!! $card->phraseHtml('font-bold underline underline-offset-4') !!}</span>
                 <span class="ml-2 text-xl italic">{{$card->translation}}</span>
             </div>
             <div class="flex items-center gap-3 shrink-0">
@@ -31,18 +35,10 @@
             </div>
         </div>
 
-        <!-- Usage examples: short fragments, lexical cards only (an expression is
-             illustrated by its example sentence alone). -->
-        @php($examples = array_filter([$card->example_1, $card->example_2, $card->example_3]))
-        @if(!empty($examples) && $card->term_type !== \App\Models\Card::TYPE_EXPRESSION)
-            <div class="mb-6 flex flex-wrap gap-3">
-                @foreach($examples as $example)
-                    <div class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90">
-                        {{ $example }}
-                    </div>
-                @endforeach
-            </div>
-        @endif
+        <!-- Usage examples: natural phrases this word occurs in, on a single-word lexical
+             card only. Each one is clickable and replaces this card with one built around
+             that phrase. -->
+        <x-phrase-suggestions :card="$card"/>
 
         <!-- Definition Section -->
         <div class="mb-4">
@@ -181,7 +177,9 @@
                     const row =
                         '<tr class="group hover:bg-white/10 js-linked-row" data-linked-id="' + c.id + '">' +
                         '<td class="px-4 py-2 whitespace-nowrap font-medium text-white">' +
-                        '<a href="/cards/' + c.id + '" class="hover:underline">' + escapeHtml(c.phrase) + '</a></td>' +
+                        // phrase_html is built server-side (escaped there) so the focus
+                        // word stays bold, matching the rows rendered by _linked_rows.
+                        '<a href="/cards/' + c.id + '" class="hover:underline">' + (c.phrase_html || escapeHtml(c.phrase)) + '</a></td>' +
                         '<td class="px-4 py-2 text-gray-300">' + escapeHtml(c.translation) + '</td>' +
                         '<td class="w-8 px-4 py-2 text-right">' +
                         '<button type="button" class="js-unlink text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Unlink term">' +

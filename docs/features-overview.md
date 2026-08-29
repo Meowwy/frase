@@ -12,10 +12,17 @@ the app turns it into a flashcard.
 
 - **AI-assisted capture** (the main way): type a term on the dashboard, optionally add the
   sentence/context it was seen in so the AI captures the right sense/domain, and it comes back
-  with a corrected/canonicalized term, a definition, a translation, an example sentence, and
-  (for single-concept terms) three short usage-example fragments. The app automatically decides
-  whether it's a **lexical** term (a word/phrase you'd define) or an **expression** (a whole thing
-  you'd *say*) and tailors every field accordingly. See [ai-integration](ai-integration.md), [cards](cards.md).
+  with a corrected/canonicalized term, a definition, a translation and an example sentence. The
+  app decides on its own what kind of card you need — a single **word**, a **phrase**, or an
+  **expression** (a whole thing you'd *say*) — and tailors every field accordingly. A word you
+  typed in an inflected form is stored in its base form (`vetting` → `vet`), and the form you
+  typed still shows up in one of the suggested phrases.
+- **Learning a word inside a phrase**: a card built around a single word also suggests three
+  natural phrases that word appears in. Click one and the app builds a card around that phrase
+  instead — translating and defining the whole phrase, remembering which word you originally
+  wanted (shown in bold wherever the phrase appears), and carrying over your wordbox, note, links
+  and review progress. If you give context that already contains a phrase ("vet a candidate"), you
+  get the phrase card straight away. See [cards](cards.md).
 - **Manual capture** (`/add`, no AI): type every field yourself. Useful when you already know
   exactly what you want on the card.
 - **Browser extension**: capture a word from any webpage without visiting the site — same

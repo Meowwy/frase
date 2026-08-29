@@ -31,7 +31,7 @@ class UserFactory extends Factory
             'remember_token' => Str::random(10),
             'target_language' => 'English',
             'native_language' => 'Czech',
-            'currency_amount' => 100
+            'currency_amount' => 100,
         ];
     }
 

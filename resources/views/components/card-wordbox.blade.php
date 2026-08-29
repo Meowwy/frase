@@ -2,8 +2,8 @@
 <x-panel outline="orange" class="w-full">
     <div class="flex gap-3 justify-between items-center w-full">
         <div class="flex-grow min-w-0">
-            <a href="/cards/{{$card->id}}" class="flex gap-2 text-lg font-bold hover:text-blue-400 transition-colors">
-                <p class="truncate">{{$card->phrase}}</p>
+            <a href="/cards/{{$card->id}}" class="flex gap-2 text-lg font-medium hover:text-blue-400 transition-colors">
+                <p class="truncate">{!! $card->phraseHtml() !!}</p>
                 <p class="text-white/30">|</p>
                 <p class="truncate text-white/70 font-normal">{{$card->translation}}</p>
             </a>

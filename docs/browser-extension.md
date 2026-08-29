@@ -29,6 +29,11 @@ every request, unlike the website which can fall back to `session('capture_langu
   the shared endpoint already validates/honors `language_id`/`wordbox_id` in the request body and
   returns JSON (it branches on `$request->expectsJson()`), so nothing extra was needed to support
   the extension. See [cards](cards.md) "Capture flow" for exactly what this endpoint does.
+  **Note it makes two sequential model calls** (a shape router, then the content generator — see
+  [ai-integration](ai-integration.md) "Why two calls"), so the popup waits noticeably longer than a
+  single call; the first is deliberately kept tiny. The extension never sees the "learn it in a
+  phrase instead" nudge — that lives on the website's card page and dashboard — so a word captured
+  from the extension keeps its suggestions until the user next opens that card in Frase.
 - **`GET /api/save-options`** *(Sanctum)* — returns the flat list of save-destination options for
   the extension's own dropdown (it can't reuse the web `<x-wordbox-picker>` component, being a
   separate popup UI): one entry per language × (general vocabulary, then each of that language's

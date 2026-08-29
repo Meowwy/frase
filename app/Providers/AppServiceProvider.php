@@ -2,8 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\Card;
-use App\Policies\CardPolicy;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
