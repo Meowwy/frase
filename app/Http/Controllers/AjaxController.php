@@ -52,17 +52,43 @@ class AjaxController extends Controller
         }
         $wordbox = $this->resolveSaveWordbox($request, $user, $language);
 
-        if ($user->cards()->where('language_id', $language->id)->whereRaw('LOWER(phrase) = ?', [strtolower($phrase)])->exists()) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'This phrase already exists in your cards.'], 409);
-            }
+        // Duplicate check, pass 1: the term exactly as typed. Cheap, and it saves both AI
+        // calls whenever the learner re-captures a word they already have verbatim.
+        if ($duplicate = $user->cards()->forLanguage($language->id)->matchingTerm($phrase)->first()) {
+            session()->forget('capture_analysis');
 
-            return redirect('/');
+            return $this->duplicateResponse($request, $duplicate, $capturedWord, $context);
         }
-        // Two AI calls behind this: one to decide the card's shape and fix the term, one
-        // to write that shape's fields. See Card::createFromTerm / docs/ai-integration.md.
+
+        // Two AI calls behind a capture: one to decide the card's shape and fix the term,
+        // one to write that shape's fields. See docs/ai-integration.md. They are run
+        // separately here so the duplicate check can be repeated in between.
         try {
-            $newlyInsertedCard = Card::createFromTerm($user, $language, $capturedWord, $context);
+            $analysis = Card::analyze($language, $capturedWord, $context);
+        } catch (\Exception $e) {
+            logger('Term analysis threw for "'.$capturedWord.'": '.$e->getMessage());
+            $analysis = null;
+        }
+
+        if (is_null($analysis)) {
+            return $this->generationFailed($request);
+        }
+
+        // Duplicate check, pass 2: against the term call 1 settled on. A misspelling or an
+        // inflected form ("vettting", "vetting") only collides with the `vet` card the
+        // learner already has once it has been corrected, so pass 1 cannot see it.
+        if ($duplicate = $user->cards()->forLanguage($language->id)->matchingTerm($analysis['phrase'])->first()) {
+            // Keep call 1's answer so "Regenerate" doesn't have to pay for it again;
+            // CardController@regenerate consumes it. See docs/cards.md.
+            session()->put('capture_analysis', ['card_id' => $duplicate->id, 'analysis' => $analysis]);
+
+            return $this->duplicateResponse($request, $duplicate, $capturedWord, $context);
+        }
+
+        session()->forget('capture_analysis');
+
+        try {
+            $newlyInsertedCard = Card::createFromAnalysis($user, $language, $analysis, $context);
         } catch (\Exception $e) {
             logger('Card creation threw for "'.$capturedWord.'": '.$e->getMessage());
             $newlyInsertedCard = null;
@@ -70,11 +96,7 @@ class AjaxController extends Controller
 
         // A model refusal, a failed request or an unparseable answer all arrive as null.
         if (is_null($newlyInsertedCard)) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'There was an error while creating the card.'], 500);
-            }
-
-            return redirect('/')->with('popup_message', 'There was an error while creating the card. Click OK to continue.');
+            return $this->generationFailed($request);
         }
 
         if ($wordbox) {
@@ -88,6 +110,41 @@ class AjaxController extends Controller
         // Flashed so the dashboard can offer the "learn it in a phrase instead" nudge on
         // a single-word card, right at the moment the learner just captured it.
         return redirect('/')->with('captured_card_id', $newlyInsertedCard->id);
+    }
+
+    /**
+     * The learner already has a card for this term. Nothing is saved: a JSON/extension
+     * caller gets a 409, and the form gets a redirect flashing the card that's in the
+     * way, which the dashboard turns into a dialog offering to regenerate it.
+     *
+     * `term` is what they actually typed. It can differ from the card's phrase — pass 2
+     * of the check runs against the term call 1 corrected it to — so the dialog can say
+     * which existing card their input resolved to rather than just repeating it back.
+     */
+    private function duplicateResponse(Request $request, Card $duplicate, string $term, ?string $context)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'This phrase already exists in your cards.'], 409);
+        }
+
+        return redirect('/')->with('duplicate_capture', [
+            'id' => $duplicate->id,
+            'phrase' => $duplicate->phrase,
+            'term' => $term,
+            'context' => $context,
+        ]);
+    }
+
+    /**
+     * Either AI call came back null (refusal, non-2xx, unparseable answer).
+     */
+    private function generationFailed(Request $request)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'There was an error while creating the card.'], 500);
+        }
+
+        return redirect('/')->with('popup_message', 'There was an error while creating the card. Click OK to continue.');
     }
 
     /**

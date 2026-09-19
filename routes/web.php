@@ -83,6 +83,10 @@ Route::get('/', function () {
         ? Auth::user()->cards()->find(session('captured_card_id'))
         : null;
 
+    // The term the learner just tried to capture but already has, flashed by
+    // AjaxController@index — drives the duplicate dialog (cancel / regenerate).
+    $duplicateCapture = session('duplicate_capture');
+
     $saveLanguage = Auth::user()->currentSaveLanguage();
     $saveLanguageId = $saveLanguage?->id;
     $saveLanguageName = $saveLanguage?->name;
@@ -106,6 +110,7 @@ Route::get('/', function () {
         'dueLanguages' => $dueLanguages,
         'recentCards' => $recentCards,
         'capturedCard' => $capturedCard,
+        'duplicateCapture' => $duplicateCapture,
         'saveLanguageId' => $saveLanguageId,
         'saveLanguageName' => $saveLanguageName,
         'saveWordboxId' => $saveWordboxId,
@@ -246,6 +251,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/cards/{card:id}/note', [CardController::class, 'saveNote']);
     // Replace a single-word card with one built around a phrase that word occurs in.
     Route::post('/cards/{card:id}/learn-as-phrase', [CardController::class, 'learnAsPhrase']);
+    // Rewrite a card's AI content in place — the duplicate-term dialog's "Regenerate".
+    Route::post('/cards/{card:id}/regenerate', [CardController::class, 'regenerate']);
     Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
         if ($card) {

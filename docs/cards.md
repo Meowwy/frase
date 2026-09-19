@@ -131,18 +131,31 @@ Steps for the AI-assisted path, in order:
    session `capture_wordbox_id` → none). If there's no language to save into (new user, no
    languages configured yet), redirect to `/profile/edit` (or return 422 for a JSON/extension
    caller). See [multi-language](multi-language.md) for the save-destination picker itself.
-3. **Duplicate check**: case-insensitive `phrase` match within the same language — a 409 (or a
-   plain redirect) if it already exists. Note this checks the term *as typed*, before the AI
-   canonicalizes it, so `vetting` doesn't collide with an existing `vet` card.
-4. Hand off to **`Card::createFromTerm()`**, which runs the two AI calls and writes the row — see
-   [ai-integration](ai-integration.md). Everything from here down lives on the model, not the
-   controller, so the "learn it in a phrase instead" path can reuse it.
-5. `null` from either call (refusal, non-2xx, unparseable answer) → a 500 for a JSON caller, or a
+3. **Duplicate check, pass 1** — the term exactly as typed (see "The duplicate check" below).
+   A hit means a 409 for a JSON caller, or a redirect to `/` flashing `duplicate_capture`
+   (`id`/`phrase`/`term`/`context`) for the form; see "Capturing a duplicate" below. Both AI
+   calls are skipped, which is the point of doing this pass first.
+4. **`Card::analyze()`** — call 1 on its own (`AI::analyzeTerm`): the card's shape plus the exact
+   phrase it will be built around.
+5. **Duplicate check, pass 2** — the same check against the phrase call 1 settled on. A
+   misspelling or an inflected form (`vettting`, `vetting` against an existing `vet` card) is a
+   different string from everything the learner has until call 1 corrects it, so pass 1 cannot
+   see it. On a hit, call 1's result is stashed in the session as `capture_analysis`
+   (`{card_id, analysis}`) so "Regenerate" doesn't have to pay for it again, and the same
+   duplicate response goes out. Call 2 is never spent on a card that won't be written.
+6. **`Card::createFromAnalysis()`** — call 2 + the write — see [ai-integration](ai-integration.md).
+   Everything from step 4 down lives on the model, not the controller, so the "learn it in a
+   phrase instead" path can reuse it.
+7. `null` from either call (refusal, non-2xx, unparseable answer) → a 500 for a JSON caller, or a
    redirect with a `popup_message`. The controller no longer tries to parse a failed response.
-6. Otherwise attach the resolved wordbox if one was chosen, and redirect to `/` flashing
+8. Otherwise attach the resolved wordbox if one was chosen, and redirect to `/` flashing
    `captured_card_id` so the dashboard can show the phrase nudge (below).
 
-`Card::createFromTerm()` itself: call 1 (`AI::analyzeTerm`) → route to the matching call 2 → persist
+`Card::analyze()` + `Card::createFromAnalysis()` together are the old `Card::createFromTerm()`, split
+in two at the point the duplicate check needs to run. (`createFromTerm()` itself is gone rather than
+kept as an unused wrapper — the web form and the extension share `AjaxController@index`, so there
+was no caller left that skips the check.) The pipeline is unchanged: call 1 (`AI::analyzeTerm`) →
+route to the matching call 2 → persist
 via the private `Card::persist()`, which maps the AI response onto the columns, dispatches
 `GenerateEmbeddingJob` (see [search-and-linking](search-and-linking.md)) and leaves `theme_id` null
 (the AI no longer assigns a theme at capture time — see
@@ -155,6 +168,76 @@ via the private `Card::persist()`, which maps the AI response onto the columns, 
   (`"a rooted [tree] with three levels"`), and since a fragment can become another card's `phrase`,
   a bracket there would travel into a sentence that must bracket exactly once and quietly break
   that card's Sentences modes.
+
+## The duplicate check
+
+`Card::scopeMatchingTerm($term)` is the single definition of "the learner already has this": a
+case-insensitive match, within one language, against **both `phrase` and `word`**.
+
+`word` is in there because it holds the form the learner actually met the term in — and so
+typically the form they type back into the capture box. A card built around `vetting candidates`
+with `word = "vetting"` **is** their card for `vetting`; making a second one would split one
+term's review history in two. `word` is null on word and expression cards, where `phrase` is the
+target and carries the match on its own.
+
+The check runs **twice** per capture, on the same rule:
+
+| | input | catches | cost |
+|---|---|---|---|
+| pass 1 | the term as typed | an exact re-capture | free — both AI calls skipped |
+| pass 2 | `analyze()`'s canonical phrase | a typo or an inflected form (`vettting` → `vet`) | call 1, which was going to happen anyway |
+
+Pass 1 alone is not enough — it can only compare strings the learner happened to type correctly.
+Pass 2 alone would work but would spend a model call on every exact re-capture. Neither pass runs
+inside `Card::regenerate()`, so a regeneration can't bounce back into the dialog that launched it.
+
+## Capturing a duplicate (the regenerate flow)
+
+A repeat capture used to redirect to `/` and change nothing visible, which reads as the app
+swallowing the word. It now flashes `duplicate_capture` and the dashboard opens a **modal** over
+the content (the shared `<x-modal>` — see [frontend-patterns](frontend-patterns.md)) naming the
+term, linking to the card that already exists, and offering exactly two options: **Cancel**, or
+**Regenerate**.
+
+The flash carries `term` (what was typed) as well as `phrase` (the card in the way). When pass 2
+fired they differ, and the dialog says so — otherwise a learner who typed `vettting` is told they
+already have a term they never typed, with no way to connect the two.
+
+Regenerate posts to `POST /cards/{card:id}/regenerate` (`CardController@regenerate`, authorized
+via `CardPolicy` `update`) and redirects to the card. It carries the capture's `context` if the
+learner typed one, and otherwise falls back to the card's stored `context`, so a regeneration
+keeps the sense the card was originally captured in.
+
+**Call 1 is not paid for twice.** When the capture reached pass 2 it already has call 1's answer,
+stashed in the session as `capture_analysis`; the endpoint `pull()`s it (so it is consumed, never
+reusable later) and passes it down. `Card::regenerate()` accepts it only when its phrase matches
+this card's own — otherwise, and when the dialog came from pass 1 where no analysis exists, it
+runs `analyze()` on the card's own `phrase`. That is safe precisely because `phrase` is already
+the canonical form call 1 settled on, so the card is rebuilt around the same term either way.
+Storing it server-side rather than round-tripping it through the page keeps a model-shaped
+payload out of client hands, where it would have to be re-validated before use.
+
+**The card is rewritten in place, not replaced** — `Card::regenerate()` re-runs the same two-call
+pipeline as a fresh capture and `update()`s only the AI-written columns. That is the whole point
+of the shape: `level`, `last_studied`, `next_study_at`, the `note`, the wordbox pivot and every
+manual link are never touched, so nothing the learner built up around the card is lost. Contrast
+`learnAsPhrase` below, which *does* create a new row and therefore has to copy all of that over by
+hand.
+
+Mechanically, the capture pipeline is broken into pieces both paths share:
+
+- `Card::analyze()` — call 1 alone (above);
+- `Card::generateContent()` — call 2, returning `phrase` / `word` / `term_type` / the raw
+  `content` without writing anything;
+- `Card::contentColumns()` — the response → column mapping (including the examples cleanup
+  described under the capture flow). It deliberately covers **only** what the AI writes: no
+  `level`, no `next_study_at`, no `note`. `persist()` adds those for a new card; `regenerate()`
+  hands the array straight to `update()`, which is what makes "keep the progress" a property of
+  the mapping rather than a list of fields someone has to remember to exclude.
+
+A `null` from either call returns `false` and leaves the card exactly as it was. The embedding is
+re-dispatched, since the content it described has changed (see
+[search-and-linking](search-and-linking.md)).
 
 ## Learning a word inside a phrase (the replacement flow)
 
@@ -209,6 +292,14 @@ sentence itself is AI-generated (ultimately from user input, see [ai-integration
 never be trusted as pre-sanitized HTML. `SeachController::index`/`searchWordbox` do the same for
 their own copies of this highlight logic.
 
+The top row holds the **back** link on the left and **previous card** / **next card** arrows on
+the right, same style as back. `show()` resolves the two neighbours as the user's adjacent cards
+**in this card's language**, ordered by descending id — ids are monotonic with insertion, so that
+is the order `/cards` lists them in, and "previous" is the row above there while "next" is the row
+below. The nav deliberately ignores the list's wordbox/type/search filters; it walks the language,
+not whatever view the learner arrived from. At either end the missing arrow is still rendered, just
+dimmed and non-clickable, so the row doesn't shift as the learner walks the list.
+
 Renders: `term_type` as small lowercase text left of the language flag; `<x-phrase-suggestions>`
 below the term (see the replacement flow above — nothing for a phrase or expression card); the
 bracketed `example_sentence` as plain text (bracket markers highlighted, no bullets); the `note` if
@@ -249,8 +340,8 @@ before the policy existed):
 
 A single endpoint serves **both** the full page and its live updates: a normal request renders
 `cards/index.blade.php` (the shared `<x-wordbox-picker>` — see [multi-language](multi-language.md) — plus a table
-whose **Term**/**Definition** column headers are themselves live search `<input>`s, and a
-**Wordbox** column); an AJAX request (`$request->ajax()`) returns JSON `{rows, pagination}`
+whose **Term**/**Definition** column headers are themselves live search `<input>`s, plus plain
+**Translation** and **Wordbox** headers); an AJAX request (`$request->ajax()`) returns JSON `{rows, pagination}`
 rendered from the `cards/_rows.blade.php` partial, which the page swaps into `#cardsTableBody` /
 `#cardsPagination` — the header inputs stay in the DOM the whole time, so focus is preserved
 while typing.
@@ -263,8 +354,9 @@ Filters, all combinable and all preserved across pagination via `->appends($requ
 - `type` — one of `Card::TERM_TYPES` or `both` (default, no constraint). Rendered as a
   **3-option segmented control** (`#typeFilter`: Lexical | Both | Expressions) at the **left** of
   the bulk-action bar row (which stays right-aligned). This is a filter only — term type is
-  **not** a table column, so `cards/_rows.blade.php` keeps a fixed 5 columns regardless (and its
-  `@empty` row's hardcoded `colspan="5"`).
+  **not** a table column, so `cards/_rows.blade.php` keeps a fixed 6 columns regardless (checkbox,
+  Term, Translation, Definition, Wordbox, row menu — and its `@empty` row's hardcoded
+  `colspan="6"`, which has to be kept in step with them).
 - `term` — substring match (`LIKE %…%`) against `phrase`.
 - `definition` — substring match against `definition`.
 - Search inputs are debounced ~250ms client-side before firing the AJAX request.

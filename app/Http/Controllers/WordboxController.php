@@ -48,7 +48,11 @@ class WordboxController extends Controller
             ->where('language_id', $language->id)
             ->max('position') + 1;
 
-        $wordbox = $user->wordboxes()->create($request->safe()->only(['name', 'description']) + [
+        $wordbox = $user->wordboxes()->create($request->safe()->only(['name']) + [
+            // `description` and `exam_text` are both NOT NULL with no default. An empty
+            // description textarea arrives as null (ConvertEmptyStringsToNull), which the
+            // column rejects — coalesce to '' rather than let the insert 500.
+            'description' => $request->input('description') ?? '',
             'exam_text' => '',
             'language_id' => $language->id,
             'position' => $nextPosition,

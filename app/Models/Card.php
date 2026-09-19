@@ -61,6 +61,25 @@ class Card extends Model
         return $query->where('language_id', $languageId);
     }
 
+    /**
+     * Does the learner already have a card for this term? Matches case-insensitively
+     * against **both** `phrase` and `word`.
+     *
+     * `word` is in there because it holds the form the learner actually met — and so
+     * typically the form they type into the capture box. A card built around "vetting
+     * candidates" with `word = "vetting"` IS their card for "vetting", and offering to
+     * make a second one would split one term's review history in two. `word` is null on
+     * word and expression cards, where `phrase` is the target and carries the match.
+     */
+    public function scopeMatchingTerm($query, string $term)
+    {
+        $needle = mb_strtolower(trim($term));
+
+        return $query->where(fn ($q) => $q
+            ->whereRaw('LOWER(phrase) = ?', [$needle])
+            ->orWhereRaw('LOWER(word) = ?', [$needle]));
+    }
+
     public function wordbox()
     {
         return $this->belongsToMany(Wordbox::class, 'wordbox_card', 'card_id', 'wordbox_id');
@@ -148,18 +167,26 @@ class Card extends Model
     }
 
     /**
-     * AI-assisted capture: the full two-call pipeline.
+     * AI-assisted capture, step 1 of 2. Call 1 (`AI::analyzeTerm`) decides which of the
+     * three card shapes the term needs and fixes the exact phrase the card is built
+     * around; createFromAnalysis() then writes that shape's fields. Splitting the two
+     * calls is what lets each shape have its own strict output schema, and it means
+     * `phrase` is an INPUT to the content call, so the term can no longer drift into a
+     * different one.
      *
-     * Call 1 (`AI::analyzeTerm`) decides which of the three card shapes the term needs
-     * and fixes the exact phrase the card is built around; call 2 writes that shape's
-     * fields. Splitting them is what lets each shape have its own strict output schema,
-     * and it means `phrase` is an INPUT to the content call, so the term can no longer
-     * drift into a different one.
+     * The two steps are separately callable so the capture flow can run its duplicate
+     * check against the CANONICAL phrase as well as the typed one. A learner who types
+     * `vettting` or `vetting` for a `vet` card they already have looks like a new term
+     * until call 1 corrects the spelling and the inflection — only this step knows they
+     * collide. The result is handed straight on to createFromAnalysis() (or kept for
+     * regenerate()), so catching a duplicate here costs nothing beyond the call that was
+     * going to happen anyway.
      *
-     * Returns null if either call fails, so the caller can show a plain retry message
-     * rather than a 500 — see docs/overview.md's AI-failure convention.
+     * Returns null on a refusal, a failed request or an answer with no usable phrase, so
+     * the caller can show a plain retry message rather than a 500 — see docs/overview.md's
+     * AI-failure convention.
      */
-    public static function createFromTerm(User $user, Language $language, string $term, ?string $context = null): ?self
+    public static function analyze(Language $language, string $term, ?string $context = null): ?array
     {
         $analysis = AI::analyzeTerm($term, $language->name, $context);
 
@@ -175,9 +202,98 @@ class Card extends Model
             return null;
         }
 
-        $kind = $analysis['card_kind'] ?? 'word';
-        $focusWord = self::cleanOptional($analysis['word'] ?? null);
-        $submittedForm = self::cleanOptional($analysis['submitted_form'] ?? null);
+        return [
+            'phrase' => $phrase,
+            'kind' => $analysis['card_kind'] ?? 'word',
+            'focus_word' => self::cleanOptional($analysis['word'] ?? null),
+            'submitted_form' => self::cleanOptional($analysis['submitted_form'] ?? null),
+        ];
+    }
+
+    /**
+     * AI-assisted capture, step 2 of 2: call 2 + the write, for an analysis that has
+     * already come back from analyze().
+     */
+    public static function createFromAnalysis(User $user, Language $language, array $analysis, ?string $context = null): ?self
+    {
+        $generated = self::generateContent($user, $language, $analysis, $context);
+
+        if (is_null($generated)) {
+            return null;
+        }
+
+        return self::persist(
+            user: $user,
+            language: $language,
+            phrase: $generated['phrase'],
+            word: $generated['word'],
+            termType: $generated['term_type'],
+            context: $context,
+            content: $generated['content'],
+        );
+    }
+
+    /**
+     * Re-run the capture pipeline for a term the learner already has and overwrite this
+     * card's generated content in place — the "Regenerate" option on the duplicate-term
+     * dialog. Only the AI-written columns are rewritten, so everything the learner has
+     * built up around the card (SRS level and schedule, the note, its wordbox, every
+     * manual link) survives untouched.
+     *
+     * `$analysis` is call 1's answer from the capture that hit the duplicate, handed back
+     * so "Regenerate" doesn't pay for the same call twice. It is only trusted when it
+     * really describes THIS card's term; otherwise the card's own `phrase` goes back
+     * through call 1, which is safe because it is already the canonical form call 1
+     * settled on, so the regenerated card is built around the same thing. Either way
+     * regeneration never runs the duplicate check itself, so it cannot bounce back into
+     * the dialog it was launched from.
+     *
+     * Returns false if either call fails, leaving the card exactly as it was.
+     */
+    public function regenerate(?string $context = null, ?array $analysis = null): bool
+    {
+        if (is_null($analysis) || mb_strtolower($analysis['phrase']) !== mb_strtolower($this->phrase)) {
+            $analysis = self::analyze($this->language, $this->phrase, $context);
+        }
+
+        if (is_null($analysis)) {
+            return false;
+        }
+
+        $generated = self::generateContent($this->user, $this->language, $analysis, $context);
+
+        if (is_null($generated)) {
+            return false;
+        }
+
+        $this->update(self::contentColumns(
+            phrase: $generated['phrase'],
+            word: $generated['word'],
+            termType: $generated['term_type'],
+            context: $context,
+            content: $generated['content'],
+        ));
+
+        // The content it was built from has changed, so the old embedding no longer
+        // describes this card — see docs/search-and-linking.md.
+        GenerateEmbeddingJob::dispatch($this);
+
+        logger('Card '.$this->id.' has been regenerated for '.$this->phrase);
+
+        return true;
+    }
+
+    /**
+     * Call 2, without writing anything: takes an analyze() result and returns the
+     * resolved phrase, focus word and term type alongside the raw content response, so
+     * the same step can either create a new card or rewrite an existing one.
+     */
+    private static function generateContent(User $user, Language $language, array $analysis, ?string $context): ?array
+    {
+        $phrase = $analysis['phrase'];
+        $kind = $analysis['kind'];
+        $focusWord = $analysis['focus_word'];
+        $submittedForm = $analysis['submitted_form'];
 
         $nativeLanguage = self::nativeLanguageFor($user, $language);
         // A learner is not "learning" their own language, so no CEFR steering there.
@@ -193,18 +309,15 @@ class Card extends Model
             return null;
         }
 
-        return self::persist(
-            user: $user,
-            language: $language,
-            phrase: $phrase,
+        return [
+            'phrase' => $phrase,
             // Only a phrase card has a focus word inside it; a word card IS the word.
-            word: $kind === 'phrase'
+            'word' => $kind === 'phrase'
                 ? self::resolveFocusWord($content['word'] ?? $focusWord, $phrase)
                 : null,
-            termType: $kind === 'expression' ? self::TYPE_EXPRESSION : self::TYPE_LEXICAL,
-            context: $context,
-            content: $content,
-        );
+            'term_type' => $kind === 'expression' ? self::TYPE_EXPRESSION : self::TYPE_LEXICAL,
+            'content' => $content,
+        ];
     }
 
     /**
@@ -247,6 +360,28 @@ class Card extends Model
      */
     private static function persist(User $user, Language $language, string $phrase, ?string $word, string $termType, ?string $context, array $content): self
     {
+        $card = $user->cards()->create(
+            self::contentColumns($phrase, $word, $termType, $context, $content) + [
+                'language_id' => $language->id,
+                'level' => 1,
+                'next_study_at' => now(),
+            ]
+        );
+
+        GenerateEmbeddingJob::dispatch($card);
+
+        logger('Card has been created for '.$phrase);
+
+        return $card;
+    }
+
+    /**
+     * Map one generated card onto its columns. Deliberately covers ONLY what the AI
+     * writes — no `level`, `next_study_at` or `note` — so regenerate() can hand the
+     * result straight to update() without touching the learner's own progress.
+     */
+    private static function contentColumns(string $phrase, ?string $word, string $termType, ?string $context, array $content): array
+    {
         // Only a word card has these. Drop blanks so a stray [""] from the model doesn't
         // become an empty example box on the card page.
         //
@@ -264,12 +399,10 @@ class Card extends Model
             fn ($example) => $example !== ''
         ));
 
-        $card = $user->cards()->create([
+        return [
             'phrase' => $phrase,
             'word' => $word,
             'term_type' => $termType,
-            'language_id' => $language->id,
-            'level' => 1,
             // '' for a native-language card, whose schema has no translation at all.
             'translation' => $content['translation'] ?? '',
             // These columns are NOT NULL, so coalesce to an empty string.
@@ -279,14 +412,7 @@ class Card extends Model
             'example_2' => $examples[1] ?? null,
             'example_3' => $examples[2] ?? null,
             'context' => $context,
-            'next_study_at' => now(),
-        ]);
-
-        GenerateEmbeddingJob::dispatch($card);
-
-        logger('Card has been created for '.$phrase);
-
-        return $card;
+        ];
     }
 
     /**

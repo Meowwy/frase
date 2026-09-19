@@ -1,12 +1,51 @@
-@props(["card", "theme", "wordbox", "linkedCards"])
+@props(["card", "theme", "wordbox", "linkedCards", "previousCard", "nextCard"])
 <x-html-layout>
     <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg" id="cardShow" data-card-id="{{ $card->id }}">
-        <a href="/cards" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-6">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-            </svg>
-            <span>back</span>
-        </a>
+        {{-- Back on the left, the prev/next walk through this language's cards on the
+             right — same order /cards lists them in. A missing neighbour stays rendered
+             but dimmed, so the row doesn't shift as the learner walks the list. --}}
+        <div class="mb-6 flex items-center justify-between gap-3">
+            <a href="/cards" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                <span>back</span>
+            </a>
+
+            <div class="flex items-center gap-5">
+                @if($previousCard)
+                    <a href="/cards/{{ $previousCard->id }}" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        <span>previous card</span>
+                    </a>
+                @else
+                    <span class="inline-flex items-center gap-1 text-white/25 cursor-default">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        <span>previous card</span>
+                    </span>
+                @endif
+
+                @if($nextCard)
+                    <a href="/cards/{{ $nextCard->id }}" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
+                        <span>next card</span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </a>
+                @else
+                    <span class="inline-flex items-center gap-1 text-white/25 cursor-default">
+                        <span>next card</span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </span>
+                @endif
+            </div>
+        </div>
 
         <!-- Main Term Section -->
         <div class="mb-6 flex items-baseline justify-between gap-3">

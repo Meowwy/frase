@@ -27,7 +27,12 @@ the app turns it into a flashcard.
   exactly what you want on the card.
 - **Browser extension**: capture a word from any webpage without visiting the site — same
   AI-assisted flow, in a popup. See [browser-extension](browser-extension.md).
-- Duplicate terms (same phrase, same language) are rejected rather than creating a second card.
+- **Capturing a term you already have** never creates a second card. A dialog says so and offers
+  to **regenerate** the existing card — fresh translation, definition and examples, while your
+  review progress, note and linked cards stay as they are. It recognises the term you already
+  have even when you typed it differently: a misspelling or an inflected form is checked again
+  after the AI corrects it, and a word you're learning inside a phrase counts as saved too (a
+  card for "vetting candidates" is already your card for "vetting").
 
 ## Multi-language vocabulary
 
@@ -43,8 +48,10 @@ the app turns it into a flashcard.
 
 `/cards` — every saved term in one searchable, filterable table: filter by language, by wordbox
 (or "general vocabulary" = no wordbox), by term type (lexical/expression/both), and search by
-term or definition text as you type. Select multiple cards to bulk-delete or bulk-move them into
-a wordbox. See [cards](cards.md).
+term or definition text as you type. Each row shows the term, its translation, its definition and
+its wordbox. Select multiple cards to bulk-delete or bulk-move them into a wordbox. Opening a card
+gives you **previous/next** arrows to walk that language's terms in the same order the list shows
+them, without going back to the list each time. See [cards](cards.md).
 
 ## Wordboxes & themes
 

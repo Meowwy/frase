@@ -7,8 +7,9 @@
         </td>
         {{-- No nowrap: an expression frame ("can you hand me the ...") would stretch the column. --}}
         <td class="px-6 py-2 text-sm text-white">{!! $card->phraseHtml() !!}</td>
+        <td class="px-6 py-2 text-sm text-gray-300">{{ $card->translation }}</td>
         <td class="px-6 py-2 text-sm text-gray-300">
-            <div class="max-w-xs truncate" title="{{ $card->definition }}">{{ $card->definition }}</div>
+            <div class="max-w-[14rem] truncate" title="{{ $card->definition }}">{{ $card->definition }}</div>
         </td>
         <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300">{{ $card->wordbox->first()?->name }}</td>
         <td class="w-10 px-4 py-2 text-right relative js-card-actions">
@@ -28,6 +29,6 @@
     </tr>
 @empty
     <tr>
-        <td colspan="5" class="px-6 py-6 text-center text-sm text-gray-400">No terms found.</td>
+        <td colspan="6" class="px-6 py-6 text-center text-sm text-gray-400">No terms found.</td>
     </tr>
 @endforelse

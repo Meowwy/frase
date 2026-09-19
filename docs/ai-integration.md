@@ -226,9 +226,10 @@ These rules exist because of specific observed failures, and removing one reopen
   written into `analyzeTerm`'s `phrase` description, which otherwise lifts whole clauses out of a
   sentence the learner pasted as context.
 
-Both callers are on the `Card` model, not in a controller — `Card::createFromTerm()` (call 1 + call
-2) and `Card::createFromPhrase()` (call 2 only, for the suggestion-click path). See
-[cards](cards.md).
+Both callers are on the `Card` model, not in a controller — `Card::analyze()` +
+`Card::createFromAnalysis()` (call 1 then call 2, run as two steps so the capture flow can re-check
+for a duplicate against the term call 1 settled on) and `Card::createFromPhrase()` (call 2 only,
+for the suggestion-click path). See [cards](cards.md).
 
 ### CEFR level and the `definition` language
 
@@ -378,5 +379,5 @@ of a 500.
 The card-creation path used to be the exception — its three generators checked nothing and returned
 a raw string, and `AjaxController` had its `return` on a null response **commented out**, so a
 failed call fell through into `trim(null)` and surfaced as a generic caught error. Both are fixed:
-`requestCardJson()` does the checking for all four calls, and a `null` from `Card::createFromTerm()`
-is now handled explicitly.
+`requestCardJson()` does the checking for all four calls, and a `null` from either step of the
+capture pipeline is now handled explicitly.

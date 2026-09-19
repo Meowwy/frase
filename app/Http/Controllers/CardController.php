@@ -152,11 +152,21 @@ class CardController extends Controller
         $card->load('language');
         $wordbox = $card->wordbox()->first();
 
+        // Neighbours for the prev/next arrows: the user's other cards in this card's
+        // language, newest first — the same order /cards lists them in, so "previous"
+        // is the row above there and "next" the row below. Ids are monotonic with
+        // insertion, so they stand in for created_at without needing a tie-breaker.
+        $neighbours = Auth::user()->cards()->where('language_id', $card->language_id);
+        $previousCard = (clone $neighbours)->where('id', '>', $card->id)->orderBy('id')->first(['id']);
+        $nextCard = (clone $neighbours)->where('id', '<', $card->id)->orderByDesc('id')->first(['id']);
+
         return view('cards.show', [
             'card' => $card,
             'theme' => $theme,
             'wordbox' => $wordbox,
             'linkedCards' => $linkedCards,
+            'previousCard' => $previousCard,
+            'nextCard' => $nextCard,
         ]);
     }
 
@@ -302,6 +312,38 @@ class CardController extends Controller
         }
 
         return response()->json(['redirect' => '/cards/'.$new->id]);
+    }
+
+    /**
+     * Regenerate a card's AI-written content — the "Regenerate" option on the
+     * duplicate-term dialog, shown when the learner captures a term they already have.
+     *
+     * The card is rewritten in place rather than replaced, so its SRS progress, note,
+     * wordbox and manual links all survive; see Card::regenerate().
+     */
+    public function regenerate(\Illuminate\Http\Request $request, Card $card)
+    {
+        $this->authorize('update', $card);
+
+        // Same bounds as the capture form's context input (AjaxController@index).
+        $data = $request->validate(['context' => ['nullable', 'string', 'min:2', 'max:250']]);
+
+        // With no fresh context, fall back to the one the card was captured with, so a
+        // regeneration keeps the sense the learner originally meant.
+        $context = $request->filled('context') ? trim($data['context']) : $card->context;
+
+        // Call 1's answer from the capture that hit the dialog, if that capture got far
+        // enough to make one. Reusing it means "Regenerate" costs one model call instead
+        // of two. It is always consumed, so a stale one can't be reused later, and
+        // Card::regenerate() ignores it unless it describes this card's own term.
+        $pending = session()->pull('capture_analysis');
+        $analysis = ($pending && $pending['card_id'] === $card->id) ? $pending['analysis'] : null;
+
+        if (! $card->regenerate($context, $analysis)) {
+            return response()->json(['message' => 'There was an error while regenerating the card.'], 500);
+        }
+
+        return response()->json(['redirect' => '/cards/'.$card->id]);
     }
 
     /**

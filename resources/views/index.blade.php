@@ -150,6 +150,62 @@
             @endif
         </section>
 
+        {{-- Captured a term that's already saved. Rather than bouncing back to an
+             unchanged dashboard, say so in a dialog and offer to regenerate the existing
+             card — which rewrites only its AI content, keeping SRS progress, note,
+             wordbox and links (see CardController@regenerate). --}}
+        @if($duplicateCapture)
+            @php
+                // The second duplicate check runs on the term the AI corrected, so what
+                // was typed can differ from the card that's in the way — say so, or the
+                // learner has no idea why "vettting" came back as a duplicate.
+                $duplicateTerm = $duplicateCapture['term'] ?? $duplicateCapture['phrase'];
+                $duplicateResolved = mb_strtolower($duplicateTerm) !== mb_strtolower($duplicateCapture['phrase']);
+            @endphp
+            <x-modal name="duplicate-term" title="You already have this term">
+                <p class="mb-2">
+                    @if($duplicateResolved)
+                        <span class="font-bold">{{ $duplicateTerm }}</span> is
+                        <a href="/cards/{{ $duplicateCapture['id'] }}" class="font-bold hover:underline">{{ $duplicateCapture['phrase'] }}</a>,
+                        which is already in your vocabulary — nothing was saved.
+                    @else
+                        <a href="/cards/{{ $duplicateCapture['id'] }}" class="font-bold hover:underline">{{ $duplicateCapture['phrase'] }}</a>
+                        is already in your vocabulary, so nothing was saved.
+                    @endif
+                </p>
+                <p class="mb-6 text-sm text-white/60">
+                    Regenerating rewrites the card's translation, definition and examples.
+                    Your review progress, note and linked cards are kept.
+                </p>
+                <div class="flex justify-end gap-x-2">
+                    <x-forms.button type="button" class="bg-gray-600 hover:bg-gray-500"
+                                    onclick="closeModal('duplicate-term')">Cancel</x-forms.button>
+                    <x-forms.button type="button" id="regenerateDuplicate">Regenerate</x-forms.button>
+                </div>
+            </x-modal>
+
+            <script>
+                $(document).ready(function () {
+                    openModal('duplicate-term');
+
+                    $('#regenerateDuplicate').on('click', function () {
+                        const $btn = $(this).prop('disabled', true).text('Regenerating…');
+
+                        $.post('/cards/{{ $duplicateCapture['id'] }}/regenerate', {
+                            context: @json($duplicateCapture['context']),
+                            _token: '{{ csrf_token() }}'
+                        }, function (data) {
+                            window.location = data.redirect;
+                        }).fail(function (xhr) {
+                            const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not regenerate that card.';
+                            if (window.toastr) { toastr.error(msg); }
+                            $btn.prop('disabled', false).text('Regenerate');
+                        });
+                    });
+                });
+            </script>
+        @endif
+
         {{-- Nudge right after capture: a single-word card can be traded for one built
              around a phrase that word occurs in. Renders nothing for phrase/expression
              cards, since those carry no suggestions. --}}

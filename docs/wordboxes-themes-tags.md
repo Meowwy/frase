@@ -16,6 +16,10 @@ treats a card as belonging to at most one at a time by `sync()`-ing rather than 
   multi-language user picked a language in the creation modal it's validated against their
   attached languages; otherwise it falls back to `currentSaveLanguage()`. `position` is set to
   `max(position) + 1` within that language, so new wordboxes append to the end of the ordering.
+  **`description` and `exam_text` are both `NOT NULL` with no DB default**, and an empty
+  description textarea reaches the controller as `null` (Laravel's `ConvertEmptyStringsToNull`),
+  so `store()` coalesces both to `''`. Leaving `description` out of the insert — or passing the
+  validated `null` through — is a 500 on every wordbox created without a description.
 - **Ordering**: `/profile/wordboxes` (`UserController@wordboxesOrder`, drag-and-drop UI, presumably
   SortableJS given it's referenced in `documentation.md`'s changelog as a CDN dependency) shows
   wordboxes grouped by language; `POST /profile/wordboxes` (`@updateWordboxesOrder`) takes

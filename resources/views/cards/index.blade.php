@@ -54,6 +54,8 @@
                                class="w-full bg-transparent py-1 text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
                     </div>
                 </th>
+                {{-- Translation has no backend filter, so it is a plain header. --}}
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Translation</th>
                 <th class="px-6 py-3 text-left">
                     <div class="flex items-center gap-2 border-b border-white/60">
                         <svg class="w-4 h-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
