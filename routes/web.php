@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\AjaxController;
+use App\Http\Controllers\BaseWordController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\GapFillExerciseController;
+use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\SeachController;
 use App\Http\Controllers\SessionController;
@@ -14,7 +16,6 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\WordboxController;
 use App\Models\Card;
 use App\Models\Learning;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -23,40 +24,17 @@ Route::get('/', function () {
         return view('index');
     }
 
-    $totalDueCards = Auth::user()->cards()
-        ->whereDate('next_study_at', '<=', now()->toDateString())
-        ->count();
+    $user = Auth::user();
 
-    $totalCards = Auth::user()->cards()
-        ->count();
-
-    // Retrieve themes with counts for the authenticated user
-    $themes = Auth::user()->themes()
-        ->withCount([
-            'cards as total_cards_count',
-            'cards as due_cards_count' => function ($query) {
-                $query->whereDate('next_study_at', '<=', now()->toDateString());
-            },
-        ])
-        ->orderBy('total_cards_count', 'desc')
-        ->get();
-
-    $wordboxes = Auth::user()->wordboxes()
+    $wordboxes = $user->wordboxes()
         ->select('id', 'name', 'description')
         ->withCount('cards')
         ->get();
 
-    // Save-destination picker data: target languages + this user's wordboxes grouped by language.
-    $targetLanguages = Auth::user()->languages()->orderBy('name')->get();
-    $wordboxesByLanguage = Auth::user()->wordboxes()
-        ->select('id', 'name', 'language_id', 'position')
-        ->orderBy('position')
-        ->orderBy('name')
-        ->get()
-        ->groupBy('language_id');
+    $targetLanguages = $user->languages()->orderBy('name')->get();
 
     // Due-card counts per target language → drives the "Learning" review cards on the dashboard.
-    $dueByLanguage = Auth::user()->cards()
+    $dueByLanguage = $user->cards()
         ->whereDate('next_study_at', '<=', now()->toDateString())
         ->selectRaw('language_id, COUNT(*) as aggregate')
         ->groupBy('language_id')
@@ -71,58 +49,19 @@ Route::get('/', function () {
         })
         ->values();
 
-    $recentCards = Auth::user()->cards()
+    $recentCards = $user->cards()
         ->latest()
         ->take(5)
-        ->get(['id', 'phrase', 'word', 'translation']);
-
-    // The card the learner just captured, flashed by AjaxController@index. Lets the
-    // dashboard offer the "learn it in a phrase instead" nudge at the moment of highest
-    // intent, instead of only on the card's own page.
-    $capturedCard = session('captured_card_id')
-        ? Auth::user()->cards()->find(session('captured_card_id'))
-        : null;
-
-    // The term the learner just tried to capture but already has, flashed by
-    // AjaxController@index — drives the duplicate dialog (cancel / regenerate).
-    $duplicateCapture = session('duplicate_capture');
-
-    $saveLanguage = Auth::user()->currentSaveLanguage();
-    $saveLanguageId = $saveLanguage?->id;
-    $saveLanguageName = $saveLanguage?->name;
-    $saveWordboxId = session('capture_wordbox_id');
-    $saveTargetName = 'General vocabulary';
-    if ($saveWordboxId) {
-        $selectedBox = ($wordboxesByLanguage[$saveLanguageId] ?? collect())->firstWhere('id', $saveWordboxId);
-        $saveTargetName = $selectedBox->name ?? 'General vocabulary';
-        if (! $selectedBox) {
-            $saveWordboxId = null;
-        }
-    }
+        ->get(['id', 'term', 'translation']);
 
     return view('index', [
-        'themes' => $themes,
-        'dueCount' => $totalDueCards,
-        'totalCount' => $totalCards,
         'wordboxes' => $wordboxes,
         'targetLanguages' => $targetLanguages,
-        'wordboxesByLanguage' => $wordboxesByLanguage,
+        'activeLanguageId' => $user->currentSaveLanguage()?->id,
         'dueLanguages' => $dueLanguages,
         'recentCards' => $recentCards,
-        'capturedCard' => $capturedCard,
-        'duplicateCapture' => $duplicateCapture,
-        'saveLanguageId' => $saveLanguageId,
-        'saveLanguageName' => $saveLanguageName,
-        'saveWordboxId' => $saveWordboxId,
-        'saveTargetName' => $saveTargetName,
     ]);
 });
-
-/*Route::get('/test', function () {
-    $content = \App\Models\AI::getContentForCard('weird');
-    $output = json_decode($content);
-    dd($output);
-});*/
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create']);
@@ -233,6 +172,21 @@ Route::middleware('auth')->group(function () {
         return view('learning.complete');
     });
 
+    // CAPTURE: one endpoint writes a proposal and returns; staging is where the learner
+    // acts on it. See docs/cards.md "Staging".
+    Route::post('/capture', [ProposalController::class, 'store'])->name('capture');
+    Route::get('/staging', [ProposalController::class, 'index'])->name('staging');
+    Route::get('/staging/list', [ProposalController::class, 'list'])->name('staging.list');
+    Route::post('/staging/{proposal}/words/{word}/strike', [ProposalController::class, 'strike']);
+    Route::post('/staging/{proposal}/anchor', [ProposalController::class, 'anchor']);
+    Route::post('/staging/{proposal}/language', [ProposalController::class, 'language']);
+    Route::post('/staging/{proposal}/approve', [ProposalController::class, 'approve']);
+    Route::delete('/staging/{proposal}', [ProposalController::class, 'destroy']);
+
+    // ORGANIZE: the vocabulary base. LEARN: Refresher, its unscheduled practice.
+    Route::get('/base', [BaseWordController::class, 'index'])->name('base');
+    Route::get('/refresher', [BaseWordController::class, 'refresher'])->name('refresher');
+
     Route::get('/search', [SeachController::class, 'index']);
     Route::get('/searchWordbox/{wbid}', [SeachController::class, 'searchWordbox'])->name('seachWordbox');
 
@@ -249,9 +203,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cards/{card:id}/links', [CardController::class, 'link']);
     Route::delete('/cards/{card:id}/links/{other:id}', [CardController::class, 'unlink']);
     Route::post('/cards/{card:id}/note', [CardController::class, 'saveNote']);
-    // Replace a single-word card with one built around a phrase that word occurs in.
-    Route::post('/cards/{card:id}/learn-as-phrase', [CardController::class, 'learnAsPhrase']);
-    // Rewrite a card's AI content in place — the duplicate-term dialog's "Regenerate".
+    // Rewrite a card's AI content in place — staging's "Regenerate" on a duplicate Term.
     Route::post('/cards/{card:id}/regenerate', [CardController::class, 'regenerate']);
     Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
@@ -266,15 +218,12 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/cards/{card:id}', [CardController::class, 'update']);
 
-    Route::post('/captureWordAjax', [AjaxController::class, 'index'])->name('captureWordAjax');
-    Route::post('/capture-target', [AjaxController::class, 'setCaptureTarget'])->name('capture-target');
-
     Route::get('/cards/{card}/synonyms', function (Card $card) {
         abort_unless(Auth::user()->can('view', $card), 403);
 
         return response()->json([
-            'synonyms' => $card->synonyms()->with('synonymCard:id,phrase,translation')->get(),
-            'related_terms' => $card->relatedTerms()->with('relatedCard:id,phrase,translation')->get(),
+            'synonyms' => $card->synonyms()->with('synonymCard:id,term,translation')->get(),
+            'related_terms' => $card->relatedTerms()->with('relatedCard:id,term,translation')->get(),
         ]);
     });
 
@@ -283,11 +232,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/themes/manage', [ThemeController::class, 'create']);
     Route::post('/saveThemes', [ThemeController::class, 'store'])->name('saveThemes');
 
-    Route::post('/test', [CardController::class, 'show']);
-
-    /*Route::get('/wordbox', function (){
-        return view('wordbox.index');
-    });*/
     Route::post('wordbox/new', [WordboxController::class, 'store']);
     Route::get('wordbox/{id}', [WordboxController::class, 'show'])->name('wordbox.show');
     Route::get('wordbox/{id}/edit', [WordboxController::class, 'edit'])->name('wordbox.edit');
@@ -297,25 +241,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/gap-fill/{exercise}', [GapFillExerciseController::class, 'show'])->name('gap-fill.show');
     Route::get('/gap-fill/{exercise}/status', [GapFillExerciseController::class, 'status'])->name('gap-fill.status');
     Route::delete('/gap-fill/{exercise}', [GapFillExerciseController::class, 'destroy'])->name('gap-fill.destroy');
-    Route::get('/test/createdGapFill', function () {
-        $exercise = \App\Models\GapFillExercise::latest()->first();
-        if (! $exercise) {
-            return 'No exercise found';
-        }
-
-        return response()->json($exercise);
-    });
 });
 Route::delete('/logout', [SessionController::class, 'destroy']);
-
-Route::post('/addWordAPI', function (Request $request) {
-    /*return response('', 204)
-        ->header('Access-Control-Allow-Origin', '*')
-        ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');*/
-    dd('worked');
-
-});
 
 // BONUSY
 Route::get('/kresleni', function () {

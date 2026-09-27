@@ -62,11 +62,11 @@ class CardController extends Controller
         }
 
         if ($type !== 'both') {
-            $query->where('term_type', $type);
+            $query->ofTermType($type);
         }
 
         if ($term !== '') {
-            $query->where('phrase', 'like', '%'.$term.'%');
+            $query->where('term', 'like', '%'.$term.'%');
         }
         if ($definition !== '') {
             $query->where('definition', 'like', '%'.$definition.'%');
@@ -110,8 +110,11 @@ class CardController extends Controller
         $this->authorize('view', $card);
 
         // Escape first so any raw HTML in the AI-generated sentence can't reach the
-        // `{!! !!}` output in the view — only the <span> we add below is trusted.
+        // `{!! !!}` output in the view — only the <span> we add below is trusted. The
+        // anchor phrase brackets the Term by the same convention, so it gets the same
+        // treatment (see docs/cards.md "The anchor phrase").
         $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="text-gray-300 font-bold">$1</span>', e($card->example_sentence));
+        $card->anchor_html = preg_replace('/\[(.*?)\]/', '<span class="font-bold">$1</span>', e($card->anchor));
 
         if (! is_null($card->theme_id)) {
             $theme = Theme::where('user_id', Auth::id())
@@ -146,10 +149,10 @@ class CardController extends Controller
         $card->next_study_at = $nextStudyAt->format('l j F Y');
 
         $linkedCards = $card->linkedCards()
-            ->orderBy('phrase')
-            ->get(['cards.id', 'phrase', 'word', 'translation']);
+            ->orderBy('term')
+            ->get(['cards.id', 'term', 'translation']);
 
-        $card->load('language');
+        $card->load(['language', 'baseWords']);
         $wordbox = $card->wordbox()->first();
 
         // Neighbours for the prev/next arrows: the user's other cards in this card's
@@ -188,10 +191,10 @@ class CardController extends Controller
         $results = Auth::user()->cards()
             ->where('language_id', $card->language_id)
             ->whereNotIn('id', $excludedIds)
-            ->where('phrase', 'like', '%'.$q.'%')
-            ->orderBy('phrase')
+            ->where('term', 'like', '%'.$q.'%')
+            ->orderBy('term')
             ->limit(10)
-            ->get(['id', 'phrase', 'word', 'translation']);
+            ->get(['id', 'term', 'translation']);
 
         return response()->json(['results' => $results]);
     }
@@ -218,128 +221,24 @@ class CardController extends Controller
         $card->linkedCards()->syncWithoutDetaching([$other->id]);
         $other->linkedCards()->syncWithoutDetaching([$card->id]);
 
-        return response()->json([
-            // phrase_html carries the focus-word emphasis so the row the JS appends
-            // matches the server-rendered rows in cards/_linked_rows.blade.php.
-            'card' => $other->only('id', 'phrase', 'translation') + ['phrase_html' => $other->phraseHtml()],
-        ]);
+        return response()->json(['card' => $other->only('id', 'term', 'translation')]);
     }
 
     /**
-     * Replace a single-word card with one built around a phrase that word occurs in —
-     * the "learn it in a phrase instead" nudge on the card detail page and right after
-     * capture. The learner picks one of the card's own suggested phrases; that phrase
-     * becomes a new card, this card's history moves onto it, and this card is deleted.
-     *
-     * The replacement is an in-place upgrade, so everything organizational AND the SRS
-     * schedule carries over: a card studied for weeks doesn't restart at level 1 just
-     * because the learner sharpened what it teaches.
-     */
-    public function learnAsPhrase(\Illuminate\Http\Request $request, Card $card)
-    {
-        $this->authorize('update', $card);
-
-        $data = $request->validate(['phrase' => ['required', 'string']]);
-
-        // Only the card's own suggestions are acceptable targets — the click targets are
-        // server-known, so there is no reason to accept arbitrary text here.
-        $phrase = trim($data['phrase']);
-        if (! in_array($phrase, $card->suggestedPhrases(), true)) {
-            return response()->json(['message' => 'That phrase is not one of this card\'s suggestions.'], 422);
-        }
-
-        $exists = Auth::user()->cards()
-            ->where('language_id', $card->language_id)
-            ->whereRaw('LOWER(phrase) = ?', [mb_strtolower($phrase)])
-            ->first();
-
-        if ($exists) {
-            return response()->json([
-                'message' => 'You already have a card for "'.$phrase.'".',
-                'redirect' => '/cards/'.$exists->id,
-            ], 409);
-        }
-
-        $linkedIds = $card->linkedCards()->pluck('cards.id')->all();
-        $wordboxIds = $card->wordbox()->pluck('wordboxes.id')->all();
-
-        try {
-            $new = \Illuminate\Support\Facades\DB::transaction(function () use ($card, $phrase, $linkedIds, $wordboxIds) {
-                $new = Card::createFromPhrase(
-                    Auth::user(),
-                    $card->language,
-                    $phrase,
-                    // The old card's term is the word the learner set out to learn; the
-                    // stored `word` comes back in the form this phrase actually uses.
-                    $card->phrase,
-                    $card->context,
-                );
-
-                // The original must survive a failed generation.
-                if (is_null($new)) {
-                    throw new \RuntimeException('Could not generate the phrase card.');
-                }
-
-                $new->forceFill([
-                    'level' => $card->level,
-                    'last_studied' => $card->last_studied,
-                    'next_study_at' => $card->next_study_at,
-                    'note' => $card->note,
-                ])->save();
-
-                $new->wordbox()->sync($wordboxIds);
-
-                // Links are stored as two mirrored rows, so attach in both directions.
-                foreach ($linkedIds as $linkedId) {
-                    $new->linkedCards()->syncWithoutDetaching([$linkedId]);
-                    Card::find($linkedId)?->linkedCards()->syncWithoutDetaching([$new->id]);
-                }
-
-                // Detach every pivot row before deleting, so none is left orphaned.
-                $card->wordbox()->detach();
-                foreach ($linkedIds as $linkedId) {
-                    $card->linkedCards()->detach($linkedId);
-                    Card::find($linkedId)?->linkedCards()->detach($card->id);
-                }
-                $card->delete();
-
-                return $new;
-            });
-        } catch (\Throwable $e) {
-            logger('learnAsPhrase failed for card '.$card->id.': '.$e->getMessage());
-
-            return response()->json(['message' => 'There was an error while creating the card.'], 500);
-        }
-
-        return response()->json(['redirect' => '/cards/'.$new->id]);
-    }
-
-    /**
-     * Regenerate a card's AI-written content — the "Regenerate" option on the
-     * duplicate-term dialog, shown when the learner captures a term they already have.
+     * Regenerate a card's AI-written content — offered in staging when a proposal resolves
+     * to a Term the learner already has, instead of ever making a second card.
      *
      * The card is rewritten in place rather than replaced, so its SRS progress, note,
-     * wordbox and manual links all survive; see Card::regenerate().
+     * wordbox, base-word links and manual links all survive; see Card::regenerate().
      */
     public function regenerate(\Illuminate\Http\Request $request, Card $card)
     {
         $this->authorize('update', $card);
 
-        // Same bounds as the capture form's context input (AjaxController@index).
+        // Same bounds as the capture form's context input (ProposalController@store).
         $data = $request->validate(['context' => ['nullable', 'string', 'min:2', 'max:250']]);
 
-        // With no fresh context, fall back to the one the card was captured with, so a
-        // regeneration keeps the sense the learner originally meant.
-        $context = $request->filled('context') ? trim($data['context']) : $card->context;
-
-        // Call 1's answer from the capture that hit the dialog, if that capture got far
-        // enough to make one. Reusing it means "Regenerate" costs one model call instead
-        // of two. It is always consumed, so a stale one can't be reused later, and
-        // Card::regenerate() ignores it unless it describes this card's own term.
-        $pending = session()->pull('capture_analysis');
-        $analysis = ($pending && $pending['card_id'] === $card->id) ? $pending['analysis'] : null;
-
-        if (! $card->regenerate($context, $analysis)) {
+        if (! $card->regenerate($request->filled('context') ? trim($data['context']) : null)) {
             return response()->json(['message' => 'There was an error while regenerating the card.'], 500);
         }
 
@@ -391,11 +290,29 @@ class CardController extends Controller
     {
         $this->authorize('update', $card);
 
-        $validatedData = $request->validated();
+        $data = $request->validated();
         // The column is NOT NULL; nullable in the request so the field can be cleared.
-        $validatedData['example_sentence'] ??= '';
+        $data['example_sentence'] ??= '';
 
-        $card->update($validatedData);
+        // Term type is a derived predicate over `card_shape`, so a correction to it has to
+        // be written back as a shape. A lexical card's word/phrase split is re-derived from
+        // the submitted Term every time rather than carried over, so editing a word card's
+        // Term into several words can't leave a multi-word Term stored as a word card —
+        // still carrying an anchor phrase, and still expected to link exactly one base word.
+        $shape = $data['term_type'] === Card::TYPE_EXPRESSION
+            ? Card::SHAPE_EXPRESSION
+            : (str_contains(trim($data['term']), ' ') ? Card::SHAPE_PHRASE : Card::SHAPE_WORD);
+
+        unset($data['term_type']);
+        $data['card_shape'] = $shape;
+
+        // Only a word card may carry an anchor phrase, so a shape change has to drop it.
+        if ($shape !== Card::SHAPE_WORD) {
+            $data['anchor'] = null;
+            $data['anchor_translation'] = null;
+        }
+
+        $card->update($data);
 
         return redirect('/cards/'.$card->id);
     }
@@ -457,21 +374,15 @@ class CardController extends Controller
      */
     public function create()
     {
-        $themes = Theme::where('user_id', Auth::id())
-            ->get(['id', 'name']); // Get only the id and name columns
-
-        $themesArray = $themes->map(function ($theme) {
-            return [
-                'id' => $theme->id,
-                'name' => $theme->name,
-            ];
-        })->toArray();
-
-        return view('cards.add', ['themes' => $themesArray]);
+        return view('cards.add', [
+            'themes' => Theme::where('user_id', Auth::id())->get(['id', 'name']),
+        ]);
     }
 
     /**
-     * Manually create a card (no AI involved) — the /add form.
+     * Manually create a card (no AI involved) — the /add form. It never goes through
+     * staging: there is nothing to approve that the learner didn't already type, and no
+     * base words are proposed, since nothing extracted the Term's words.
      */
     public function save(StoreCardRequest $request)
     {
@@ -482,23 +393,27 @@ class CardController extends Controller
             return redirect('/profile/edit');
         }
 
+        $data = $request->validated();
+        $isWord = $data['card_shape'] === Card::SHAPE_WORD;
+
         $card = $user->cards()->create([
-            'phrase' => $request->phrase,
+            'term' => $data['term'],
+            'card_shape' => $data['card_shape'],
             'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
             'language_id' => $language->id,
             'level' => 1,
-            'translation' => $request->translation,
-            'example_sentence' => $request->example_sentence,
-            'example_1' => $request->example_1,
-            'example_2' => $request->example_2,
-            'example_3' => $request->example_3,
-            'note' => $request->note,
-            'definition' => $request->definition,
+            'translation' => $data['translation'] ?? '',
+            'example_sentence' => $data['example_sentence'] ?? '',
+            'anchor' => $isWord ? ($data['anchor'] ?? null) : null,
+            'anchor_translation' => $isWord ? ($data['anchor_translation'] ?? null) : null,
+            'note' => $data['note'] ?? null,
+            'definition' => $data['definition'],
             'next_study_at' => now(),
         ]);
-        GenerateEmbeddingJob::dispatch($card);
-        logger('Card has been created for '.$request->phrase);
 
-        return redirect('/');
+        GenerateEmbeddingJob::dispatch($card);
+        logger('Card has been created for '.$card->term);
+
+        return redirect('/cards/'.$card->id);
     }
 }

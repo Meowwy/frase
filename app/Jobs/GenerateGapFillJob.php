@@ -28,7 +28,7 @@ class GenerateGapFillJob implements ShouldQueue
             $phrases = $wordbox->cards()
                 ->inRandomOrder()
                 ->limit(30)
-                ->pluck('phrase')
+                ->pluck('term')
                 ->implode(', ');
 
             if (empty($phrases)) {

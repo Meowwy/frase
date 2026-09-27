@@ -16,6 +16,14 @@ class Learning extends Model
      */
     public const LEXICAL_ONLY_MODES = ['sentences', 'sentences_write', 'definitions'];
 
+    /**
+     * Words mode deals individual base words, not cards, so its cap is counted in words.
+     * A due card enters the pool only if ALL of its base words fit under this — no card
+     * ever contributes a partial word set, or it could never clear. See
+     * docs/learning-flow.md "Words mode".
+     */
+    public const WORDS_PER_SESSION = 15;
+
     public static function getCardsForLearning($filter, ?string $mode = null)
     {
         if (is_array($filter)) {
@@ -33,7 +41,7 @@ class Learning extends Model
 
                 if ($dueCardsCount > 20) {
                     $cards = Auth::user()->cards()
-                        ->with('wordbox:id,name')
+                        ->with(['wordbox:id,name', 'baseWords'])
                         ->tap($lexicalOnly)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->limit(15)
@@ -41,7 +49,7 @@ class Learning extends Model
                     session(['more_cards_available' => true]);
                 } else {
                     $cards = Auth::user()->cards()
-                        ->with('wordbox:id,name')
+                        ->with(['wordbox:id,name', 'baseWords'])
                         ->tap($lexicalOnly)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->get();
@@ -57,7 +65,7 @@ class Learning extends Model
                     ->where('id', $filter)
                     ->firstOrFail()
                     ->cards()
-                    ->with('wordbox:id,name')
+                    ->with(['wordbox:id,name', 'baseWords'])
                     ->tap($lexicalOnly)
                     ->get();
             } catch (\Exception $exception) {
@@ -74,7 +82,7 @@ class Learning extends Model
 
                 if ($dueCardsCount > 20) {
                     $cards = Auth::user()->cards()
-                        ->with('wordbox:id,name')
+                        ->with(['wordbox:id,name', 'baseWords'])
                         ->tap($lexicalOnly)
                         ->where('theme_id', $theme->id)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
@@ -83,7 +91,7 @@ class Learning extends Model
                     session(['more_cards_available' => true]);
                 } else {
                     $cards = Auth::user()->cards()
-                        ->with('wordbox:id,name')
+                        ->with(['wordbox:id,name', 'baseWords'])
                         ->tap($lexicalOnly)
                         ->where('theme_id', $theme->id)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
@@ -107,7 +115,7 @@ class Learning extends Model
     {
         return function ($query) use ($mode) {
             if (in_array($mode, self::LEXICAL_ONLY_MODES, true)) {
-                $query->where('term_type', '!=', Card::TYPE_EXPRESSION);
+                $query->ofTermType(Card::TYPE_LEXICAL);
             }
         };
     }
@@ -115,7 +123,7 @@ class Learning extends Model
     /**
      * Split a bracketed example sentence around its blank: the text before and after the
      * `[term]`, plus the exact form the brackets hide. The answer is that inflected form,
-     * never the card's base-form `phrase` — the brackets hold the card's target in the
+     * never the card's base-form `term` — the brackets hold the Term in the
      * form this sentence happens to use it in.
      */
     protected static function sentenceParts(Card $card): array
@@ -145,7 +153,7 @@ class Learning extends Model
         $wordbox = $filter['wordbox'] ?? 'all';
         $scope = $filter['scope'] ?? 'due';
 
-        $query = Auth::user()->cards()->with('wordbox:id,name')->tap(self::modeTypeFilter($mode));
+        $query = Auth::user()->cards()->with(['wordbox:id,name', 'baseWords'])->tap(self::modeTypeFilter($mode));
 
         if ($languageId) {
             $query->where('language_id', $languageId);
@@ -255,39 +263,117 @@ class Learning extends Model
         }
 
         $cardsForLearning = self::getCardsForLearning(session('learning_filter'), $mode);
-        $cards = [];
 
-        foreach ($cardsForLearning as $card) {
+        // Words mode deals base words rather than cards, so it builds its own deck.
+        $cards = $mode === 'words'
+            ? self::wordEntries($cardsForLearning)
+            : self::cardEntries($cardsForLearning, $mode);
+
+        return self::renderDeck($cards, $mode);
+    }
+
+    /**
+     * Serialize a deck for the shared flashcard view, which drives the whole session
+     * client-side from this one JS variable — no per-card request during review.
+     */
+    public static function renderDeck(array $cards, string $mode)
+    {
+        return view('learning.index', [
+            'cards' => 'let cards = '.json_encode($cards).';',
+            'cardCount' => count($cards),
+            'mode' => $mode,
+        ]);
+    }
+
+    /**
+     * One entry per card, for every mode but Words. The answer is always the card's Term —
+     * there is no focus word to elicit instead of it.
+     */
+    protected static function cardEntries($cards, string $mode): array
+    {
+        $entries = [];
+
+        foreach ($cards as $card) {
             $blankedSentence = preg_replace('/\[.*?\]/', '...', $card->example_sentence);
-            $wordbox = $card->wordbox->first()?->name ?? '';
 
             $entry = match ($mode) {
-                // The back is the form the brackets actually hide, not `phrase`: the gap is
-                // what the learner has to produce, and on a focused phrase card that is the
-                // focus word, with the rest of the phrase still visible around it.
+                // The back is the form the brackets actually hide, not the stored Term: the
+                // gap is the question, and the sentence inflects the Term as it needs to.
                 'sentences' => ['front' => $blankedSentence, 'back' => self::sentenceParts($card)['answer'], 'hint' => $card->translation],
                 // Writing variant of Sentences: the front is the sentence split around the
                 // blank so the view can render an inline input between the two halves. Its
                 // answer comes out of that same split, so there is no separate back.
                 'sentences_write' => ['hint' => $card->translation] + self::sentenceParts($card),
-                // The front is the target's own translation, and the definition defines the
-                // target — so the answer is the target: the focus word on a phrase card built
-                // around one, the whole term otherwise.
-                'words' => ['front' => $card->translation, 'back' => $card->target(), 'hint' => $blankedSentence],
                 'definitions' => ['front' => $card->definition, 'back' => $card->target(), 'hint' => $card->translation],
-                default => null,
+                default => abort(404),
             };
 
-            if ($entry === null) {
-                abort(404);
-            }
-
-            $cards[] = ['id' => $card->id] + $entry + ['wordbox' => $wordbox];
+            $entries[] = ['id' => $card->id] + $entry + ['wordbox' => $card->wordbox->first()?->name ?? ''];
         }
 
-        $cardsForJS = 'let cards = '.json_encode($cards).';';
+        return $entries;
+    }
 
-        return view('learning.index', ['cards' => $cardsForJS, 'cardCount' => count($cards), 'mode' => $mode]);
+    /**
+     * Words mode's deck: the individual base words of the due cards, shuffled, capped at
+     * WORDS_PER_SESSION. A card is admitted only if all of its base words fit, so the
+     * session can actually clear it; cards with no base words at all (an expression whose
+     * words were all filtered at capture) can only clear through the other modes.
+     *
+     * The deck is keyed by base word, not by (card, word) pair, because a word is routinely
+     * linked to several cards — that is what the base is for. Asking for it once and
+     * crediting the answer to every card that uses it is both less tedious and the right
+     * arithmetic; `card_ids` is what carries that, and a word already dealt for an earlier
+     * card costs a later one nothing against the cap. The hint is the first such card's
+     * sentence.
+     */
+    protected static function wordEntries($cards): array
+    {
+        $entries = [];
+        $budget = self::WORDS_PER_SESSION;
+
+        foreach ($cards as $card) {
+            $baseWords = $card->baseWords;
+            $unseen = $baseWords->reject(fn (BaseWord $baseWord) => isset($entries[$baseWord->id]));
+
+            if ($baseWords->isEmpty() || $unseen->count() > $budget) {
+                continue;
+            }
+
+            $budget -= $unseen->count();
+            $hint = preg_replace('/\[.*?\]/', '...', $card->example_sentence);
+            $wordbox = $card->wordbox->first()?->name ?? '';
+
+            foreach ($baseWords as $baseWord) {
+                $entries[$baseWord->id] ??= self::wordEntry($baseWord, $hint) + ['wordbox' => $wordbox];
+                $entries[$baseWord->id]['card_ids'][] = $card->id;
+            }
+        }
+
+        $entries = array_values($entries);
+        shuffle($entries);
+
+        return $entries;
+    }
+
+    /**
+     * One base word as a flashcard. The back is always the LEMMA in its display form —
+     * "ett hus", never bare "hus" and never the inflected surface form the parent card's
+     * Term happens to use. Part of speech travels with it because two base words can share
+     * a lemma and differ only by it.
+     */
+    public static function wordEntry(BaseWord $baseWord, string $hint): array
+    {
+        return [
+            'id' => $baseWord->id,
+            'front' => $baseWord->translation,
+            'back' => $baseWord->displayForm(),
+            'part_of_speech' => $baseWord->part_of_speech,
+            'hint' => $hint,
+            // Which cards this answer counts towards. Empty for Refresher, which clears
+            // nothing — see BaseWordController::refresher().
+            'card_ids' => [],
+        ];
     }
 
     /**
@@ -308,7 +394,7 @@ class Learning extends Model
         $language = $cards->first()->language;
         $level = $user->levelForLanguage($language);
 
-        $targetWords = $cards->map(fn ($c) => ['id' => $c->id, 'term' => $c->phrase, 'translation' => $c->translation])->values()->all();
+        $targetWords = $cards->map(fn ($c) => ['id' => $c->id, 'term' => $c->term, 'translation' => $c->translation])->values()->all();
 
         // Stable per-chat key so every turn is routed to the same prompt cache.
         $cacheKey = 'conv-'.$user->id.'-'.Str::uuid()->toString();

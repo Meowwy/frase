@@ -59,7 +59,7 @@ Three JS layers coexist, each with a distinct job — don't reach for the wrong 
 - Ajax endpoints return either a redirect (non-AJAX form submissions), a plain status code
   (`response(200)`), or a JSON body — check `$request->ajax()`/`$request->expectsJson()` in a
   controller before assuming which one a given endpoint returns; several endpoints in this app
-  (`CardController@index`, `AjaxController@index`) deliberately support both a normal-page and an
+  (`CardController@index`, `ProposalController@list`) deliberately support both a normal-page and an
   AJAX response from the same action.
 - Scripts are either written inline in the relevant Blade file (the common pattern for
   page-specific behaviour — chat views, the flashcard session, the wordbox picker component) or

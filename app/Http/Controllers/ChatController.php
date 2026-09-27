@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AI;
+use App\Models\BaseWord;
 use App\Models\Language;
 use App\Models\Learning;
 use Illuminate\Http\Request;
@@ -105,12 +106,16 @@ class ChatController extends Controller
         ], $chat['target_words']);
 
         // Spaced-repetition: each used word counts as one correct review (mirrors
-        // AjaxController@saveLearning for result = 1). Unused words are left untouched.
-        foreach ($user->cards()->whereIn('id', $usedIds)->get() as $card) {
+        // AjaxController@saveLearning for result = 1) and stamps last-recall on every base
+        // word linked to it, since producing the Term is producing all of its words.
+        // Unused words are left untouched.
+        foreach ($user->cards()->with('baseWords')->whereIn('id', $usedIds)->get() as $card) {
             $card->next_study_at = Learning::getNextStudyDay($card->level, 1);
             $card->level++;
             $card->last_studied = now();
             $card->save();
+
+            BaseWord::whereIn('id', $card->baseWords->modelKeys())->update(['last_recalled_at' => now()]);
         }
 
         session()->forget('chat_practice');

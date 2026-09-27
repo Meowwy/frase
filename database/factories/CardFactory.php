@@ -19,13 +19,10 @@ class CardFactory extends Factory
     {
         return [
             'user_id' => fake()->randomElement([1, 2]),
-            'phrase' => fake()->word,
-            'term_type' => Card::TYPE_LEXICAL,
+            'term' => fake()->word,
+            'card_shape' => Card::SHAPE_WORD,
             'translation' => fake()->word,
             'example_sentence' => fake()->sentence,
-            'example_1' => fake()->words(2, true),
-            'example_2' => fake()->words(2, true),
-            'example_3' => fake()->words(2, true),
             'definition' => fake()->sentence,
             'note' => null,
             'next_study_at' => now(),

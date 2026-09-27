@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\AjaxController;
+use App\Http\Controllers\ProposalController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -20,43 +20,8 @@ Route::post('/extension/login', function (Request $request) {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/addWordAPI', [AjaxController::class, 'index'])->name('captureWordApi');
-
-    // Save destinations for the browser extension dropdown: one flat list of
-    // "{language} - {wordbox|general}" options, grouped by language (alphabetical),
-    // with the language's "general" (no wordbox) option first, then its wordboxes A-Z.
-    Route::get('/save-options', function (Request $request) {
-        $user = $request->user();
-        $options = [];
-
-        foreach ($user->languages()->orderBy('name')->get() as $language) {
-            $options[] = [
-                'value' => $language->id.':',
-                'label' => $language->name.' - general',
-                'language_id' => $language->id,
-                'wordbox_id' => null,
-            ];
-
-            $wordboxes = $user->wordboxes()
-                ->where('language_id', $language->id)
-                ->orderBy('name')
-                ->get();
-
-            foreach ($wordboxes as $wordbox) {
-                $options[] = [
-                    'value' => $language->id.':'.$wordbox->id,
-                    'label' => $language->name.' - '.$wordbox->name,
-                    'language_id' => $language->id,
-                    'wordbox_id' => $wordbox->id,
-                ];
-            }
-        }
-
-        $active = $user->currentSaveLanguage();
-
-        return response()->json([
-            'options' => $options,
-            'selected' => $active ? $active->id.':' : null,
-        ]);
-    });
+    // The extension writes into staging exactly like the web form does — same controller,
+    // same proposal row. There is no save destination to choose any more: the language is
+    // detected by CALL 1 and corrected in staging. See docs/browser-extension.md.
+    Route::post('/addWordAPI', [ProposalController::class, 'store'])->name('captureApi');
 });

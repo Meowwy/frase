@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Card;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCardRequest extends FormRequest
 {
@@ -22,13 +24,15 @@ class StoreCardRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'phrase' => ['required', 'string', 'max:40', 'min:2'],
+            'term' => ['required', 'string', 'max:120', 'min:2'],
+            // No AI answer to read the shape off on this path, so the form asks for it.
+            'card_shape' => ['required', Rule::in(Card::SHAPES)],
             'definition' => ['required', 'string'],
             'translation' => ['nullable', 'string'],
             'example_sentence' => ['nullable', 'string'],
-            'example_1' => ['nullable', 'string'],
-            'example_2' => ['nullable', 'string'],
-            'example_3' => ['nullable', 'string'],
+            // Word-shape only; the controller drops them for the other two shapes.
+            'anchor' => ['nullable', 'string'],
+            'anchor_translation' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
             'theme_id' => ['nullable'],
         ];

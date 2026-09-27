@@ -14,8 +14,9 @@ the shared UI component that switches between languages/wordboxes everywhere.
   reads it for a given language.
 - **`users.native_language_id`**, **`users.active_language_id`** — single-value FKs.
   `native_language_id` is the user's own language (used for translations/definitions, see
-  [ai-integration](ai-integration.md)). `active_language_id` is the **durable default save language** — the last
-  one explicitly chosen via the capture-target picker (see below).
+  [ai-integration](ai-integration.md)). `active_language_id` is the language single-language screens
+  **open on** (see "Which language a screen opens on" below) — not a save destination: capture has
+  none any more.
 - These FKs **supersede** the legacy free-text `users.target_language` / `users.native_language`
   string columns, which are kept temporarily for backfill and are still what
   `RegisteredUserController@store` writes on signup — see [overview](overview.md) "Known rough edges". A
@@ -28,14 +29,15 @@ the shared UI component that switches between languages/wordboxes everywhere.
 
 A user can opt to build vocabulary **in their own native language** — e.g. a native Czech
 speaker collecting Czech words/idioms they want to remember, with everything generated
-monolingually (see `AI::getContentForCardNative` in [ai-integration](ai-integration.md)). Enabled via the "Also
+monolingually (see "Call 2" in [ai-integration](ai-integration.md)). Enabled via the "Also
 save words in my native language" checkbox on `/profile/edit`, under the native-language picker.
 
 The implementation is intentionally minimal: enabling it just **attaches the native language to
 the same `language_user` pivot** (with `users_level = null`, since a user isn't "learning" their
-own language). That alone makes it a valid save destination and makes it show up in `/cards`, the
-Learn flow, and everywhere else that iterates `$user->languages()` — there is no special-cased
-code in any of those paths. Two places *do* need to know about it specifically:
+own language). That alone makes it a candidate for CALL 1's language detection and makes it show up
+in `/cards`, `/base`, the Learn flow, and everywhere else that iterates `$user->languages()` —
+there is no special-cased code in any of those paths. Two places *do* need to know about it
+specifically:
 
 - It's kept **separate from the 5-language learning cap** — the `max:5` validation rule in
   `UserController@update` applies only to `target_language_ids`, which explicitly excludes
@@ -44,8 +46,11 @@ code in any of those paths. Two places *do* need to know about it specifically:
   `UserController@edit` derives the checkbox state (`nativeSaveEnabled`) from whether native is
   in the pivot and strips native out of the table data before passing it to the view;
   `UserController@update` re-adds native to the sync set when the box is checked.
-- The AI branch in `AjaxController@index` (native destination → `getContentForCardNative`) is the
-  only other save-time special-casing.
+- `Card::nativeLanguageFor()` returns `null` when the card's language **is** the user's native
+  language, which is the flag every CALL 2 generator reads to write a monolingual card (no
+  `translation` field, no CEFR steering). That is the only other generation-time special-casing.
+  Its effect reaches CALL 1 too: with no native language to translate into, a base word's
+  `translation` is asked for as a short same-language gloss instead.
 
 ### `/profile/edit` (`UserController@edit`/`@update`)
 
@@ -58,24 +63,25 @@ target/native sets, so "hiding" a language is really just leaving it out of the 
 `target_language_ids`.
 
 `UserController@update` also: keeps `active_language_id` valid after a sync (falls back to the
-first attached language if the previous active one was removed, clearing the capture-target
-session keys in that case); and, when the submitted target set is unambiguous (exactly one
+first attached language if the previous active one was removed); and, when the submitted target set
+is unambiguous (exactly one
 language), adopts any pre-existing language-less cards/wordboxes/themes into it — a one-time
 migration convenience for accounts that predate the language system.
 
-## Save destination (capture target)
+## Which language a screen opens on
 
-Where a newly captured word is saved — a language plus an optional wordbox — is chosen in the
-right-side picker on the dashboard and persisted in the **session**
-(`capture_language_id`, `capture_wordbox_id`) via `POST /capture-target`
-(`AjaxController@setCaptureTarget`). `User::currentSaveLanguage()` resolves it in this order:
-session selection → `active_language_id` → first target language (may return `null` for a
-brand-new user with no languages set up).
+**Capture has no language input at all.** CALL 1 detects which of the learner's own languages the
+Term is in, and staging is where a wrong detection gets corrected (see [cards](cards.md)
+"Staging"). The vocabulary-base redesign therefore retired the save-destination picker, `POST
+/capture-target` and the `capture_language_id`/`capture_wordbox_id` session keys outright — a
+captured term also no longer lands in a chosen wordbox, so it starts in General vocabulary and is
+moved from `/cards` if the learner wants it somewhere.
 
-Choosing a language there also **updates `active_language_id`** — the session value is the
-per-tab/per-visit override, `active_language_id` is what persists across sessions/devices. The
-picker controls **only** where new words are saved; it does not reload or re-scope the dashboard
-itself, which stays cross-language by design.
+What remains is `User::currentSaveLanguage()`, which answers a narrower question: which language a
+screen that shows one language at a time (`/cards`, `/base`, `/refresher`, the Learn builder) should
+open on. It resolves `active_language_id` → first target language, and may return `null` for a
+brand-new user with no languages set up. The name is now slightly wider than the job; every caller
+passes an explicit `language_id` when the user has picked one.
 
 ## Shared wordbox picker component
 

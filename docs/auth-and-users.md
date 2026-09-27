@@ -17,7 +17,7 @@ Standard Laravel session auth, not Breeze/Jetstream scaffolding — hand-rolled 
   [overview](overview.md)/[ai-integration](ai-integration.md) for other leftovers from that idea, like `CreateCardJob`
   decrementing it). Does **not** set `native_language_id` or attach any language via the
   `language_user` pivot — a freshly registered user must visit `/profile/edit` and configure
-  languages there before word capture will work (`AjaxController@index` redirects there if
+  languages there before word capture will work (`ProposalController@store` refuses with a 422 if
   `currentSaveLanguage()` returns null). Logs the user in immediately after creating them.
 - `GET/POST /login`, `DELETE /logout` (`SessionController`) — `Auth::attempt`, standard session
   regeneration on login, standard `Auth::logout` on the delete route.

@@ -56,9 +56,9 @@ uncapped. The returned collection is always `->shuffle()`d.
 `sentences`, `sentences_write`, and `definitions` are **lexical-only** modes
 (`Learning::LEXICAL_ONLY_MODES`) — their card fronts are built from a blanked example sentence or
 a dictionary definition, both of which only make sense for a naming unit, not a whole utterance.
-`Learning::modeTypeFilter($mode)` returns a closure (`whereIn('card_shape', ['word', 'phrase'])` —
-the derived `term_type`'s lexical leg, now read off `card_shape` directly, see
-[ai-integration](ai-integration.md)) that **every** card query in both
+`Learning::modeTypeFilter($mode)` returns a closure applying `Card::scopeOfTermType(TYPE_LEXICAL)`
+— the derived term type's lexical leg, read off `card_shape`, see [cards](cards.md) "Card shape and
+term type" — that **every** card query in both
 `getCardsForLearning`/`getCardsForSelection` applies via `->tap()`. This is applied **before** the
 due-count/15-card cap, not after — filtering the collection afterward would have skewed which
 cards land inside the cap. `words` and `conversation` modes pass no restriction, so they keep both
@@ -72,7 +72,12 @@ than the count implied.
 
 ## Rendering a session (`Learning::renderLearningView($mode)`)
 
-For `sentences`, `sentences_write` and `definitions`, each entry is still built **per card**,
+It splits on one thing: Words mode builds its deck from base words (`Learning::wordEntries()`),
+every other mode from cards (`Learning::cardEntries()`). Both hand off to
+`Learning::renderDeck($cards, $mode)`, which serializes the deck into the shared view — and which
+Refresher also calls directly, being the same word-dealing shape without a session.
+
+For `sentences`, `sentences_write` and `definitions`, each entry is built **per card**,
 `{id, front, back, hint, wordbox}`:
 
 | Mode | front | back | hint |
@@ -115,7 +120,16 @@ with **zero** base words (an expression whose words were all filtered at capture
 [cards](cards.md) "The vocabulary base") are excluded from this pool entirely; they can only clear
 through the other modes.
 
-Each entry is `{base_word_id, card_id, front, back, hint, part_of_speech}`:
+The deck is keyed by **base word**, not by card/word pair: a word linked to several due cards is
+dealt **once**, and the answer counts towards every one of them. That is the normal case rather than
+an edge one — words running through many phrases is what the base exists to record — and dealing the
+same word two or three times in one sitting would be both tedious and the wrong arithmetic. A word
+already dealt for an earlier card also costs a later card nothing against the 15-word cap.
+
+Each entry is `{id, card_ids, front, back, hint, part_of_speech, wordbox}` — `id` is the **base
+word's** id here, which is what lets the view's existing deck machinery (repeat-until-correct,
+record-the-first-answer) work unchanged on words instead of cards, and `card_ids` is what spreads
+one answer across the cards that share the word (empty for Refresher, which clears nothing):
 
 - **front** — the base word's own translation (from the vocabulary base);
 - **back** — the base word's **lemma**, never the inflected surface form — Words always tests the
@@ -126,24 +140,40 @@ Each entry is `{base_word_id, card_id, front, back, hint, part_of_speech}`:
   guidelines";
 - **part_of_speech** — shown alongside the word on both front and back, not just the back. Two base
   words can share a lemma and differ only by part of speech (*run* the verb vs. *run* the noun), so
-  the learner needs it to know which one is being asked about even before flipping the card;
-- **hint** — the parent card's context (its blanked example sentence).
+  the learner needs it to know which one is being asked about even before flipping the card. The
+  view renders it in a pill **outside** the flashcard, next to the wordbox pill — one element that
+  is simply visible the whole time the word is on screen, rather than a copy on each face;
+- **hint** — the parent card's context (its blanked example sentence); the first such card's, for a
+  word shared by several.
 
-Answers are tracked client-side and batched into one write at session end, extending
-`/saveLearning`'s existing `{id, result}` array with a parallel per-word array (see "SRS algorithm"
-below) — no live per-word request. A card **clears** once every one of its base words has been
-answered correctly within the session — a second path to "the Term is produced," word-by-word
-rather than as one string — and each correct word also stamps that word's own last recall
-independently of whether the card as a whole clears.
+Answers are tracked client-side and batched into one write at session end: the deck's own
+`results` array becomes `/saveLearning`'s `words` parameter, and the per-card array beside it is
+**derived** from it in the view (`derivedCardResults()`). A card clears — `result: 1` — only when
+every one of its base words was answered correctly *first time*, the same standard the other modes
+apply to a card's own answer; a word the learner never reached (they quit early) leaves its card out
+of the array entirely, so nothing is scheduled off a half-finished card. This is the second path to
+"the Term is produced," word-by-word rather than as one string. Each correct word also stamps its
+own last recall, independently of whether the card clears.
 
 ## Refresher
 
-Free-form, unscheduled practice over the **whole vocabulary base** — not scoped to a card, a
-wordbox, or the `/setLearning` builder's due/cram split. Cards are ordered by **staleness** (how
-long since last recall), most stale first. Front/back are the same shape as Words mode's own. A
-correct answer stamps that word's last recall and nothing else: no SRS level, no `next_study_at`,
-and it never clears a card. Refresher is deliberately **not** a learning mode — no session scope,
-which is what separates it from Words.
+`GET /refresher` (`BaseWordController::refresher`), reached from the vocabulary-base page. Free-form,
+unscheduled practice over the **whole vocabulary base** in one language — not scoped to a card, a
+wordbox, or the `/setLearning` builder's due/cram split. Words are ordered by **staleness** (how long
+since last recall, never-recalled first) and **not shuffled**: staleness *is* the order. Front/back
+are the same shape as Words mode's own, built by the same `Learning::wordEntry()`.
+
+A correct answer stamps that word's last recall and nothing else: no SRS level, no `next_study_at`,
+and it never clears a card. That falls out of reusing `/saveLearning` rather than needing its own
+endpoint — Refresher posts a `words` array and an **empty** card array, and "stamp last recall and
+touch nothing else" is exactly what that endpoint then does. The view is the same flashcard page in
+its word-dealing shape, with card-result derivation switched off.
+
+It deals `BaseWordController::REFRESHER_BATCH` (30) words at a time. That is a page size, not a
+session scope — Refresher is deliberately **not** a learning mode, which is what separates it from
+Words. Because it shares `/completeLearning` with the real modes, it resets
+`session('learning_mode')`/`more_cards_available` on the way in, so finishing a Refresher never
+offers to "continue another set" of whatever mode an earlier session left behind.
 
 ## SRS algorithm
 
@@ -153,17 +183,25 @@ which is what separates it from Words.
   interval per level (level 1 → +1 day, level 2 → +2 days, level 3 → +4 days, …).
 - otherwise (wrong) → `next_study_at = now() + 1 day`.
 
-Persisting a result (`AjaxController@saveLearning`, `POST /saveLearning`) reads a JSON array of
+Persisting a result (`AjaxController@saveLearning` — the whole of what that controller is now,
+`POST /saveLearning`) reads a JSON array of
 `{id, result}` from the request, and per card: sets `next_study_at` via the formula above,
 increments `level` on a correct result or **resets it to 1** on a wrong one, stamps
 `last_studied = now()`, saves. There is no per-card ownership check here beyond `Card::find` —
 the id list comes from the session-driven client the user is already looking at, not arbitrary
 input.
 
-A Words-mode session extends this same request with a parallel per-word array (base word id +
-result), stamping `last_recalled_at` on each correct one independently of the card-level array —
-which is what still lets a card clear here without every base word answer needing its own request.
-Exact key/endpoint shape for the per-word array is implementation's call.
+`POST /saveLearning` takes two parallel JSON arrays, both of `{id, result}`:
+
+- **`results`** — per **card**. Besides the schedule, a correct result stamps `last_recalled_at` on
+  every base word linked to that card: producing the Term is producing all of its words.
+- **`words`** — per **base word**, which Words mode and Refresher send. A correct answer stamps that
+  word's own last recall; nothing here touches a card's schedule, because whether the card cleared
+  is already decided in `results`. The update is scoped through `Auth::user()->baseWords()`, so an
+  id the learner doesn't own is silently ignored — the same discipline the card array has.
+
+Conversation mode's recap (`ChatController@recap`) applies the `results` branch's behaviour
+directly, base-word stamping included.
 
 **In-session flow is repeat-until-correct**, entirely client-side: a card marked *Wrong* is
 recorded locally (only actually persisted to `/saveLearning` as whatever its **final** result in

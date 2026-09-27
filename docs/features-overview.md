@@ -8,41 +8,52 @@ plain-English answer to "does the app already do X?"
 ## Capturing words & phrases
 
 The core loop: a user types (or pastes) a word, collocation, idiom, or even a whole sentence, and
-the app turns it into a flashcard.
+the app turns it into a flashcard — by way of **staging**, where they get the last word on it.
 
-- **AI-assisted capture** (the main way): type a term on the dashboard, optionally add the
-  sentence/context it was seen in so the AI captures the right sense/domain, and it comes back
-  with a corrected/canonicalized term, a definition, a translation and an example sentence. The
-  app decides on its own what kind of card you need — a single **word**, a **phrase**, or an
-  **expression** (a whole thing you'd *say*) — and tailors every field accordingly. A word you
-  typed in an inflected form is stored in its base form (`vetting` → `vet`), and the form you
-  typed still shows up in one of the suggested phrases.
-- **Learning a word inside a phrase**: a card built around a single word also suggests three
-  natural phrases that word appears in. Click one and the app builds a card around that phrase
-  instead — translating and defining the whole phrase, remembering which word you originally
-  wanted (shown in bold wherever the phrase appears), and carrying over your wordbox, note, links
-  and review progress. If you give context that already contains a phrase ("vet a candidate"), you
-  get the phrase card straight away. See [cards](cards.md).
+- **AI-assisted capture** (the main way): type a term, optionally add the sentence/context it was
+  seen in so the AI captures the right sense/domain, and press Capture. It returns **immediately**:
+  you get a toast and a count on the Staging nav link, and nothing else waits on the AI. You don't
+  pick a language — the app works out which of your languages the term is in.
+- **Staging** is where a captured term waits for you, and nothing is in your vocabulary until you
+  approve it. Each proposal shows the term it settled on, what kind of card it needs (**word**,
+  **phrase** or **expression** — a whole thing you'd *say*), the detected language (changeable, if
+  it guessed wrong), and the individual words it wants to add to your vocabulary base as a tray of
+  chips. **Strike** any chip and that word is left out — the card still teaches the whole term
+  either way. A chip for a word you already have says so, and opens up to show which of your cards
+  use it. A single-word term also gets a short **phrase to set it in**, which you can edit, swap for
+  another, or clear.
+- **Approve** writes the card and its words — and only then is the definition, translation and
+  example sentence generated, so nothing is spent on a term you throw away. **Discard** leaves
+  nothing behind (with a few seconds to undo).
 - **Manual capture** (`/add`, no AI): type every field yourself. Useful when you already know
-  exactly what you want on the card.
-- **Browser extension**: capture a word from any webpage without visiting the site — same
-  AI-assisted flow, in a popup. See [browser-extension](browser-extension.md).
-- **Capturing a term you already have** never creates a second card. A dialog says so and offers
-  to **regenerate** the existing card — fresh translation, definition and examples, while your
-  review progress, note and linked cards stay as they are. It recognises the term you already
-  have even when you typed it differently: a misspelling or an inflected form is checked again
-  after the AI corrects it, and a word you're learning inside a phrase counts as saved too (a
-  card for "vetting candidates" is already your card for "vetting").
+  exactly what you want on the card. It skips staging entirely.
+- **Browser extension**: capture a word from any webpage without visiting the site — it lands in
+  the same staging feed. See [browser-extension](browser-extension.md).
+- **Capturing a term you already have** never creates a second card. Staging says so and offers to
+  **regenerate** the existing card instead — fresh translation, definition and example sentence,
+  while your review progress, note, words and linked cards stay as they are. Having one of a term's
+  *words* in your vocabulary base is a different thing, and never stops you saving the term.
 
 ## Multi-language vocabulary
 
-- Learn **up to 5 target languages** at once, each with its own vocabulary, wordboxes, and
-  proficiency (CEFR) level, which steers how difficult the AI-generated content is.
+- Learn **up to 5 target languages** at once, each with its own vocabulary, vocabulary base,
+  wordboxes, and proficiency (CEFR) level, which steers how difficult the AI-generated content is.
+  Your level also decides which words are too basic to be worth collecting.
 - Optionally build vocabulary in your **own native language** too (e.g. a Czech speaker collecting
   Czech words/idioms) — a separate opt-in, doesn't count against the 5-language limit.
-- A **save-destination picker** on the dashboard controls which language (and optionally which
-  wordbox) new captures go into; it remembers your last choice.
+- You never choose a language when capturing: it is detected, and corrected in staging if wrong.
 - See [multi-language](multi-language.md).
+
+## The vocabulary base
+
+`/base` — every word you have met in one language, one entry per word **and part of speech**
+(*run* the verb and *run* the noun are two different things to know). Each entry shows the word the
+way you are meant to learn it — a Swedish noun with its article, *"ett hus"*, not bare *"hus"* —
+its part of speech, its translation, how many of your cards use it, and when you last recalled it.
+
+It is not a second review queue: it has no schedule. Its jobs are to stop the same word being
+collected twice and to show you which words run through many of your phrases without belonging to
+any one card. See [cards](cards.md) "The vocabulary base".
 
 ## Vocabulary list
 
@@ -72,10 +83,14 @@ a mode:
 - **Sentences (writing)** — same sentence, but you type the missing word instead of flipping a
   card; forgiving about capitalization/punctuation/spelling of the surrounding text, not about the
   word itself.
-- **Words** — see the translation, recall the term.
+- **Words** — the individual words your due cards are made of, one at a time: see the translation,
+  recall the word. A card is cleared once you've got every one of its words.
 - **Definitions** — see the definition, recall the term.
 - Reviews use **spaced repetition**: getting a card right pushes its next review further out
   (doubling each time), getting it wrong resets it to "review again tomorrow."
+- **Refresher** (from the vocabulary base, not the session builder) — free practice over your whole
+  base, the words you haven't recalled in longest first. It isn't scheduled and it never changes a
+  card's review date; it just records that you still know the word.
 - See [learning-flow](learning-flow.md).
 
 ## Conversation practice (three ways)
@@ -117,6 +132,7 @@ page for finding existing cards to add to it. See [search-and-linking](search-an
 ## Profile & settings
 
 `/profile` and `/profile/edit` — manage your target languages and their proficiency levels
-(A1–C2, drives how difficult AI-generated content is), your native language, the
-native-language-vocabulary opt-in, your default save language, and reorder your wordboxes. See
-[multi-language](multi-language.md), [auth-and-users](auth-and-users.md).
+(A1–C2, which drives how difficult AI-generated content is and which words are worth collecting),
+your native language, the native-language-vocabulary opt-in, the language your screens open on, and
+reorder your wordboxes. See [multi-language](multi-language.md),
+[auth-and-users](auth-and-users.md).

@@ -1,7 +1,7 @@
 @forelse($linkedCards as $linked)
     <tr class="group hover:bg-white/10 js-linked-row" data-linked-id="{{ $linked->id }}">
         <td class="px-4 py-2 whitespace-nowrap text-white">
-            <a href="/cards/{{ $linked->id }}" class="hover:underline">{!! $linked->phraseHtml() !!}</a>
+            <a href="/cards/{{ $linked->id }}" class="hover:underline">{{ $linked->term }}</a>
         </td>
         <td class="px-4 py-2 text-gray-300">{{ $linked->translation }}</td>
         <td class="w-8 px-4 py-2 text-right">

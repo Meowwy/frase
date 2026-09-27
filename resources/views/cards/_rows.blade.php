@@ -1,12 +1,12 @@
 @forelse($cards as $card)
     <tr class="group hover:bg-white/10 cursor-pointer js-card-row"
-        data-card-id="{{ $card->id }}" data-card-term="{{ $card->phrase }}">
+        data-card-id="{{ $card->id }}" data-card-term="{{ $card->term }}">
         <td class="w-10 px-4 py-2 js-card-check">
             <input type="checkbox" value="{{ $card->id }}"
                    class="js-card-checkbox h-4 w-4 rounded border-white/30 bg-transparent align-middle cursor-pointer opacity-0 group-hover:opacity-100 checked:opacity-100 transition-opacity">
         </td>
         {{-- No nowrap: an expression frame ("can you hand me the ...") would stretch the column. --}}
-        <td class="px-6 py-2 text-sm text-white">{!! $card->phraseHtml() !!}</td>
+        <td class="px-6 py-2 text-sm text-white">{{ $card->term }}</td>
         <td class="px-6 py-2 text-sm text-gray-300">{{ $card->translation }}</td>
         <td class="px-6 py-2 text-sm text-gray-300">
             <div class="max-w-[14rem] truncate" title="{{ $card->definition }}">{{ $card->definition }}</div>

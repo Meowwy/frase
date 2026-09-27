@@ -1,0 +1,183 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Models\AI;
+use App\Models\Card;
+use App\Models\Language;
+use App\Models\Proposal;
+use App\Support\LanguageGuideline;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Resolves CALL 1 against a freshly captured proposal: language detection, card shape,
+ * the canonical Term, the candidate base words and — for a lone word — an anchor phrase.
+ *
+ * Capture writes the proposal row and returns immediately, so this runs on the queue and
+ * the staging list resolves its skeleton row once the status flips to `completed` (the
+ * same shape as GenerateGapFillJob — see docs/gap-fill.md).
+ */
+class AnalyzeProposalJob implements ShouldQueue
+{
+    use Queueable;
+
+    public function __construct(
+        public Proposal $proposal
+    ) {}
+
+    public function handle(): void
+    {
+        try {
+            $this->proposal->update(['status' => Proposal::STATUS_PROCESSING]);
+
+            $user = $this->proposal->user;
+
+            // A language already set means the learner corrected a wrong detection in
+            // staging, so this re-run is pinned to it: offering the model the whole set
+            // again would just let it drift back to its original guess.
+            $languages = $user->languages()
+                ->when($this->proposal->language_id, fn ($q) => $q->whereKey($this->proposal->language_id))
+                ->orderBy('name')
+                ->get();
+
+            if ($languages->isEmpty()) {
+                $this->proposal->update(['status' => Proposal::STATUS_FAILED]);
+
+                return;
+            }
+
+            $analysis = AI::analyzeTerm(
+                $this->proposal->raw_input,
+                $languages->map(fn (Language $l) => ['code' => $l->code, 'name' => $l->name])->all(),
+                optional($user->nativeLanguage)->name ?? $user->native_language,
+                $this->proposal->context,
+            );
+
+            $term = trim((string) ($analysis['term'] ?? ''));
+            $language = $analysis ? $languages->firstWhere('name', $analysis['language'] ?? null) : null;
+
+            if ($term === '' || ! $language) {
+                Log::error('analyzeTerm returned nothing usable for proposal '.$this->proposal->id);
+                $this->proposal->update(['status' => Proposal::STATUS_FAILED]);
+
+                return;
+            }
+
+            $shape = in_array($analysis['card_kind'] ?? '', Card::SHAPES, true)
+                ? $analysis['card_kind']
+                : Card::SHAPE_WORD;
+
+            $this->proposal->update([
+                'language_id' => $language->id,
+                'term' => $term,
+                'card_shape' => $shape,
+                // Word-shape only: nothing else may carry an anchor phrase.
+                'anchor' => $shape === Card::SHAPE_WORD ? (trim((string) ($analysis['anchor'] ?? '')) ?: null) : null,
+                'status' => Proposal::STATUS_COMPLETED,
+            ]);
+
+            $this->storeCandidates(
+                (array) ($analysis['base_words'] ?? []),
+                $language,
+                $shape,
+                $user->levelForLanguage($language),
+            );
+        } catch (\Throwable $e) {
+            Log::error('Proposal analysis failed for proposal '.$this->proposal->id.': '.$e->getMessage());
+            $this->proposal->update(['status' => Proposal::STATUS_FAILED]);
+        }
+    }
+
+    /**
+     * Write the chip tray, applying the proficiency filter on the way in.
+     *
+     * The already-present filter is deliberately NOT applied here: it is computed live at
+     * render time (Proposal::presenceIndex) so a word the learner acquires between capture
+     * and approval is still recognised, and so the chip can say so rather than vanishing.
+     * Approval reuses the existing row either way.
+     */
+    private function storeCandidates(array $candidates, Language $language, string $shape, ?string $level): void
+    {
+        $guideline = LanguageGuideline::for($language->code);
+        $clean = [];
+
+        foreach ($candidates as $candidate) {
+            $lemma = trim((string) ($candidate['lemma'] ?? ''));
+            $partOfSpeech = (string) ($candidate['part_of_speech'] ?? '');
+
+            if ($lemma === '' || ! in_array($partOfSpeech, LanguageGuideline::PARTS_OF_SPEECH, true)) {
+                continue;
+            }
+
+            // One chip per lemma + part of speech: the card/base-word link is unique per
+            // pair, so a Term that repeats a word must not propose it twice.
+            $clean[mb_strtolower($lemma).'|'.$partOfSpeech] ??= [
+                'lemma' => $lemma,
+                'part_of_speech' => $partOfSpeech,
+                'grammar_attributes' => $this->grammarAttributes($guideline, $partOfSpeech, $candidate),
+                'surface_form' => trim((string) ($candidate['surface_form'] ?? '')) ?: $lemma,
+                'translation' => trim((string) ($candidate['translation'] ?? '')),
+            ];
+        }
+
+        foreach ($this->applyProficiencyFilter($clean, $shape, $level) as $candidate) {
+            $this->proposal->baseWords()->create($candidate);
+        }
+    }
+
+    /**
+     * The proficiency filter: from B1 up, prepositions, pronouns and other very basic
+     * function words aren't worth a vocabulary entry of their own.
+     *
+     * It is applied to the set, not word by word, because it must never cut below what the
+     * shape requires — a word or phrase card has to keep at least one base word to be
+     * approvable at all, and there is nothing to un-strike back into existence. A word
+     * card's single candidate is its own Term; a phrase made only of function words
+     * ("out of", "in spite of") would otherwise arrive in staging empty and permanently
+     * unapprovable. In both cases the whole filter stands down rather than half-applying.
+     */
+    private function applyProficiencyFilter(array $candidates, string $shape, ?string $level): array
+    {
+        if (! in_array($level, ['B1', 'B2', 'C1', 'C2'], true)) {
+            return $candidates;
+        }
+
+        $kept = array_filter(
+            $candidates,
+            fn ($candidate) => ! in_array($candidate['part_of_speech'], LanguageGuideline::FUNCTION_WORD_PARTS, true)
+        );
+
+        if ($kept === [] && $shape !== Card::SHAPE_EXPRESSION) {
+            return $candidates;
+        }
+
+        return $kept;
+    }
+
+    /**
+     * Keep only the attributes this language's guideline actually defines for this part of
+     * speech. CALL 1's schema carries the union across the learner's languages (it decides
+     * the language in the same answer), so a Swedish `gender` can come back on an English
+     * noun — discarding it here is what keeps the stored attributes truthful.
+     */
+    private function grammarAttributes(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate): ?array
+    {
+        if (! $guideline) {
+            return null;
+        }
+
+        $attributes = [];
+
+        foreach ($guideline->attributesFor($partOfSpeech) as $name => $definition) {
+            $value = (string) ($candidate[$name] ?? '');
+
+            if (in_array($value, $definition['values'], true)) {
+                $attributes[$name] = $value;
+            }
+        }
+
+        return $attributes ?: null;
+    }
+}

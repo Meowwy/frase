@@ -40,7 +40,7 @@ A `Theme` (`themes` table, per-language like everything else) is an older, flatt
 `Theme::cards()` is a plain `hasMany` — a card has **at most one** theme (`cards.theme_id`,
 nullable, `onDelete('set null')`), unlike the many-to-many wordbox relationship.
 
-The AI no longer assigns a theme at capture time — `AjaxController@index` creates every new card
+The AI no longer assigns a theme at capture time — `Proposal::approve()` creates every new card
 with `theme_id` unset (see [ai-integration](ai-integration.md)/[cards](cards.md) "Capture flow").
 A card can still get a theme via the manual card-creation path (`theme_id` is one of the fields
 on `/add`, see [cards](cards.md)); the "AI-suggested theme" behaviour used to live in

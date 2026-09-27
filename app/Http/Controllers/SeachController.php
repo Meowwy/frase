@@ -20,8 +20,8 @@ class SeachController extends Controller
         $searchTerm = $request->input('searchTerm');
 
         $cards = Card::where('user_id', Auth::id())
-            ->where('phrase', 'LIKE', '%'.$searchTerm.'%')
-            ->orderByRaw('CASE WHEN phrase LIKE ? THEN 0 ELSE 1 END', ["$searchTerm%"])
+            ->where('term', 'LIKE', '%'.$searchTerm.'%')
+            ->orderByRaw('CASE WHEN term LIKE ? THEN 0 ELSE 1 END', ["$searchTerm%"])
             ->limit(15)
             ->get();
 
@@ -41,7 +41,7 @@ class SeachController extends Controller
 
         $searchTerm = $request->input('searchTerm');
         $foundCards = Card::where('user_id', Auth::id())
-            ->where('phrase', 'like', "%$searchTerm%")
+            ->where('term', 'like', "%$searchTerm%")
             ->limit(10)
             ->get();
 

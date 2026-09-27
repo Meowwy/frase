@@ -12,10 +12,16 @@ fragments), and review them later via spaced-repetition flashcards and AI conver
 A user can build active vocabulary in **up to 5 target languages**, plus optionally their own
 native language (see [multi-language](multi-language.md)).
 
-The core loop is: **capture** a word/phrase → AI turns it into a flashcard (see
-[ai-integration](ai-integration.md), [cards](cards.md)) → the word enters an SRS queue → the user reviews it via one of
-several **learning modes** (see [learning-flow](learning-flow.md)) or practises it in a live AI conversation (see
-[conversation-challenge](conversation-challenge.md), [conversation-voice](conversation-voice.md), [conversation-game](conversation-game.md)).
+The core loop is: **capture** a word/phrase → it waits in **staging** as a proposal while the AI
+works out what it is → the learner **approves** it, which writes the card and adds its words to
+their **vocabulary base** (see [ai-integration](ai-integration.md), [cards](cards.md)) → the card
+enters an SRS queue → the user reviews it via one of several **learning modes** (see
+[learning-flow](learning-flow.md)) or practises it in a live AI conversation (see
+[conversation-challenge](conversation-challenge.md), [conversation-voice](conversation-voice.md),
+[conversation-game](conversation-game.md)).
+
+The app divides into three modules without residue — **CAPTURE**, **ORGANIZE**, **LEARN** — and the
+nav is grouped by them. See `CONTEXT.md` and [features-overview](features-overview.md).
 
 ## Core technologies
 
@@ -26,8 +32,9 @@ several **learning modes** (see [learning-flow](learning-flow.md)) or practises 
   modals), **Vite** for bundling `resources/css/app.css` + `resources/js/app.js`
 - **Notifications**: Toastr (CDN), used for client-side success/error toasts
 - **Database**: SQLite (default)
-- **Queues**: Laravel's queue system for slow AI calls (gap-fill generation; card creation is
-  synchronous — see [ai-integration](ai-integration.md))
+- **Queues**: Laravel's queue system for slow AI calls — gap-fill generation, and CALL 1 at
+  capture (`AnalyzeProposalJob`, see [cards](cards.md) "Staging"). CALL 2 at proposal approval is
+  synchronous, since the learner is waiting on the card it writes
 
 ## Core guidelines
 
@@ -84,7 +91,9 @@ several **learning modes** (see [learning-flow](learning-flow.md)) or practises 
   makes it throw `LogicException: ... Another route has already been assigned name [...]`, which
   fails the whole `fly deploy`. This is deliberate — it used to fail silently at boot instead,
   leaving production permanently un-cached. The web and API capture endpoints share a controller
-  but not a name: `captureWordAjax` (web) vs `captureWordApi` (`POST /api/addWordAPI`).
+  but not a name: `capture` (web, `POST /capture`) vs. `captureApi` (`POST /api/addWordAPI`) —
+  and `ProposalController@store` reads `routeIs('captureApi')` to set the proposal's `source`, so
+  those names are load-bearing, not just labels.
 
 ## Deployment (Fly.io)
 
@@ -142,9 +151,8 @@ question: **does it depend only on source code, or on the environment it runs in
   card-creation/edit paths (`CardController::save`/`update`, see [cards](cards.md)) — both
   `authorize(): true` (ownership is checked separately via a Policy, see below — a Form Request's
   `authorize()` doesn't have reliable access to a not-yet-route-bound model) and real `rules()`.
-  `AjaxController@index` (the AI-assisted capture path) validates inline instead, since its rules
-  depend on runtime state (native vs. target language) a static Form Request can't express as
-  cleanly.
+  `ProposalController` validates inline instead: capture has only two fields, and the staging
+  actions are one field each, so a Form Request per endpoint would be more ceremony than rule.
 - **Authorization**: ownership checks go through Laravel Policies, not ad hoc `if` statements.
   `app/Http/Controllers/Controller.php` includes the `AuthorizesRequests` trait, so any controller
   can call `$this->authorize('ability', $model)` (throws a 403 automatically) once a matching
@@ -161,8 +169,13 @@ question: **does it depend only on source code, or on the environment it runs in
   static methods on a model instead of a controller when the model already owns the relevant
   state — `App\Models\AI` (all OpenAI calls, see [ai-integration](ai-integration.md)) and `App\Models\Learning`
   (SRS scheduling + learning-session bootstrap, see [learning-flow](learning-flow.md)) are the two big examples.
-  This is a deliberate, established pattern in this codebase — follow it for similar
-  feature-level logic rather than introducing a new service-class layer.
+  `Proposal::approve()` and `BaseWord::resolve()` follow the same pattern. This is a deliberate,
+  established pattern in this codebase — follow it for similar feature-level logic rather than
+  introducing a new service-class layer.
+- **`app/Support/`** holds the one thing that is neither: `LanguageGuideline`, a plain class that
+  reads declarative per-language data out of `resources/language-guidelines/`. There is no row
+  behind it, so it is not a model, and it is stateless data access, so it is not a service layer.
+  See [ai-integration](ai-integration.md) "Language guidelines".
 - Eloquent models live in `app/Models`. Mass assignment is generally left open
   (`protected $guarded = [];`) rather than maintaining a `$fillable` allowlist — match this in
   new models unless there's a specific reason to lock a model down.
@@ -193,24 +206,34 @@ question: **does it depend only on source code, or on the environment it runs in
 
 ## Known rough edges (don't be surprised by these)
 
-- **Queued jobs don't run in production yet.** `GenerateGapFillJob` and `GenerateEmbeddingJob` are
-  dispatched onto `QUEUE_CONNECTION=database` (confirmed in `fly.toml` and `.env`), but there is
-  **no `queue:work`/`queue:listen` process defined anywhere in the deploy config**
-  (`Dockerfile`/`.fly/supervisor/conf.d` only run `php-fpm` and `nginx`). Until a worker process
-  is added there, both jobs sit in the `jobs` table and never execute in production — gap-fill
-  generation will poll forever and embeddings are never generated. Locally this only matters if
-  you're testing either feature without `php artisan queue:work` running. See
-  [gap-fill](gap-fill.md).
+- **Queued jobs don't run in production yet, and capture now depends on one.**
+  `AnalyzeProposalJob`, `GenerateGapFillJob` and `GenerateEmbeddingJob` are dispatched onto
+  `QUEUE_CONNECTION=database` (confirmed in `fly.toml` and `.env`), but there is **no
+  `queue:work`/`queue:listen` process defined anywhere in the deploy config**
+  (`Dockerfile`/`.fly/supervisor/conf.d` only run `php-fpm` and `nginx`). Until a worker process is
+  added there, these jobs sit in the `jobs` table and never execute in production — staging rows
+  stay skeletons forever, gap-fill polls forever, and embeddings are never generated. **This is now
+  a blocker for the main flow, not just two side features**, and adding a worker is the next
+  deploy-config change this app needs. Locally, run `php artisan queue:work`. See
+  [gap-fill](gap-fill.md), [cards](cards.md) "Staging".
 - `RegisteredUserController@store` still validates against the legacy free-text
   `targetLanguage`/`nativeLanguage`/`code` fields (there's a hardcoded invite `code` = `delina`)
   rather than the `languages`/`language_user` model introduced later (see [multi-language](multi-language.md)).
   Registration does not yet set `native_language_id` / attach a target language via the pivot —
   a new user has to do that on `/profile/edit` before capturing works
-  (`AjaxController@index` redirects there if `currentSaveLanguage()` is null).
+  (`ProposalController@store` refuses with a 422 if they have no attached language).
 - **History note, not a current bug**: `CardController@store` (an old AI-calling variant of card
-  creation, superseded by `AjaxController@index`) and the jobs `CreateCardJob`/`CallAIJob`
-  (referenced the dropped `question` column, unreachable) have been deleted outright rather than
-  kept as dead code. `CardController::save()` — the manual "/add" entry point, no AI involved —
+  creation) and the jobs `CreateCardJob`/`CallAIJob` (referenced the dropped `question` column,
+  unreachable) have been deleted outright rather than kept as dead code. The vocabulary-base
+  redesign deleted the next layer of that history the same way, rather than leaving it dormant:
+  `AjaxController@index` (the old synchronous capture; `AjaxController` is now just
+  `saveLearning`), `AjaxController@setCaptureTarget` + `POST /capture-target` + the
+  `capture_language_id`/`capture_wordbox_id` session keys (the save-destination picker),
+  `CardController@learnAsPhrase` + `Card::createFromPhrase()` + `Card::suggestedPhrases()` +
+  `<x-phrase-suggestions>` (the "learn it in a phrase instead" nudge), `Card::phraseHtml()` and
+  `Card::resolveFocusWord()` (nothing left to bold), `GET /api/save-options`, `AI::test()`, and the
+  scratch routes `POST /test`, `GET /test/createdGapFill` and the `dd()`-ing `POST /addWordAPI` in
+  `web.php`. `CardController::save()` — the manual "/add" entry point, no AI involved —
   used to be *shadowed by a duplicate route registration* (a second, working, closure-based
   `/cards/new` handler was silently unreachable because Laravel matches the first-registered
   route) and its old body referenced an undefined property; both are fixed now, and `save()` is

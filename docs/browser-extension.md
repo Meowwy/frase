@@ -11,10 +11,11 @@ this repo alone.
 
 The main app (`routes/web.php`) is entirely **session**-based, which a browser-extension popup
 can't rely on the way a same-origin page can. `routes/api.php` is a small, **Sanctum
-token**-authenticated, stateless surface specifically for the extension — the extension has no
-session and must pass everything it needs (including `language_id`/`wordbox_id`) explicitly on
-every request, unlike the website which can fall back to `session('capture_language_id')` (see
-[multi-language](multi-language.md)).
+token**-authenticated, stateless surface specifically for the extension.
+
+Since the vocabulary-base redesign it needs nothing else: a capture carries only the term and an
+optional context, because the language is detected by CALL 1 and there is no save destination to
+choose. That is what let `/save-options` go.
 
 ## Endpoints
 
@@ -23,39 +24,27 @@ every request, unlike the website which can fall back to `session('capture_langu
   extension stores this token in `chrome.storage.local` and sends it as a Bearer token on every
   subsequent call. A 401 response anywhere below should force the extension back to this login
   step.
-- **`POST /api/addWordAPI`** *(Sanctum, `auth:sanctum` group)* → routes straight to
-  **`AjaxController@index`** — the exact same capture endpoint the website's own capture form
-  uses (`POST /captureWordAjax` on the web side). No extension-specific controller code exists;
-  the shared endpoint already validates/honors `language_id`/`wordbox_id` in the request body and
-  returns JSON (it branches on `$request->expectsJson()`), so nothing extra was needed to support
-  the extension. See [cards](cards.md) "Capture flow" for exactly what this endpoint does.
-  **Note it makes two sequential model calls** (a shape router, then the content generator — see
-  [ai-integration](ai-integration.md) "Why two calls"), so the popup waits noticeably longer than a
-  single call; the first is deliberately kept tiny. The extension never sees the "learn it in a
-  phrase instead" nudge — that lives on the website's card page and dashboard — so a word captured
-  from the extension keeps its suggestions until the user next opens that card in Frase.
-- **`GET /api/save-options`** *(Sanctum)* — returns the flat list of save-destination options for
-  the extension's own dropdown (it can't reuse the web `<x-wordbox-picker>` component, being a
-  separate popup UI): one entry per language × (general vocabulary, then each of that language's
-  wordboxes A–Z), languages ordered alphabetically. Each entry:
-  `{value, label, language_id, wordbox_id}` where `value` is `"<language_id>:<wordbox_id>"`
-  (`"<id>:"` with nothing after the colon = general vocabulary, no wordbox) and `label` is plain
-  text like `"English - general"` / `"English - Travel"` — **no flag emoji**, deliberately, since
-  the flag webfont trick described in [frontend-patterns](frontend-patterns.md) isn't bundled into the extension
-  popup, and Windows renders raw flag emoji as literal two-letter codes ("GB") without it. Also
-  returns `selected`: the `value` corresponding to the user's `currentSaveLanguage()`, so the
-  extension can preselect a sensible default without an extra round trip.
+- **`POST /api/addWordAPI`** *(Sanctum, `auth:sanctum` group; route name `captureApi`)* → routes
+  straight to **`ProposalController@store`** — the exact same capture endpoint the website's own
+  capture form uses (`POST /capture` on the web side). No extension-specific controller code
+  exists; the endpoint always answers JSON, and the only thing it branches on is `$request->routeIs('captureApi')`,
+  which it records as the proposal's `source`. Body: `{capturedWord, context?}` — and nothing else.
+  Answers `{proposal_id, staged_count, message}`.
+  **It no longer waits on the AI at all**: it writes a `proposals` row and returns, and CALL 1 runs
+  on the queue afterwards. The popup used to sit through two sequential model calls; now the term
+  appears in the website's staging feed, where the user approves it. See [cards](cards.md)
+  "Staging".
 
 ## Extension-side contract (for reference, not owned by this repo)
 
-- `popup.js`'s `loadSaveOptions()` fetches `/save-options` when the popup's main view is shown and
-  populates the dropdown, preselecting `selected`.
-- On capture, it splits the chosen dropdown `value` back into `language_id` + `wordbox_id` and
-  includes both in the `addWordAPI` request body.
-- A 401 from any call forces the popup back to the login view; a failed `/save-options` fetch
-  leaves the dropdown empty rather than blocking capture — the server still falls back to the
-  user's default save language via `currentSaveLanguage()` in that case.
+- The popup sends `{capturedWord, context?}` with the Bearer token. A 401 from any call forces it
+  back to the login view.
+- **`GET /api/save-options` is gone**, along with the save-destination dropdown it fed. Capture has
+  no destination to choose any more, so the popup should drop `loadSaveOptions()` and stop sending
+  `language_id`/`wordbox_id` (they are ignored if sent). The old code degrades safely in the
+  meantime: it already left the dropdown empty on a failed fetch rather than blocking capture.
+- The success message is worth surfacing verbatim — it says the term is *in staging*, not that a
+  card exists, which is the one thing that changed for the user.
 
-If you change the shape of `/save-options` or `/addWordAPI`'s expected body, the extension code
-needs a matching update — there's no shared type/schema between the two repos to catch a mismatch
-automatically.
+If you change the shape of `/addWordAPI`'s expected body, the extension code needs a matching
+update — there's no shared type/schema between the two repos to catch a mismatch automatically.

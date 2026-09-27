@@ -80,14 +80,14 @@
                 cardDiv.className = 'bg-white/5 border border-white/10 p-3 rounded-lg flex justify-between items-center group hover:border-red-500/50 transition-colors';
 
                 // Built with createElement/textContent rather than innerHTML template
-                // interpolation — phrase/translation ultimately trace back to
+                // interpolation — term/translation ultimately trace back to
                 // AI-generated (user-influenced) text and must never be parsed as markup.
                 const infoDiv = document.createElement('div');
                 infoDiv.className = 'min-w-0 flex-grow flex items-center gap-2';
 
-                const phraseSpan = document.createElement('span');
-                phraseSpan.className = 'font-bold truncate';
-                phraseSpan.textContent = card.phrase;
+                const termSpan = document.createElement('span');
+                termSpan.className = 'font-bold truncate';
+                termSpan.textContent = card.term;
 
                 const sepSpan = document.createElement('span');
                 sepSpan.className = 'text-white/30';
@@ -97,7 +97,7 @@
                 translationSpan.className = 'text-white/70 truncate text-sm';
                 translationSpan.textContent = card.translation;
 
-                infoDiv.append(phraseSpan, sepSpan, translationSpan);
+                infoDiv.append(termSpan, sepSpan, translationSpan);
 
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'text-white/30 hover:text-red-500 p-2 transition-colors';
@@ -143,8 +143,8 @@
 
             // Handle card action events from x-card-wordbox component (if used via AJAX)
             document.addEventListener('card-action', function(e) {
-                const { id, phrase, translation } = e.detail;
-                addCard(id, phrase, translation);
+                const { id, term, translation } = e.detail;
+                addCard(id, term, translation);
             });
 
             searchInput.addEventListener('input', function() {
@@ -170,7 +170,7 @@
 
                             // Built with createElement/textContent (not innerHTML template
                             // interpolation, and not a string-built onclick attribute) —
-                            // phrase/translation trace back to AI-generated (user-influenced)
+                            // term/translation trace back to AI-generated (user-influenced)
                             // text and must never be parsed as markup or JS.
                             const cardWrapper = document.createElement('div');
                             cardWrapper.className = 'w-full';
@@ -188,9 +188,9 @@
                             link.href = `/cards/${card.id}`;
                             link.className = 'flex gap-2 text-lg font-bold hover:text-blue-400 transition-colors';
 
-                            const phraseP = document.createElement('p');
-                            phraseP.className = 'truncate';
-                            phraseP.textContent = card.phrase;
+                            const termP = document.createElement('p');
+                            termP.className = 'truncate';
+                            termP.textContent = card.term;
 
                             const sepP = document.createElement('p');
                             sepP.className = 'text-white/30';
@@ -200,7 +200,7 @@
                             translationP.className = 'truncate text-white/70 font-normal text-sm';
                             translationP.textContent = card.translation;
 
-                            link.append(phraseP, sepP, translationP);
+                            link.append(termP, sepP, translationP);
                             infoWrap.appendChild(link);
 
                             const btnWrap = document.createElement('div');
@@ -212,7 +212,7 @@
                             addBtn.textContent = isAlreadyIn ? 'Added' : 'Add';
                             addBtn.className = (isAlreadyIn ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500') + ' text-white text-xs font-bold rounded-full px-4 py-2 transition-colors uppercase';
                             addBtn.addEventListener('click', function () {
-                                addCard(card.id, card.phrase, card.translation);
+                                addCard(card.id, card.term, card.translation);
                             });
 
                             btnWrap.appendChild(addBtn);
@@ -227,14 +227,14 @@
             });
         });
 
-        function addCard(id, phrase, translation) {
+        function addCard(id, term, translation) {
             if (cards.some(c => c.id === id)) {
                 return;
             }
 
             cards.push({
                 id: id,
-                phrase: phrase,
+                term: term,
                 translation: translation
             });
 

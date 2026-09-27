@@ -32,19 +32,11 @@
 
                 <!-- New Card Input -->
                 <x-panel>
-                    <h2 class="text-lg font-bold mb-4">Quick Add Card</h2>
-                    <x-forms.form action="{{ url('captureWordAjax') }}" method="post" id="addWord">
-                        <x-forms.input :label="false" name="capturedWord" id="captureWord"
-                                       placeholder="Word or phrase in English" class="flex-grow w-full min-w-[300px]"></x-forms.input>
-                        <x-forms.input :label="false" name="context" id="context"
-                                       placeholder="(Optional) Add context, like a sentence or brief description of the term..."></x-forms.input>
-                        <div class="flex items-center space-x-3 mt-4">
-                            <x-forms.button id="btnAdd">Add</x-forms.button>
-                            <p id="info_creatingCard" class="hidden ml-3 font-bold">Creating card... Please wait</p>
-                        </div>
-                        <x-forms.input type="hidden" :label="false" name="wordbox_id" value="{{ $wordbox->id }}" />
-                        <x-forms.input type="hidden" :label="false" name="language_id" value="{{ $wordbox->language_id }}" />
-                    </x-forms.form>
+                    <h2 class="text-lg font-bold mb-4">Capture a term</h2>
+                    {{-- Capture has no save destination any more, so a term captured here
+                         lands in staging like any other and is moved into this wordbox from
+                         /cards once approved. --}}
+                    <x-capture-form />
                 </x-panel>
 
                 <!-- Wordbox Summary (Coming Soon) -->
@@ -157,7 +149,7 @@
                             <tbody class="divide-y divide-white/5">
                             @forelse ($cards as $card)
                                 <tr class="hover:bg-white/5 cursor-pointer transition-colors" onclick="window.location='/cards/{{ $card->id }}'">
-                                    <td class="px-6 py-4 text-sm text-white">{!! $card->phraseHtml() !!}</td>
+                                    <td class="px-6 py-4 text-sm text-white">{{ $card->term }}</td>
                                     <td class="px-6 py-4 text-sm text-white/70">{{ $card->definition }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-white/70">{{ $card->translation }}</td>
                                 </tr>

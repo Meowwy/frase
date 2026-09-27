@@ -14,6 +14,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+        // Toastr 2.x defaults escapeHtml to FALSE, so a toast body is parsed as markup.
+        // Most toasts in this app quote something the user typed or the AI generated — a
+        // captured term, a card's Term, an error message — so the default is an XSS hole:
+        // capturing `<img src=x onerror=…>` would execute it. Escaping globally is the safe
+        // default; the two or three toasts that deliberately carry a link (staging's undo)
+        // opt out per call with their own, entirely static, markup.
+        if (window.toastr) { toastr.options.escapeHtml = true; }
+    </script>
 </head>
 <body class="bg-black text-white font-lato pb-20">
 <div class="px-10">
@@ -25,9 +34,18 @@
         </div>
 
         @auth
+            {{-- Grouped by module: CAPTURE, then ORGANIZE, then LEARN (see CONTEXT.md).
+                 Staging carries a persistent count badge, because a captured term now
+                 waits there instead of becoming a card on its own. --}}
+            @php $stagedCount = Auth::user()->proposals()->count(); @endphp
             <div class="flex items-center gap-8 font-bold">
                 <a href="/" class="hover:text-blue-400 transition-colors">Home</a>
+                <a href="/staging" class="hover:text-blue-400 transition-colors">
+                    Staging
+                    <span @class(['js-staged-count ml-1 rounded-full bg-orange-700 px-2 text-xs', 'hidden' => $stagedCount === 0])>{{ $stagedCount }}</span>
+                </a>
                 <a href="/cards" class="hover:text-blue-400 transition-colors">Vocabulary</a>
+                <a href="/base" class="hover:text-blue-400 transition-colors">Base</a>
                 <a href="/filterCardsForLearning/due" class="hover:text-blue-400 transition-colors">Learn</a>
                 <a href="/conversation" class="hover:text-blue-400 transition-colors">Conversation</a>
             </div>

@@ -52,15 +52,13 @@
             {{-- An expression phrase ("can you hand me the ...") is far longer than a
                  lexical one, so the heading wraps instead of overflowing. --}}
             <div class="min-w-0 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                {{-- font-medium, not font-bold: phraseHtml() bolds the focus word inside
-                     the phrase, which only reads as emphasis if the rest is lighter. The
-                     detail page underlines it too — this is the one place the card is
-                     read closely, so it's worth spelling out which word is being learnt. --}}
-                <span class="text-3xl sm:text-4xl font-medium break-words">{!! $card->phraseHtml('font-bold underline underline-offset-4') !!}</span>
+                {{-- font-medium, not font-bold: there is no focus word left to emphasize
+                     against, so the Term itself is simply what's shown. --}}
+                <span class="text-3xl sm:text-4xl font-medium break-words">{{ $card->term }}</span>
                 <span class="ml-2 text-xl italic">{{$card->translation}}</span>
             </div>
             <div class="flex items-center gap-3 shrink-0">
-                <span class="text-xs uppercase tracking-wider text-white/50">{{$card->term_type}}</span>
+                <span class="text-xs uppercase tracking-wider text-white/50">{{$card->termType()}}</span>
                 @if($card->language)
                     <span class="text-xl leading-none">{{$card->language->flag}}</span>
                 @endif
@@ -74,10 +72,29 @@
             </div>
         </div>
 
-        <!-- Usage examples: natural phrases this word occurs in, on a single-word lexical
-             card only. Each one is clickable and replaces this card with one built around
-             that phrase. -->
-        <x-phrase-suggestions :card="$card"/>
+        <!-- The anchor phrase: word cards only, at most one, optional. The brackets mark
+             the Term's own occurrence inside it. -->
+        @if($card->card_shape === \App\Models\Card::SHAPE_WORD && filled($card->anchor))
+            <div class="mb-6">
+                <p class="text-lg">{!! $card->anchor_html !!}</p>
+                <p class="text-sm text-white/50 italic">{{ $card->anchor_translation }}</p>
+            </div>
+        @endif
+
+        <!-- Which of the Term's words are in the vocabulary base. Not a review list: the
+             base carries no schedule, only coverage. -->
+        @if($card->baseWords->isNotEmpty())
+            <div class="mb-6 flex flex-wrap items-center gap-2">
+                <span class="text-xs uppercase tracking-wider text-white/40">base words</span>
+                @foreach($card->baseWords as $baseWord)
+                    <a href="{{ route('base', ['language_id' => $card->language_id]) }}"
+                       class="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm hover:bg-white/10 transition-colors">
+                        {{ $baseWord->displayForm() }}
+                        <span class="ml-1 text-xs text-white/40">{{ $baseWord->part_of_speech }}</span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
 
         <!-- Definition Section -->
         <div class="mb-4">
@@ -189,7 +206,7 @@
                 }
                 const html = cards.map(function (c) {
                     return '<button type="button" class="js-link-result block w-full text-left px-3 py-2 text-sm text-white hover:bg-white/10" data-id="' + c.id + '">' +
-                        '<span class="font-medium">' + escapeHtml(c.phrase) + '</span>' +
+                        '<span class="font-medium">' + escapeHtml(c.term) + '</span>' +
                         (c.translation ? ' <span class="text-gray-400">' + escapeHtml(c.translation) + '</span>' : '') +
                         '</button>';
                 }).join('');
@@ -216,9 +233,7 @@
                     const row =
                         '<tr class="group hover:bg-white/10 js-linked-row" data-linked-id="' + c.id + '">' +
                         '<td class="px-4 py-2 whitespace-nowrap font-medium text-white">' +
-                        // phrase_html is built server-side (escaped there) so the focus
-                        // word stays bold, matching the rows rendered by _linked_rows.
-                        '<a href="/cards/' + c.id + '" class="hover:underline">' + (c.phrase_html || escapeHtml(c.phrase)) + '</a></td>' +
+                        '<a href="/cards/' + c.id + '" class="hover:underline">' + escapeHtml(c.term) + '</a></td>' +
                         '<td class="px-4 py-2 text-gray-300">' + escapeHtml(c.translation) + '</td>' +
                         '<td class="w-8 px-4 py-2 text-right">' +
                         '<button type="button" class="js-unlink text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Unlink term">' +

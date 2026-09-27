@@ -204,7 +204,6 @@ class UserController extends Controller
         if (! in_array((int) $user->active_language_id, $attachedIds, true)) {
             $user->active_language_id = $attachedIds[0] ?? null;
             $user->save();
-            session()->forget(['capture_language_id', 'capture_wordbox_id']);
         }
 
         // Adopt any language-less content (e.g. from before languages existed) into the

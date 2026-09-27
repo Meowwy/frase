@@ -59,6 +59,23 @@ class User extends Authenticatable
         return $this->hasMany(Theme::class);
     }
 
+    /**
+     * Captured terms waiting in staging — cross-language, and outside the vocabulary
+     * until approved. See docs/cards.md "Staging".
+     */
+    public function proposals()
+    {
+        return $this->hasMany(Proposal::class);
+    }
+
+    /**
+     * The user's vocabulary base across every language: every word they have met.
+     */
+    public function baseWords()
+    {
+        return $this->hasMany(BaseWord::class);
+    }
+
     public function wordboxes()
     {
         return $this->hasMany(Wordbox::class);
@@ -87,7 +104,7 @@ class User extends Authenticatable
     }
 
     /**
-     * The currently selected target language (durable default for the save-destination picker).
+     * The target language screens default to when none is asked for.
      */
     public function activeLanguage()
     {
@@ -103,17 +120,15 @@ class User extends Authenticatable
     }
 
     /**
-     * Resolve the language a newly captured word should be saved under:
-     * session selection -> active_language_id -> first target language. May be null
-     * if the user has not set up any languages yet.
+     * Which language a screen that shows one language at a time should open on:
+     * `active_language_id` -> the first target language. May be null if the user has not
+     * set up any languages yet.
+     *
+     * Capture no longer consults this — the language is detected by CALL 1 and corrected
+     * in staging, so there is no save destination to remember (see docs/cards.md).
      */
     public function currentSaveLanguage(): ?Language
     {
-        $sessionId = session('capture_language_id');
-        if ($sessionId && $this->languages()->whereKey($sessionId)->exists()) {
-            return Language::find($sessionId);
-        }
-
         if ($this->active_language_id && $this->languages()->whereKey($this->active_language_id)->exists()) {
             return $this->activeLanguage()->first();
         }

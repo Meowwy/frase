@@ -21,7 +21,7 @@ class GenerateEmbeddingJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            $embedding = AI::getEmbedding($this->card->phrase);
+            $embedding = AI::getEmbedding($this->card->term);
 
             if (is_null($embedding)) {
                 Log::error('Failed to get embedding for card '.$this->card->id);

@@ -117,13 +117,12 @@ erring on, and the cost is asymmetric: a misfiled expression gets a dictionary d
 word-for-word translation, which is simply wrong for it, whereas a misfiled naming unit merely
 gets a usage note that is a little wordy.
 
-The **derived `term_type`** stays user-correctable the way it is today: `cards/edit.blade.php`
-renders it as a `<x-forms.select>` and the update route validates it with
-`Rule::in(Card::TERM_TYPES)` — writing through it now has to resolve to a `card_shape` value
-(`expression`, or `word`/`phrase` depending on which the card already was) rather than to a stored
-binary. Whether the learner can also change `card_shape` between `word` and `phrase` directly —
-which would have to re-validate the anchor-phrase gate and the base-word cardinality rule — isn't
-settled by this redesign; it's implementation's call.
+The **derived term type** stays user-correctable: `cards/edit.blade.php` renders it as a
+`<x-forms.select>`, `UpdateCardRequest` validates it with `Rule::in(Card::TERM_TYPES)`, and
+`CardController::update()` resolves it back to a `card_shape` — see [cards](cards.md) "Card shape
+and term type" for the exact mapping. The learner cannot change `card_shape` between `word` and
+`phrase` directly; doing so would have to re-validate the anchor-phrase gate and the base-word
+cardinality rule, and nothing needs it.
 
 ## Why two calls
 
@@ -151,41 +150,52 @@ The cost is one extra round trip. It is kept small: `analyzeTerm` uses a tiny sc
 few dozen tokens. The **browser extension shares this endpoint** and pays the same latency — see
 [browser-extension](browser-extension.md).
 
-### Call 1 — `AI::analyzeTerm($term, $candidateLanguages, $context = null): ?array`
+### Call 1 — `AI::analyzeTerm($term, $candidateLanguages, $nativeLanguage, $context = null): ?array`
 
-One method covers every case: bilingual vs. native and CEFR level are irrelevant to a decision
-about shape and canonical form. It now also does the work that used to require the learner to pick
-a save destination up front. Returns, roughly:
+One method covers every case: CEFR level is irrelevant to a decision about shape and canonical
+form, and it does the work that used to require the learner to pick a save destination up front.
+`$candidateLanguages` is the learner's own attached set as `[['code' => 'sv', 'name' => 'Swedish'],
+…]` — detection picks from it, not from every language there is. Returns:
 
 ```
 {
-  language,                                  // detected from the learner's own target/native set
+  language,                                  // one of the candidate language NAMES
   card_kind: 'word'|'phrase'|'expression',
   term,
-  base_words: [{lemma, part_of_speech, attributes, surface_form, translation}, ...],  // filtered — see below
-  anchor,                                     // word-shape only, else absent
+  base_words: [{lemma, part_of_speech, surface_form, translation, <attributes…>}, ...],
+  anchor,                                     // word-shape only, '' otherwise
 }
 ```
 
-Exact key names/shape are implementation's call; the behaviour each one carries is settled:
-
-- **`card_kind` is first in the schema**, for the same key-order reason the old `term_type` was.
+- **`language` is first, `card_kind` second**: strict structured outputs emit keys in schema order,
+  so the model commits to both before writing anything whose rules depend on them. It is an `enum`
+  over the candidate names, so an unknown language can't come back at all.
 - **`term`** carries prompt rule #1, with the base-form reduction promoted to the *first* clause
   rather than buried mid-paragraph — the old wording let `vetting` through unreduced.
 - **`base_words`** are the Term's lexical words, each reduced to its **lemma**, tagged with its
-  **part of speech**, with the surface form the Term actually spells it in and a native translation
-  — the translation is decided here, not deferred to CALL 2 (see [cards](cards.md) "The vocabulary
-  base"). `attributes` is filled only when the word's language and part of speech have a
-  language-guideline entry for it (e.g. Swedish nouns get `{"gender": "common"|"neuter"}`) — see
-  "Language guidelines" below. Two filters run before this list reaches staging: the
-  **proficiency** filter (drop very basic function words at B1+, but never the word card's own
-  Term) and the **already-present** filter (drop a lemma+part-of-speech the learner already has,
-  surfacing it as a notice instead) — see [cards](cards.md).
+  **part of speech** (an `enum` over `LanguageGuideline::PARTS_OF_SPEECH`), with the surface form
+  the Term actually spells it in and a native translation — the translation is decided here, not
+  deferred to CALL 2 (see [cards](cards.md) "The vocabulary base"). The prompt is explicit that
+  words come from the `term` field **only**, never from the Context or the anchor phrase, which is
+  what keeps `collateral damage` from putting *damage* in the base.
 - **`anchor`** is filled only for a lone-word Term: pulled from the Context when it already
   contains the Term in a natural phrase, otherwise invented. Capped at 2-3 words for the same
   reason a lifted-clause fragment used to be — a long anchor buries the word it exists to teach.
   It carries no translation yet; that is CALL 2's job, at approval, against whatever the learner
-  edited it to in staging.
+  edited it to in staging. `AI::suggestAnchor()` re-proposes just this one field for staging's
+  **Replace** control, rather than re-running the whole of CALL 1 for it.
+
+Where the **grammatical attributes** go in the schema is the one awkward part, and it is forced:
+strict structured outputs need the schema up front, but *which* language the Term is in is
+something this same call decides. `AI::baseWordProperties()` therefore adds one property per
+attribute **any** of the candidate languages defines, with that attribute's values plus `''` as its
+enum — `''` meaning "this word's language and part of speech don't carry this one", which is what
+most words return. `AnalyzeProposalJob::grammarAttributes()` then keeps only the attributes the
+*detected* language's guideline actually defines for that part of speech, so a Swedish `gender`
+arriving on an English noun is discarded rather than stored.
+
+The two filters that narrow this list run in PHP, after the call, not as instructions inside it —
+see [cards](cards.md) "Two filters" for why.
 
 Retired: **`word`** (no focus word to spell) and **`submitted_form`** (its only consumer, the
 `examples` suggestions, is gone).
@@ -203,9 +213,18 @@ Each file declares, for the language it covers:
   rule correctly (e.g. "Every Swedish noun is either a common-gender or a neuter word...").
 
 A language with no guideline file still gets `part_of_speech` tagged on every base word (the model
-can do this from general knowledge), just no `attributes` — see [cards](cards.md) "The vocabulary
+can do this from general knowledge), just no attributes — see [cards](cards.md) "The vocabulary
 base". Nothing here is model/param configuration; it's declarative language data, the same role
 `config/proficiency.php` plays for CEFR levels, just keyed by language instead of level.
+
+**`App\Support\LanguageGuideline`** is the only reader. It is a plain class, not an Eloquent model
+— there is no row behind it — and it owns three things besides the raw lookups: `promptNote()`
+(the language-wide note plus one per attribute, concatenated for CALL 1's system message),
+`allAttributes()` (the union used to build CALL 1's schema, above), and `displayForm()`, which turns
+`{lemma, part_of_speech, grammar_attributes}` into what the learner actually sees (*"ett hus"*).
+`BaseWord::displayForm()` and `ProposalBaseWord::displayForm()` are thin wrappers over that last
+one, so staging chips, the vocabulary base, Words mode and Refresher can never disagree about how a
+word is spelled.
 
 ### Call 2 — three generators
 
@@ -215,9 +234,15 @@ AI::generatePhraseCard($term, $language, $nativeLanguage, $context, $level)
 AI::generateExpressionCard($term, $language, $nativeLanguage, $context, $level)
 ```
 
-Runs only once the proposal is **approved** — see [cards](cards.md) "Staging". `$anchor` is the
-anchor phrase as staging left it (possibly learner-edited, possibly absent); `generateWordCard`
-returns `anchor_translation` for it when present, nothing when not.
+Runs only once the proposal is **approved** — see [cards](cards.md) "Staging". `Card::generateContent()`
+is the single dispatcher onto these three. `$anchor` is the anchor phrase as staging left it
+(possibly learner-edited, possibly absent); `generateWordCard` adds `anchor_translation` to its
+schema only when there is an anchor to translate, and the prompt tells it to **reproduce the anchor
+exactly, brackets and all** — the learner already approved that phrase, and a model left free to
+"improve" it put a phrase on the card that had never been shown to them.
+
+`generatePhraseCard` no longer takes a focus word. The whole phrase is what is being learnt, so the
+branch that used to write every field about one word inside it is gone with the `word` column.
 
 **`$nativeLanguage === null` means a monolingual native-language card.** That single flag replaces
 the whole former `getContentForCardNative` variant: it drops `translation` from both `properties`
@@ -251,10 +276,10 @@ These rules exist because of specific observed failures, and removing one reopen
   meant to touch once — is the general risk any secondary field carries: the system prompt and the
   `translation` description both say every field describes the Term as given.
 
-Call 1 runs at capture, into a `proposals` row; call 2 runs only at approval, against whatever the
-learner left in staging — see [cards](cards.md) "Staging". Exact method names for this split are
-implementation's call; `Card::regenerate()` (re-running both calls against an existing card, see
-[cards](cards.md) "Regenerate") is the one caller of this pipeline this redesign leaves settled.
+Call 1 runs at capture, on the queue, into a `proposals` row (`AnalyzeProposalJob`); call 2 runs
+only at approval, against whatever the learner left in staging (`Proposal::approve()`) — see
+[cards](cards.md) "Staging". `Card::regenerate()` re-runs **call 2 alone**, since a card already
+carries everything call 1 would decide; see [cards](cards.md) "Regenerate".
 
 ### CEFR level and the `definition` language
 
@@ -402,7 +427,8 @@ API failure; they degrade to `null` so the caller can show the user a plain retr
 of a 500.
 
 The card-creation path used to be the exception — its three generators checked nothing and returned
-a raw string, and `AjaxController` had its `return` on a null response **commented out**, so a
+a raw string, and the capture controller had its `return` on a null response **commented out**, so a
 failed call fell through into `trim(null)` and surfaced as a generic caught error. Both are fixed:
-`requestCardJson()` does the checking for all four calls, and a `null` from either step of the
-capture pipeline is now handled explicitly.
+`requestCardJson()` does the checking for every one of these calls, and a `null` from either step of
+the capture pipeline is handled explicitly — CALL 1 marks the proposal `failed` (staging then offers
+to discard it), CALL 2 leaves the proposal untouched in staging and answers a plain retry message.

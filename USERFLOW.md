@@ -185,16 +185,19 @@ base word's **last recall**, and only on a correct answer; it never touches a ca
 
 ## Consequences for screens this redesign touches but does not itself design
 
+These were left open here and settled in implementation; the detail lives in the `docs/*.md` file
+for each area, not in this spec.
+
 - **The save-destination picker and its capture-target session state are retired** — staging
-  detects the language, so the dashboard no longer needs a language/wordbox picker for new
-  captures. This changes the dashboard and the nav; the replacement is an implementation decision.
-- **The vocabulary base needs a page of its own** in ORGANIZE — nothing here specifies its layout,
-  beyond that each entry shows its part of speech and display form (e.g. *"ett hus"*, not bare
-  *"hus"*).
-- **The CAPTURE / ORGANIZE / LEARN division gives the nav a shape it has to grow into** — today's
-  nav predates the module split.
-- **The card detail and edit pages** lose the three example fragments and `<x-phrase-suggestions>`,
-  and gain the anchor phrase editor. Schema side: see `docs/cards.md`.
+  detects the language, so nothing picks a language or wordbox for a new capture. What replaced it:
+  a two-field `<x-capture-form>` that posts and returns immediately, on the dashboard, `/staging`
+  and a wordbox page. See `docs/multi-language.md` "Which language a screen opens on".
+- **The vocabulary base has a page of its own**, `/base`, with Refresher launched from it. See
+  `docs/cards.md` and `docs/learning-flow.md`.
+- **The nav is grouped by module**, with a persistent count badge on Staging.
+- **The card detail and edit pages** lost the three example fragments and
+  `<x-phrase-suggestions>`, and gained the anchor phrase plus the card's base words. Schema side:
+  see `docs/cards.md`.
 
 ## Out of scope
 
