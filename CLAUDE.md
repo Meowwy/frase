@@ -17,6 +17,7 @@ change; these files are the project's only record of _why_, not just _what_.
 
 | File                                                             | Covers                                                                                                                                                            |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [CONTEXT.md](CONTEXT.md)                                         | Glossary — the canonical word for each domain concept, and the words not to use for it. No detail, no rationale; read it before the rest                           |
 | [docs/features-overview.md](docs/features-overview.md)           | What a user can actually do — a plain-English feature catalog, not architecture                                                                                   |
 | [docs/overview.md](docs/overview.md)                             | Routing/controller conventions, coding standards, dev-environment gotchas, known dead code paths — **read this first if you're about to make changes to the app** |
 | [docs/ai-integration.md](docs/ai-integration.md)                 | Every OpenAI call (`App\Models\AI`): model/params, every prompt-design rule and the failure it fixed, all card/chat generator methods                             |
@@ -49,3 +50,16 @@ change; these files are the project's only record of _why_, not just _what_.
   running — `@vite` then falls back to `public/build`, and a stale build silently drops recently
   added Tailwind classes. Check for `public/hot` to know which mode you're in; if it's missing,
   either start `npm run dev` or run `npm run build` first.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues in `Meowwy/frase`, managed with the `gh` CLI. See
+`docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context, reusing this repo's existing `docs/`: `CONTEXT.md` is the glossary, and each
+`docs/*.md` file keeps the rationale for its own area. **No `docs/adr/` — decisions go in the
+relevant `docs/*.md`.** See `docs/agents/domain.md`.

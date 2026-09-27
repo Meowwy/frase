@@ -1,9 +1,10 @@
 # Learning Flow (SRS flashcards)
 
-The card-set builder, the spaced-repetition scheduling algorithm, and the four flashcard-style
-learning modes. The fifth mode, live AI conversation, is only bootstrapped here — its actual chat
-logic is in [conversation-challenge](conversation-challenge.md)'s sibling doc, the SRS-specific one: see "Conversation
-mode" below, which hands off to `ChatController`.
+The card-set builder, the spaced-repetition scheduling algorithm, the four flashcard-style
+learning modes, and Refresher, the unscheduled vocabulary-base practice that sits alongside them.
+The fifth learning mode, live AI conversation, is only bootstrapped here — its actual chat logic is
+in [conversation-challenge](conversation-challenge.md)'s sibling doc, the SRS-specific one: see
+"Conversation mode" below, which hands off to `ChatController`.
 
 ## The builder (`/setLearning`)
 
@@ -55,13 +56,14 @@ uncapped. The returned collection is always `->shuffle()`d.
 `sentences`, `sentences_write`, and `definitions` are **lexical-only** modes
 (`Learning::LEXICAL_ONLY_MODES`) — their card fronts are built from a blanked example sentence or
 a dictionary definition, both of which only make sense for a naming unit, not a whole utterance.
-`Learning::modeTypeFilter($mode)` returns a closure (`where('term_type', '!=', 'expression')`)
-that **every** card query in both `getCardsForLearning`/`getCardsForSelection` applies via
-`->tap()`. This is applied **before** the due-count/15-card cap, not after — filtering the
-collection afterward would have skewed which cards land inside the cap. `words` and
-`conversation` modes pass no restriction, so they keep both types; `lexical` cards are served by
-every mode exactly as before this filter existed — it only ever *removes* expressions from the
-lexical-only modes.
+`Learning::modeTypeFilter($mode)` returns a closure (`whereIn('card_shape', ['word', 'phrase'])` —
+the derived `term_type`'s lexical leg, now read off `card_shape` directly, see
+[ai-integration](ai-integration.md)) that **every** card query in both
+`getCardsForLearning`/`getCardsForSelection` applies via `->tap()`. This is applied **before** the
+due-count/15-card cap, not after — filtering the collection afterward would have skewed which
+cards land inside the cap. `words` and `conversation` modes pass no restriction, so they keep both
+types; `lexical` cards are served by every mode exactly as before this filter existed — it only
+ever *removes* expressions from the lexical-only modes.
 
 There is **no frontend surface for this yet**: the mode buttons in `set.blade.php` are always
 offered regardless of whether a selection has any lexical cards, and the "N due cards" counts
@@ -70,39 +72,72 @@ than the count implied.
 
 ## Rendering a session (`Learning::renderLearningView($mode)`)
 
-For each card in the resolved set, builds a `{id, front, back, hint, wordbox}` entry, with the
-front/back/hint mapping depending on `$mode`:
+For `sentences`, `sentences_write` and `definitions`, each entry is still built **per card**,
+`{id, front, back, hint, wordbox}`:
 
 | Mode | front | back | hint |
 |---|---|---|---|
 | `sentences` | `example_sentence` with the bracketed span replaced by `...` | **the bracketed form** | `translation` |
 | `sentences_write` | *(see below — split, not a single front)* | *(none — the split carries `answer`)* | `translation` |
-| `words` | `translation` | **`Card::target()`** | the blanked sentence |
-| `definitions` | `definition` | **`Card::target()`** | `translation` |
+| `definitions` | `definition` | the **Term** | `translation` |
 
-**Every mode's answer is the card's target, never `phrase` as such.** `Card::target()` is
-`word ?? phrase` — see [cards](cards.md) "What the card is built around" — and it is what the
-front of each mode is actually asking for: `words` shows the target's translation and `definitions`
-shows the target's definition, so on a phrase card built around a focus word both must accept the
-**word**, not the whole phrase the learner is only shown for context.
+**Every mode's answer is the card's Term** — there is no focus word to answer instead of it (see
+[cards](cards.md) "What a card is built around"). `definitions` shows the Term itself as the back.
 
 The two Sentences modes take the answer from the sentence itself instead, because the gap is the
-question: whatever the brackets hide is what the learner has to produce. That is the target too,
-but in the form *this* sentence inflects it into, which `phrase` (a base form) would not match —
-so `sentences` reveals `Learning::sentenceParts($card)['answer']` as its back, the same string
-`sentences_write` grades against. `sentences_write` therefore carries no `back` at all; its
+question: whatever the brackets hide is what the learner has to produce. That is the Term too, but
+in the form *this* sentence inflects it into, which the stored `term` (a base form) would not
+match — so `sentences` reveals `Learning::sentenceParts($card)['answer']` as its back, the same
+string `sentences_write` grades against. `sentences_write` therefore carries no `back` at all; its
 `answer` key is the one source of truth, and the flip-card `back` element is not rendered in that
 mode anyway.
 
 The blanking uses the same `/\[.*?\]/` regex the sentence-bracket prompt rule exists to support
-(see [ai-integration](ai-integration.md)). On a phrase card built around a focus word the brackets
-hold **that word**, so the blank hides the word and both Sentences modes are about the word, with
-the rest of the phrase left visible around the gap as the context that makes it recallable. The
-full set is serialized as a JS variable
-(`let cards = [...];`) and handed to `learning/index.blade.php`, which drives the whole session
-**client-side** — no per-card request during review.
+(see [ai-integration](ai-integration.md)), now always around the **whole Term** rather than a
+focus word inside it. The full set is serialized as a JS variable (`let cards = [...];`) and handed
+to `learning/index.blade.php`, which drives the whole session **client-side** — no per-card request
+during review.
+
+A correct answer in any of these three modes clears the card (SRS level/`next_study_at` advance —
+see "SRS algorithm" below) and stamps last-recall on **every** base word linked to it — producing
+the Term is producing all of its words. Conversation mode's clearing/stamping is the same; see
+"Conversation mode" below.
 
 `mode === 'conversation'` **short-circuits** this whole flow — see "Conversation mode" below.
+
+### Words mode (redefined)
+
+`words` no longer builds one entry per card. It pulls the **individual base words** of due cards
+into one shuffled, per-word session capped at **15 words**: a due card enters the pool only if
+*all* of its base words fit under that cap — no card contributes a partial word set. This can't
+overflow a single card, because a card is capped at 5 base words (see [cards](cards.md)). Cards
+with **zero** base words (an expression whose words were all filtered at capture — see
+[cards](cards.md) "The vocabulary base") are excluded from this pool entirely; they can only clear
+through the other modes.
+
+Each entry is `{base_word_id, card_id, front, back, hint}`:
+
+- **front** — the base word's own translation (from the vocabulary base);
+- **back** — the base word's **lemma**, never the inflected surface form — Words always tests the
+  lemma, unlike the deferred hide-a-word mode (out of scope — see `USERFLOW.md`), which is the one
+  place the surface form would matter;
+- **hint** — the parent card's context (its blanked example sentence).
+
+Answers are tracked client-side and batched into one write at session end, extending
+`/saveLearning`'s existing `{id, result}` array with a parallel per-word array (see "SRS algorithm"
+below) — no live per-word request. A card **clears** once every one of its base words has been
+answered correctly within the session — a second path to "the Term is produced," word-by-word
+rather than as one string — and each correct word also stamps that word's own last recall
+independently of whether the card as a whole clears.
+
+## Refresher
+
+Free-form, unscheduled practice over the **whole vocabulary base** — not scoped to a card, a
+wordbox, or the `/setLearning` builder's due/cram split. Cards are ordered by **staleness** (how
+long since last recall), most stale first. Front/back are the same shape as Words mode's own. A
+correct answer stamps that word's last recall and nothing else: no SRS level, no `next_study_at`,
+and it never clears a card. Refresher is deliberately **not** a learning mode — no session scope,
+which is what separates it from Words.
 
 ## SRS algorithm
 
@@ -118,6 +153,11 @@ increments `level` on a correct result or **resets it to 1** on a wrong one, sta
 `last_studied = now()`, saves. There is no per-card ownership check here beyond `Card::find` —
 the id list comes from the session-driven client the user is already looking at, not arbitrary
 input.
+
+A Words-mode session extends this same request with a parallel per-word array (base word id +
+result), stamping `last_recalled_at` on each correct one independently of the card-level array —
+which is what still lets a card clear here without every base word answer needing its own request.
+Exact key/endpoint shape for the per-word array is implementation's call.
 
 **In-session flow is repeat-until-correct**, entirely client-side: a card marked *Wrong* is
 recorded locally (only actually persisted to `/saveLearning` as whatever its **final** result in
@@ -143,9 +183,9 @@ Flip/Wrong/Correct for a single **Check → Next** button.
 
 `Learning::sentenceParts($card)` splits `example_sentence` around the **first** `[...]` into
 `before`/`answer`/`after` — so the checked answer is the **exact inflected form the sentence
-actually hides**, not the card's base-form `phrase` (a sentence with no brackets at all falls
-back to using the whole sentence as `before` and `Card::target()` as the answer, so the mode
-degrades gracefully instead of erroring).
+actually hides**, not the card's base-form `term` (a sentence with no brackets at all falls
+back to using the whole sentence as `before` and the **Term** as the answer, so the mode degrades
+gracefully instead of erroring).
 
 Checking is entirely **client-side** (no request, same pattern as the gap-fill exercise checker)
 and deliberately **forgiving about form, not spelling**: `isAnswerCorrect()` lowercases, collapses

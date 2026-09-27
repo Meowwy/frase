@@ -19,9 +19,8 @@ controller code that assembles arguments and interprets the result.
   (`"strict" => true, "additionalProperties" => false`), never free-text parsing.
 - **Luna vs. the previous nano model**: `gpt-5.6-luna` follows per-field instructions far more
   reliably than the `gpt-5.4-nano` model used previously. Several defensive repetitions in the
-  prompts were trimmed when Luna landed, but not removed wholesale — a few (like the `examples`
-  rule repeated in `typeRules()`, see below) stayed because removing them caused a regression
-  even under Luna.
+  prompts were trimmed when Luna landed, but not removed wholesale where doing so caused a
+  regression even under Luna.
 
 ## Prompt-design rules learned from failures
 
@@ -36,29 +35,21 @@ fixed.
    collocation. An existing **multi-word phrase is kept as written** (spelling fixes only): its
    internal grammar is part of the phrase, so `vetting candidates` does *not* become
    `vet candidates`. An `expression` becomes a **reusable frame** (see Card shapes below).
-   Since the two-call split this is no longer only a prompt rule — `phrase` is produced by call 1
+   Since the two-call split this is no longer only a prompt rule — `term` is produced by call 1
    and passed *into* call 2 as an input, so the content call has no opportunity to drift.
 2. **The example `sentence` bracket rule.** It must contain the term wrapped in square brackets
    **exactly once**, in whatever inflected form it takes there (`[term]`), because the learning
    UI's blanking regex is `/\[.*?\]/` (see [learning-flow](learning-flow.md) and [cards](cards.md)) — this is what turns
    the sentence into a flashcard front and what the "Sentences — writing" mode checks the typed
-   answer against. Punctuation must stay outside the brackets.
+   answer against. Punctuation must stay outside the brackets. The anchor phrase reuses this same
+   convention deliberately — see "The anchor phrase" in [cards](cards.md).
 3. **The `sentence` must be rich enough to guess the term from.** There is an explicit floor:
    "at least 6 words besides the term, naming a concrete situation, actor or result, so a
    learner who does not know the term could work out its meaning from the surrounding words
    alone," with a worked negative in the schema (`"It is [nice]."` is explicitly called invalid).
    Without a numeric floor, the model wrote near-empty frames, especially at low CEFR levels,
    because "illustrative" alone wasn't a strong enough constraint.
-4. **`examples` must never contain square brackets**, and **every fragment must contain the term
-   itself** — a synonym or antonym is explicitly called out as invalid, because at A1 the model
-   once answered `coward` with the fragment `"a brave soldier"` (a fragment about the *opposite*
-   concept). Each negative rule in the schema descriptions was added in direct response to one
-   observed failure like this — they read like an itemized bug list because that's what they are.
-   The bracket rule earned a worked negative of its own (`"a rooted tree with three levels"`, NOT
-   `"a rooted [tree] with three levels"`) after the model bracketed fragments for `tree` in a
-   graph-theory context, and `Card::persist()` now strips brackets defensively as well — see
-   [cards](cards.md) for why a bracket in a fragment is actively harmful, not just untidy.
-5. **CEFR level caps difficulty, never length.** `AI::levelInstruction()` and the
+4. **CEFR level caps difficulty, never length.** `AI::levelInstruction()` and the
    `config/proficiency.php` descriptions describe which words/structures are allowed at a level,
    and end with an explicit sentence saying so ("This caps difficulty, not length — never write
    less than a field asks for"). The level descriptions deliberately contain **no length
@@ -67,21 +58,24 @@ fixed.
    term from. Where a prompt genuinely wants brevity (chat turns, recap bullets), it says so
    itself, separately from the level instruction.
 
-## Card shapes and `cards.term_type`
+## Card shapes and `cards.card_shape`
 
 Card creation is **two calls**: a router (`AI::analyzeTerm`) that decides the shape and fixes the
 term, then one of three generators that writes that shape's fields. The shapes:
 
-| Shape | What it is | `phrase` | `word` | `examples` |
-|---|---|---|---|---|
-| **word** | a naming unit the learner gave as one word, with no phrase to be had | the word, base form | `null` | 3 natural phrases the word occurs in |
-| **phrase** | a naming unit of several words - typed as such, inferred from context, or picked from a word card's suggestions | the phrase, canonical | the focus word **in the form the phrase uses**, else `null` | *empty* |
-| **expression** | a ready-made utterance or utterance frame | reusable frame with `[something]` slots | `null` | *empty* |
+| Shape | What it is | `term` | Anchor phrase |
+|---|---|---|---|
+| **word** | a naming unit the learner gave as one word, with no phrase to be had | the word, base form | proposed by CALL 1 at capture, translated by CALL 2 at approval — see [cards](cards.md) |
+| **phrase** | a naming unit of several words - typed as such or inferred from context | the phrase, canonical | *(n/a — word-shape only)* |
+| **expression** | a ready-made utterance or utterance frame | reusable frame with `[something]` slots | *(n/a)* |
 
-`term_type` on the row is unchanged and still binary: `expression` → `TYPE_EXPRESSION`, the other
-two → `TYPE_LEXICAL`. So `Learning::modeTypeFilter`, the `/cards` type filter and the user-facing
-type `<select>` in `cards/edit.blade.php` all work exactly as before. The word/phrase distinction
-needs **no column**: a word card is the lexical card that *has* `example_*` fragments.
+`card_shape` is a stored, not-nullable column — `'word'`\|`'phrase'`\|`'expression'` — populated
+directly from CALL 1's `card_kind`. `Card::TYPE_LEXICAL`/`TYPE_EXPRESSION` are a **derived
+predicate** over it (`expression` → `TYPE_EXPRESSION`, the other two → `TYPE_LEXICAL`), so
+`Learning::modeTypeFilter`, the `/cards` type filter and the user-facing type `<select>` in
+`cards/edit.blade.php` all work exactly as before, reading a derived value instead of a stored one.
+The word/phrase distinction now lives directly in `card_shape` rather than being inferred from
+`example_*` presence, which a manual Term edit could otherwise silently invalidate.
 
 The axis between lexical and expression is unchanged — **naming unit vs. ready-made utterance**,
 *not* word count:
@@ -123,11 +117,13 @@ erring on, and the cost is asymmetric: a misfiled expression gets a dictionary d
 word-for-word translation, which is simply wrong for it, whereas a misfiled naming unit merely
 gets a usage note that is a little wordy.
 
-The column is `string` with a **DB-level default of `'lexical'`** (migration
-`2026_08_08_000001_add_term_type_to_cards_table`), which backfills existing rows and covers the
-manual `/add` path (`CardController::save`, which never sets it). The type is assigned at capture
-but is **user-correctable**: `cards/edit.blade.php` renders it as a `<x-forms.select>` and the
-update route validates it with `Rule::in(Card::TERM_TYPES)`.
+The **derived `term_type`** stays user-correctable the way it is today: `cards/edit.blade.php`
+renders it as a `<x-forms.select>` and the update route validates it with
+`Rule::in(Card::TERM_TYPES)` — writing through it now has to resolve to a `card_shape` value
+(`expression`, or `word`/`phrase` depending on which the card already was) rather than to a stored
+binary. Whether the learner can also change `card_shape` between `word` and `phrase` directly —
+which would have to re-validate the anchor-phrase gate and the base-word cardinality rule — isn't
+settled by this redesign; it's implementation's call.
 
 ## Why two calls
 
@@ -135,46 +131,73 @@ Card generation used to classify **and** generate in one call, with `term_type` 
 so the model committed to the type before the fields that depend on it. That worked only because
 both types shared one output shape.
 
-They no longer do: a word card has `examples`, a phrase card has `word` and no examples, an
-expression card has neither. A strict `json_schema` **cannot be conditional**, so a single call
-would mean one union schema policed by "return an empty array if …" instructions — precisely the
-pattern that once made the model return an empty `examples` array for lexical terms, and that the
-duplicated rule in the old `typeRules()` existed to paper over. Splitting is the structural fix.
+They no longer do: a word card can carry `anchor_translation`, a phrase or expression card never
+does. A strict `json_schema` **cannot be conditional**, so a single call would mean one union
+schema policed by "return empty if …" instructions — precisely the pattern that once made the
+model return an empty `examples` array for lexical terms, and that the duplicated rule in the old
+`typeRules()` existed to paper over. Splitting is the structural fix.
 
-The larger payoff is prompt rule #1 above: `phrase` is now an **input** to the content call, so
-"never swap the learner's term" is guaranteed by construction rather than by instruction.
+Splitting also has a second payoff since the vocabulary-base redesign: **CALL 2 runs only at
+approval**, not right after CALL 1. Capture is CALL 1 alone — cheap, and the only thing standing
+between the learner and staging — while CALL 2's cost is paid only for proposals the learner
+actually keeps. A single-call design couldn't defer content generation like this at all.
+
+The larger payoff from the original split is still prompt rule #1 above: `term` is an **input** to
+the content call, so "never swap the learner's term" is guaranteed by construction rather than by
+instruction.
 
 The cost is one extra round trip. It is kept small: `analyzeTerm` uses a tiny schema and
 `reasoning_effort: 'low'` (the precedent set by the chat-turn methods), and its whole answer is a
 few dozen tokens. The **browser extension shares this endpoint** and pays the same latency — see
 [browser-extension](browser-extension.md).
 
-### Call 1 — `AI::analyzeTerm($term, $termLanguage, $context = null): ?array`
+### Call 1 — `AI::analyzeTerm($term, $candidateLanguages, $context = null): ?array`
 
 One method covers every case: bilingual vs. native and CEFR level are irrelevant to a decision
-about shape and canonical form. Returns
-`{card_kind: 'word'|'phrase'|'expression', phrase, word, submitted_form}` — the last two as empty
-strings when they do not apply, normalized to `null` in PHP.
+about shape and canonical form. It now also does the work that used to require the learner to pick
+a save destination up front. Returns, roughly:
+
+```
+{
+  language,                                  // detected from the learner's own target/native set
+  card_kind: 'word'|'phrase'|'expression',
+  term,
+  base_words: [{lemma, surface_form, translation}, ...],  // filtered — see below
+  anchor,                                     // word-shape only, else absent
+}
+```
+
+Exact key names/shape are implementation's call; the behaviour each one carries is settled:
 
 - **`card_kind` is first in the schema**, for the same key-order reason the old `term_type` was.
-- **`phrase`** carries prompt rule #1, with the base-form reduction promoted to the *first* clause
+- **`term`** carries prompt rule #1, with the base-form reduction promoted to the *first* clause
   rather than buried mid-paragraph — the old wording let `vetting` through unreduced.
-- **`word`** is only filled for a `phrase` card built around a single word the learner gave, and
-  must be spelled as the phrase spells it. See [cards](cards.md) for the invariant and the PHP
-  guard that enforces it.
-- **`submitted_form`** is the learner's own inflected form when they typed one (`vetting` for
-  `vet`). The form someone types is the form they met the word in, so the word card uses it to make
-  **exactly one** of its suggestions read the way they encountered it. It is an AI field rather
-  than a PHP comparison against the raw input because the raw input may be misspelled (`runing`),
-  and feeding a misspelling into example generation would poison it.
+- **`base_words`** are the Term's lexical words, each reduced to its **lemma**, with the surface
+  form the Term actually spells it in and a native translation — the translation is decided here,
+  not deferred to CALL 2 (see [cards](cards.md) "The vocabulary base"). Two filters run before this
+  list reaches staging: the **proficiency** filter (drop very basic function words at B1+, but
+  never the word card's own Term) and the **already-present** filter (drop a lemma the learner
+  already has, surfacing it as a notice instead) — see [cards](cards.md).
+- **`anchor`** is filled only for a lone-word Term: pulled from the Context when it already
+  contains the Term in a natural phrase, otherwise invented. Capped at 2-3 words for the same
+  reason a lifted-clause fragment used to be — a long anchor buries the word it exists to teach.
+  It carries no translation yet; that is CALL 2's job, at approval, against whatever the learner
+  edited it to in staging.
+
+Retired: **`word`** (no focus word to spell) and **`submitted_form`** (its only consumer, the
+`examples` suggestions, is gone).
 
 ### Call 2 — three generators
 
 ```
-AI::generateWordCard($phrase, $submittedForm, $language, $nativeLanguage, $context, $level)
-AI::generatePhraseCard($phrase, $focusWord, $language, $nativeLanguage, $context, $level)
-AI::generateExpressionCard($phrase, $language, $nativeLanguage, $context, $level)
+AI::generateWordCard($term, $anchor, $language, $nativeLanguage, $context, $level)
+AI::generatePhraseCard($term, $language, $nativeLanguage, $context, $level)
+AI::generateExpressionCard($term, $language, $nativeLanguage, $context, $level)
 ```
+
+Runs only once the proposal is **approved** — see [cards](cards.md) "Staging". `$anchor` is the
+anchor phrase as staging left it (possibly learner-edited, possibly absent); `generateWordCard`
+returns `anchor_translation` for it when present, nothing when not.
 
 **`$nativeLanguage === null` means a monolingual native-language card.** That single flag replaces
 the whole former `getContentForCardNative` variant: it drops `translation` from both `properties`
@@ -190,46 +213,28 @@ shared. All four calls go through one private `requestCardJson()` helper, which 
 generators were the only methods in this file that did none of that and returned a raw string for
 the caller to parse.
 
-Every generator writes about the card's **target**, which is `word ?? phrase` — see
-[cards](cards.md) "What the card is built around". For two of the three shapes that is trivially
-the Term itself; the phrase card is where it bites, so `generatePhraseCard` branches on
-`$focusWord` and is the only generator that does:
+Every generator writes about the card's **Term**, always — see [cards](cards.md) "What a card is
+built around". There is no more focus word to branch on, so none of the three generators branches
+on anything but shape:
 
-| Field | `word` | `phrase` **with** a focus word | `phrase` **without** one | `expression` |
-|---|---|---|---|---|
-| `word` | *(absent)* | **first in the schema**: the focus word as this phrase spells it | *(absent)* | *(absent)* |
-| `sentence` | term bracketed once, in whatever form it takes | whole phrase present, **only the focus word** bracketed | the **whole phrase** bracketed once | whole expression bracketed once, every slot filled with real words |
-| `translation` | word-level, ≤2 variants separated by `; ` | the **focus word**, in the sense the phrase gives it | the **whole phrase** - a natural equivalent, never word-by-word, ≤2 variants | **exactly one** functional equivalent, not literal, slots localized (`[něco]`, never `[something]`) |
-| `definition` | dictionary-style | what the **focus word** means inside this phrase | what the **whole phrase** means | **usage note** ("used to politely refuse something you have been offered") |
-| `examples` | **3 natural phrases the word occurs in**, 2-3 words each | *(absent)* | *(absent)* | *(absent)* |
+| Field | `word` | `phrase` | `expression` |
+|---|---|---|---|
+| `sentence` | Term bracketed once, in whatever form it takes | whole phrase bracketed once | whole expression bracketed once, every slot filled with real words |
+| `translation` | word-level, ≤2 variants separated by `; ` | the whole phrase — a natural equivalent, never word-by-word, ≤2 variants | **exactly one** functional equivalent, not literal, slots localized (`[něco]`, never `[something]`) |
+| `definition` | dictionary-style | what the whole phrase means | **usage note** ("used to politely refuse something you have been offered") |
+| `anchor_translation` | present only when `$anchor` was passed in — the anchor's translation | *(n/a)* | *(n/a)* |
 
 These rules exist because of specific observed failures, and removing one reopens it:
 
-- **`examples` are phrases, not an inflection drill.** The old prompt demanded "a DIFFERENT
-  grammatical form in each of the three", which is the opposite of what these are for now: each
-  fragment is a click target that can become a real card, so it must use the term in the form
-  `phrase` gives it.
-- **`submitted_form` is confined to exactly one example.** Written as "at least one", it took the
-  card over: asked for `vet` typed as `vetting`, the model wrote all three examples *and* the
-  translation (`prověřování`, the noun) about `vetting`, so a card whose term was `vet` never
-  showed `vet` anywhere. The system prompt and the `translation` description now both say that
-  every other field describes the term as given.
-- **`generatePhraseCard`'s `word` property is placed first**, and is omitted entirely when no
-  focus word was supplied. First, for the same key-order reason `card_kind` is first: every other
-  field on a focused phrase card is written *about* that word, so the model has to settle which
-  form of it the phrase uses before it writes any of them. (It was briefly last, from the earlier
-  design where the whole phrase was the target and the single word had to be kept from pulling the
-  other fields toward it — that inverted with the target rule above.)
-- **Suggestions and inferred phrases are capped at 2-3 words.** A fragment is a click target that
-  becomes a real card's `phrase`, and a long one buries the word it exists to teach: "an
-  adversarial relationship", not "an adversarial relationship between rival teams". The same cap is
-  written into `analyzeTerm`'s `phrase` description, which otherwise lifts whole clauses out of a
-  sentence the learner pasted as context.
+- **The `sentence` describes the term as given, not whatever CALL 1 also extracted.** The old
+  `submitted_form` failure — the model writing every field about an inflected form it was only
+  meant to touch once — is the general risk any secondary field carries: the system prompt and the
+  `translation` description both say every field describes the Term as given.
 
-Both callers are on the `Card` model, not in a controller — `Card::analyze()` +
-`Card::createFromAnalysis()` (call 1 then call 2, run as two steps so the capture flow can re-check
-for a duplicate against the term call 1 settled on) and `Card::createFromPhrase()` (call 2 only,
-for the suggestion-click path). See [cards](cards.md).
+Call 1 runs at capture, into a `proposals` row; call 2 runs only at approval, against whatever the
+learner left in staging — see [cards](cards.md) "Staging". Exact method names for this split are
+implementation's call; `Card::regenerate()` (re-running both calls against an existing card, see
+[cards](cards.md) "Regenerate") is the one caller of this pipeline this redesign leaves settled.
 
 ### CEFR level and the `definition` language
 
