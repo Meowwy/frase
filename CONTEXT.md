@@ -168,20 +168,43 @@ _Avoid_: refresh, re-create, update
 See [docs/cards.md](docs/cards.md).
 
 **Vocabulary base**:
-The learner's inventory of every word they have met in one language, one entry per lemma,
-independent of any card. Its jobs are deduplication and coverage — never shortened to *vocabulary*,
-which means their cards.
+The learner's inventory of every word they have met in one language, one entry per lemma **and
+part of speech**, independent of any card. Its jobs are deduplication and coverage — never
+shortened to *vocabulary*, which means their cards.
 _Avoid_: wordlist, lexicon, word bank, dictionary, vocabulary (bare)
 
 **Base word**:
-One entry in the vocabulary base: a lemma, its native translation, and when it was last recalled. It
-carries no sense, no schedule and no generated content — those live on cards.
+One entry in the vocabulary base: a lemma, its **part of speech**, its native translation, its
+**grammatical attributes** (if its language and part of speech carry any), and when it was last
+recalled. Two base words may share a lemma when they differ in part of speech — *run* the verb and
+*run* the noun are different base words, not one. It carries no sense finer than part of speech, no
+schedule and no generated content — those live on cards.
 _Avoid_: focus word, headword, root, stem, vocabulary item; word (that is a card shape)
 
 **Lemma**:
 The canonical spelling a base word is stored under, which is what makes deduplication work —
-*obfuscate* and *obfuscated* are one base word.
+*obfuscate* and *obfuscated* are one base word (of the same part of speech).
 _Avoid_: base form, dictionary form, canonical form, root, stem
+
+**Part of speech**:
+A base word's grammatical category (noun, verb, adjective, …), fixed at the point CALL 1 extracts
+it and never revised afterward. It is part of a base word's identity, not a property of it — see
+Base word above.
+_Avoid_: word class, category (bare)
+
+**Grammatical attributes**:
+The extra grammatical facts one language's guideline defines for one part of speech — Swedish
+nouns carry a *gender* (`common`/`neuter`, displayed as the *en*/*ett* article); most
+part-of-speech/language pairs carry none. Defined per language guideline (below), never hardcoded
+per-language into the schema.
+_Avoid_: properties, metadata, attributes (bare — too generic outside this context)
+
+**Language guideline**:
+The per-language file (`resources/language-guidelines/`) that tells CALL 1 which parts of speech a
+language uses, which grammatical attributes apply to which part of speech and their valid values,
+and how to display them (e.g. Swedish `gender` → *en*/*ett*). One file per supported language;
+absent for a language, CALL 1 still tags part of speech but proposes no attributes.
+_Avoid_: language config, grammar rules (bare)
 
 **Surface form**:
 The spelling one particular Term uses for one of its base words, carried on the link between them —

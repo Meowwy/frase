@@ -30,8 +30,9 @@ At capture, CALL 1:
 - detects the **language**, from the learner's own target/native languages;
 - settles the **card shape** (word / phrase / expression) and the canonical form of the Term, as
   today;
-- extracts the Term's **lexical words**, each reduced to its **lemma**, together with a native
-  translation for each;
+- extracts the Term's **lexical words**, each reduced to its **lemma**, tagged with its **part of
+  speech**, together with a native translation for each and any **grammatical attributes** that
+  language and part of speech carry (see "Part of speech and grammatical attributes" below);
 - for a **lone-word Term**, proposes an **anchor phrase** — pulled from the Context when the
   Context already contains the Term in a natural phrase, otherwise invented.
 
@@ -39,8 +40,9 @@ Two filters narrow which extracted words are actually suggested as base words:
 
 - **Proficiency** — at B1 and above, prepositions, pronouns and other very basic function words
   are not suggested (it never drops a word card's own Term).
-- **Already present** — a lemma already in the vocabulary base, or an expression already held, is
-  not suggested again, but the learner is told it is already there.
+- **Already present** — a lemma the learner already has **in the same part of speech**, or an
+  expression already held, is not suggested again, but the learner is told it is already there.
+  *Run* the verb and *run* the noun are different vocabulary items, not duplicates of each other.
 
 CALL 2 does not run yet. It runs only once the proposal is **approved**, so no content is ever
 generated for something the learner discards.
@@ -57,7 +59,9 @@ A proposal shows:
 
 - the proposed card — the Term, in its own block, visually separate from anything strikeable, plus
   its shape tag and the detected (editable) language;
-- the proposed base words as a tray of chips, one per extracted lemma;
+- the proposed base words as a tray of chips, one per extracted lemma, each labeled with its
+  **part of speech** and, where the language defines one, its **display form** — a Swedish chip
+  reads *"ett hus"*, not bare *"hus"*;
 - for a lone word, the proposed anchor phrase, editable, with **Replace** (regenerate) and
   **Clear** — clearing is reversible, leaving a "+ Add one" state rather than deleting the block
   outright.
@@ -87,11 +91,34 @@ the real proposal once CALL 1 returns.
 
 ### The vocabulary base
 
-One entry per **lemma** per language — the **base word**: the lemma, its native translation (set
-once, at proposal time, never revised), and its **last recall**. The base carries no sense, no
-schedule and no generated content; sense lives on cards. Its jobs are deduplication and coverage —
-telling the learner what they've already met, and which words appear across many phrases without
-being owned by any single card's review.
+One entry per **lemma and part of speech** per language — the **base word**: the lemma, its part
+of speech, its native translation (set once, at proposal time, never revised), any grammatical
+attributes that part of speech carries, and its **last recall**. The base carries no sense finer
+than part of speech, no schedule and no generated content; sense lives on cards. Its jobs are
+deduplication and coverage — telling the learner what they've already met, and which words appear
+across many phrases without being owned by any single card's review.
+
+**Part of speech is part of a base word's identity, not a revisable fact about it.** *Run* the verb
+and *run* the noun are two different base words, not one row that gets overwritten — they mean
+completely different things, so treating them as duplicates would lose one of them. Everything
+else CALL 1 fixes at proposal time (translation, attributes) follows the same never-revised rule
+translation already had.
+
+### Part of speech and grammatical attributes
+
+Every base word carries a **part of speech** (noun, verb, adjective, …). Some languages define
+extra **grammatical attributes** for some parts of speech — a fact the app looks up from that
+language's own guideline, not something hardcoded per feature:
+
+- **English**: part of speech only. Nothing else needed for now.
+- **Swedish**: nouns carry a **gender** — *common* or *neuter* — displayed as the *en*/*ett*
+  article. A Swedish noun's canonical **display form** is the article plus the lemma (*"ett hus"*,
+  *"en bil"*), and that display form is what the learner sees and is expected to learn — wherever
+  a Swedish noun's lemma is shown (staging chips, the vocabulary base, Words mode, Refresher), it
+  is shown with its article, not bare.
+
+Adding a third language means adding its own guideline, not changing this file or the schema —
+see `docs/ai-integration.md` "Language guidelines" for where that lives and what it can define.
 
 A card's Term reaches the base by way of its lexical words; its **anchor phrase** never does — only
 the Term does. One Term always yields exactly one card, plus base entries for its lexical words: a
@@ -141,16 +168,19 @@ base word's **last recall**, and only on a correct answer; it never touches a ca
   word linked to it.
 - **Words** — pulls the **individual base words** of due cards (not the cards themselves) into one
   shuffled, per-word session capped at **15 words**; a due card enters only if all of its base
-  words fit under that cap. Front is the base word's own translation, back is its **lemma** (never
-  the inflected surface form — Words always tests the lemma), hint is the parent card's context. A
-  card clears once every one of its base words has been answered correctly within the session;
-  each correct word also stamps that word's own last recall independently of whether the card
-  clears. Cards with zero base words (an expression whose words were all filtered out) don't enter
-  the Words-mode due pool — they can only clear through the other modes.
+  words fit under that cap. Front is the base word's own translation, back is its **lemma** in its
+  **display form** (never the inflected surface form — Words always tests the lemma; for a Swedish
+  noun the back is *"ett hus"*, not *"hus"*), hint is the parent card's context. **Part of speech is
+  shown alongside the word on both front and back**, since two base words can share a lemma and
+  differ only by part of speech. A card clears once every one of its base words has been answered
+  correctly within the session; each correct word also stamps that word's own last recall
+  independently of whether the card clears. Cards with zero base words (an expression whose words
+  were all filtered out) don't enter the Words-mode due pool — they can only clear through the
+  other modes.
 - **Refresher** — free-form, unscheduled practice over the whole vocabulary base, ordered by
-  **staleness** (how long since last recall). Front/back are the same as Words; a correct answer
-  stamps that word's last recall and nothing else — no schedule, and it never clears a card. It is
-  not a learning mode: no session scope.
+  **staleness** (how long since last recall). Front/back/part-of-speech are the same as Words; a
+  correct answer stamps that word's last recall and nothing else — no schedule, and it never clears
+  a card. It is not a learning mode: no session scope.
 - **Anchor phrase** is never shown during review, for now — a staging/card-detail artifact only.
 
 ## Consequences for screens this redesign touches but does not itself design
@@ -158,7 +188,9 @@ base word's **last recall**, and only on a correct answer; it never touches a ca
 - **The save-destination picker and its capture-target session state are retired** — staging
   detects the language, so the dashboard no longer needs a language/wordbox picker for new
   captures. This changes the dashboard and the nav; the replacement is an implementation decision.
-- **The vocabulary base needs a page of its own** in ORGANIZE — nothing here specifies its layout.
+- **The vocabulary base needs a page of its own** in ORGANIZE — nothing here specifies its layout,
+  beyond that each entry shows its part of speech and display form (e.g. *"ett hus"*, not bare
+  *"hus"*).
 - **The CAPTURE / ORGANIZE / LEARN division gives the nav a shape it has to grow into** — today's
   nav predates the module split.
 - **The card detail and edit pages** lose the three example fragments and `<x-phrase-suggestions>`,
@@ -171,8 +203,8 @@ base word's **last recall**, and only on a correct answer; it never touches a ca
 - **The hide-a-word review mode** (a base word of a phrase Term hidden mid-sentence). The
   card/base-word link's surface form is built to support it, but the mode's own design is a future
   effort.
-- **Which tool supplies lemmatization and translation** — the AI, a dictionary API, or a bundled
-  wordlist. CALL 1 covers every supported language either way; swapping in something cheaper for
-  specific languages is an optimisation behind the same seam.
+- **Which tool supplies lemmatization, part-of-speech tagging and translation** — the AI, a
+  dictionary API, or a bundled wordlist. CALL 1 covers every supported language either way;
+  swapping in something cheaper for specific languages is an optimisation behind the same seam.
 - **Visual design.** This spec settles interaction and data shape only; a separate design project
   supplies the eventual look. Implementation ships against the current app's existing visual style.

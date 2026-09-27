@@ -162,7 +162,7 @@ a save destination up front. Returns, roughly:
   language,                                  // detected from the learner's own target/native set
   card_kind: 'word'|'phrase'|'expression',
   term,
-  base_words: [{lemma, surface_form, translation}, ...],  // filtered — see below
+  base_words: [{lemma, part_of_speech, attributes, surface_form, translation}, ...],  // filtered — see below
   anchor,                                     // word-shape only, else absent
 }
 ```
@@ -172,12 +172,15 @@ Exact key names/shape are implementation's call; the behaviour each one carries 
 - **`card_kind` is first in the schema**, for the same key-order reason the old `term_type` was.
 - **`term`** carries prompt rule #1, with the base-form reduction promoted to the *first* clause
   rather than buried mid-paragraph — the old wording let `vetting` through unreduced.
-- **`base_words`** are the Term's lexical words, each reduced to its **lemma**, with the surface
-  form the Term actually spells it in and a native translation — the translation is decided here,
-  not deferred to CALL 2 (see [cards](cards.md) "The vocabulary base"). Two filters run before this
-  list reaches staging: the **proficiency** filter (drop very basic function words at B1+, but
-  never the word card's own Term) and the **already-present** filter (drop a lemma the learner
-  already has, surfacing it as a notice instead) — see [cards](cards.md).
+- **`base_words`** are the Term's lexical words, each reduced to its **lemma**, tagged with its
+  **part of speech**, with the surface form the Term actually spells it in and a native translation
+  — the translation is decided here, not deferred to CALL 2 (see [cards](cards.md) "The vocabulary
+  base"). `attributes` is filled only when the word's language and part of speech have a
+  language-guideline entry for it (e.g. Swedish nouns get `{"gender": "common"|"neuter"}`) — see
+  "Language guidelines" below. Two filters run before this list reaches staging: the
+  **proficiency** filter (drop very basic function words at B1+, but never the word card's own
+  Term) and the **already-present** filter (drop a lemma+part-of-speech the learner already has,
+  surfacing it as a notice instead) — see [cards](cards.md).
 - **`anchor`** is filled only for a lone-word Term: pulled from the Context when it already
   contains the Term in a natural phrase, otherwise invented. Capped at 2-3 words for the same
   reason a lifted-clause fragment used to be — a long anchor buries the word it exists to teach.
@@ -186,6 +189,23 @@ Exact key names/shape are implementation's call; the behaviour each one carries 
 
 Retired: **`word`** (no focus word to spell) and **`submitted_form`** (its only consumer, the
 `examples` suggestions, is gone).
+
+### Language guidelines
+
+`resources/language-guidelines/` holds one PHP file per language code (`en.php`, `sv.php`, …),
+consulted by `AI::analyzeTerm`'s prompt builder when it extracts `base_words` for that language.
+Each file declares, for the language it covers:
+
+- which parts of speech the language uses (a subset of the shared enum — see [cards](cards.md));
+- which parts of speech carry **grammatical attributes**, the valid values for each, and how to
+  **display** them (Swedish: `noun` → `gender` → `common`/`neuter`, displayed as *en*/*ett*);
+- a short prose note interpolated into CALL 1's prompt so the model applies that language's own
+  rule correctly (e.g. "Every Swedish noun is either a common-gender or a neuter word...").
+
+A language with no guideline file still gets `part_of_speech` tagged on every base word (the model
+can do this from general knowledge), just no `attributes` — see [cards](cards.md) "The vocabulary
+base". Nothing here is model/param configuration; it's declarative language data, the same role
+`config/proficiency.php` plays for CEFR levels, just keyed by language instead of level.
 
 ### Call 2 — three generators
 

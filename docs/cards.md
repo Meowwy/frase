@@ -78,17 +78,21 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 
 ## The vocabulary base
 
-`base_words` — one entry per lemma per language per learner:
+`base_words` — one entry per lemma **and part of speech** per language per learner:
 
 | Column | Notes |
 |---|---|
 | `user_id`, `language_id` | owner + language |
-| `lemma` | canonical spelling — the dedup key |
+| `lemma` | canonical spelling |
+| `part_of_speech` | enum (`noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `determiner`, `numeral`, `interjection`), not nullable — part of the dedup key, not a revisable property. *run* the verb and *run* the noun are two rows |
+| `attributes` | nullable JSON — the extra grammatical facts this language's guideline defines for this part of speech (e.g. Swedish noun `{"gender": "neuter"}`); absent for a part-of-speech/language pair with nothing to say. See [ai-integration](ai-integration.md) "Language guidelines" |
 | `translation` | set once at creation from CALL 1, never revised — sense lives on cards, not here |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
 
-Unique on `(user_id, language_id, lemma)`. There is no expressions store — an expression card's
-surviving words link into `base_words` exactly like any other card's.
+Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key now, not
+`lemma` alone. `attributes` and `translation` are set once, at creation, and never revised
+afterward, the same as `translation` always was. There is no expressions store — an expression
+card's surviving words link into `base_words` exactly like any other card's.
 
 `card_base_word` — the pivot linking a card to the base entries for its Term's lexical words:
 
@@ -103,17 +107,19 @@ constraint: a **word** card links exactly one base word (its own lemma — the p
 below must never drop it), a **phrase** card at least one and at most **5**, an **expression** card
 zero or more.
 
-The **already-present check**: for a word, query `base_words` on `(user_id, language_id, lemma)`;
-for an expression (no separate store), query `cards` where `card_shape = 'expression'`,
-case-insensitive match on `term`. Neither is stored — both are computed live, at staging render
-time and again at approval, so two proposals for the same lemma approved in either order both link
-to one `base_words` row instead of creating a duplicate.
+The **already-present check**: for a word, query `base_words` on
+`(user_id, language_id, lemma, part_of_speech)` — matching lemma with a *different* part of speech
+is a different vocabulary item, not a duplicate; for an expression (no separate store), query
+`cards` where `card_shape = 'expression'`, case-insensitive match on `term`. Neither is stored —
+both are computed live, at staging render time and again at approval, so two proposals for the same
+lemma **and part of speech** approved in either order both link to one `base_words` row instead of
+creating a duplicate.
 
 **Two filters** narrow which of CALL 1's extracted words are proposed as base words in the first
 place: **proficiency** (from the stored CEFR level — at B1 and above, prepositions, pronouns and
 other very basic function words aren't suggested; it never drops a word card's own Term) and
-**already present** (a lemma the learner already has isn't suggested again, but they're told it's
-already there — the already-present check above).
+**already present** (a lemma+part-of-speech the learner already has isn't suggested again, but
+they're told it's already there — the already-present check above).
 
 ## Staging
 
@@ -138,7 +144,7 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | Column | Notes |
 |---|---|
 | `proposal_id` | |
-| `lemma`, `surface_form`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
+| `lemma`, `part_of_speech`, `attributes`, `surface_form`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
 | `struck` | boolean, default false |
 
 **Approve** creates (or reuses, per the idempotency note above) the `base_words` rows for every

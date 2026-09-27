@@ -115,12 +115,18 @@ with **zero** base words (an expression whose words were all filtered at capture
 [cards](cards.md) "The vocabulary base") are excluded from this pool entirely; they can only clear
 through the other modes.
 
-Each entry is `{base_word_id, card_id, front, back, hint}`:
+Each entry is `{base_word_id, card_id, front, back, hint, part_of_speech}`:
 
 - **front** — the base word's own translation (from the vocabulary base);
 - **back** — the base word's **lemma**, never the inflected surface form — Words always tests the
   lemma, unlike the deferred hide-a-word mode (out of scope — see `USERFLOW.md`), which is the one
-  place the surface form would matter;
+  place the surface form would matter. Rendered in its **display form** where the language's
+  guideline defines one — a Swedish noun's back is *"ett hus"*, not bare *"hus"* — see
+  [cards](cards.md) "The vocabulary base" and [ai-integration](ai-integration.md) "Language
+  guidelines";
+- **part_of_speech** — shown alongside the word on both front and back, not just the back. Two base
+  words can share a lemma and differ only by part of speech (*run* the verb vs. *run* the noun), so
+  the learner needs it to know which one is being asked about even before flipping the card;
 - **hint** — the parent card's context (its blanked example sentence).
 
 Answers are tracked client-side and batched into one write at session end, extending
