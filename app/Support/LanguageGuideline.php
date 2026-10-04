@@ -96,8 +96,31 @@ class LanguageGuideline
     }
 
     /**
-     * This language's prose notes for CALL 1's prompt: the language-wide one plus one per
-     * attribute it defines.
+     * Whether this language writes the given part of speech in dictionary style, i.e.
+     * whether CALL 1 should be asked for a `dictionary_form` for such a word.
+     *
+     * This is separate from an attribute because it is not computable: "ett hus" follows
+     * from {gender, lemma} by a fixed mapping, but a Swedish verb's "komm|a -er" depends
+     * on where that individual verb's stem ends and which present ending it takes. The
+     * model supplies the whole string and it is stored (see docs/cards.md `base_words`).
+     */
+    public function wantsDictionaryForm(string $partOfSpeech): bool
+    {
+        return in_array($partOfSpeech, $this->data['dictionary_form']['parts_of_speech'] ?? [], true);
+    }
+
+    /**
+     * Whether this language asks for a dictionary form at all — CALL 1's schema needs to
+     * know before it knows which part of speech any word will get.
+     */
+    public function usesDictionaryForms(): bool
+    {
+        return filled($this->data['dictionary_form']['parts_of_speech'] ?? []);
+    }
+
+    /**
+     * This language's prose notes for CALL 1's prompt: the language-wide one, one per
+     * attribute it defines, and its dictionary-style rule when it has one.
      */
     public function promptNote(): string
     {
@@ -107,15 +130,21 @@ class LanguageGuideline
             $notes[] = $attribute['prompt_note'] ?? '';
         }
 
+        $notes[] = $this->data['dictionary_form']['prompt_note'] ?? '';
+
         return trim(implode(' ', array_filter($notes)));
     }
 
     /**
      * The lemma as the learner is expected to learn it: a Swedish neuter noun's display
-     * form is "ett hus", not bare "hus". Everywhere a base word is shown — staging chips,
-     * the vocabulary base, Words mode, Refresher — shows this, never the bare lemma.
+     * form is "ett hus", not bare "hus", and a Swedish verb's is "komm|a -er", not bare
+     * "komma". Everywhere a base word is shown — staging chips, the vocabulary base,
+     * Words mode, Refresher — shows this, never the bare lemma.
+     *
+     * A stored dictionary form stands in for the lemma and the article prefixes still
+     * apply around it, so a language that wanted both would get both.
      */
-    public function displayForm(string $lemma, string $partOfSpeech, ?array $grammarAttributes): string
+    public function displayForm(string $lemma, string $partOfSpeech, ?array $grammarAttributes, ?string $dictionaryForm = null): string
     {
         $prefixes = [];
 
@@ -128,6 +157,6 @@ class LanguageGuideline
             }
         }
 
-        return trim(implode(' ', [...$prefixes, $lemma]));
+        return trim(implode(' ', [...$prefixes, filled($dictionaryForm) ? $dictionaryForm : $lemma]));
     }
 }

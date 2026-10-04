@@ -61,7 +61,7 @@ A proposal shows:
   its shape tag and the detected (editable) language;
 - the proposed base words as a tray of chips, one per extracted lemma, each labeled with its
   **part of speech** and, where the language defines one, its **display form** — a Swedish chip
-  reads *"ett hus"*, not bare *"hus"*;
+  reads *"ett hus"*, not bare *"hus"*, and *"komm|a -er"*, not bare *"komma"*;
 - for a lone word, the proposed anchor phrase, editable, with **Replace** (regenerate) and
   **Clear** — clearing is reversible, leaving a "+ Add one" state rather than deleting the block
   outright.
@@ -115,7 +115,14 @@ language's own guideline, not something hardcoded per feature:
   article. A Swedish noun's canonical **display form** is the article plus the lemma (*"ett hus"*,
   *"en bil"*), and that display form is what the learner sees and is expected to learn — wherever
   a Swedish noun's lemma is shown (staging chips, the vocabulary base, Words mode, Refresher), it
-  is shown with its article, not bare.
+  is shown with its article, not bare. Swedish **verbs** are shown in **dictionary form**: the
+  infinitive with a bar marking off the ending inflection replaces, then the present-tense ending
+  (*"komm|a -er"*, *"tal|a -ar"*, *"bo -r"*, irregulars written out — *"var|a är"*). Unlike the
+  noun article this cannot be computed from the lemma and an attribute value — it differs per verb
+  — so it is asked for once, when the word is proposed, and stored alongside the lemma.
+
+  A dictionary form is never part of a base word's identity: *komma* is one entry whether or not
+  one was stored for it, and like the translation it is written once and never revised.
 
 Adding a third language means adding its own guideline, not changing this file or the schema —
 see `docs/ai-integration.md` "Language guidelines" for where that lives and what it can define.
@@ -170,7 +177,8 @@ base word's **last recall**, and only on a correct answer; it never touches a ca
   shuffled, per-word session capped at **15 words**; a due card enters only if all of its base
   words fit under that cap. Front is the base word's own translation, back is its **lemma** in its
   **display form** (never the inflected surface form — Words always tests the lemma; for a Swedish
-  noun the back is *"ett hus"*, not *"hus"*), hint is the parent card's context. **Part of speech is
+  noun the back is *"ett hus"*, not *"hus"*, and for a Swedish verb *"komm|a -er"*), hint is the
+  parent card's context. **Part of speech is
   shown alongside the word on both front and back**, since two base words can share a lemma and
   differ only by part of speech. A card clears once every one of its base words has been answered
   correctly within the session; each correct word also stamps that word's own last recall

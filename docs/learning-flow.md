@@ -135,7 +135,8 @@ one answer across the cards that share the word (empty for Refresher, which clea
 - **back** — the base word's **lemma**, never the inflected surface form — Words always tests the
   lemma, unlike the deferred hide-a-word mode (out of scope — see `USERFLOW.md`), which is the one
   place the surface form would matter. Rendered in its **display form** where the language's
-  guideline defines one — a Swedish noun's back is *"ett hus"*, not bare *"hus"* — see
+  guideline defines one — a Swedish noun's back is *"ett hus"*, not bare *"hus"*, and a Swedish
+  verb's is *"komm|a -er"* — see
   [cards](cards.md) "The vocabulary base" and [ai-integration](ai-integration.md) "Language
   guidelines";
 - **part_of_speech** — shown alongside the word on both front and back, not just the back. Two base

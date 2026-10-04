@@ -46,9 +46,28 @@ return [
         ],
     ],
 
+    // Swedish verbs are shown in dictionary style rather than as a bare
+    // infinitive. Unlike the noun gender above this cannot be computed from
+    // {attribute, lemma}: where the stem ends and which present-tense ending
+    // the verb takes are facts about the individual verb, so CALL 1 is asked
+    // for the whole string and it is stored on the base word.
+    'dictionary_form' => [
+        'parts_of_speech' => ['verb'],
+
+        'prompt_note' => 'A Swedish verb is learned in dictionary style, not as a bare infinitive: '
+            .'write the infinitive with a vertical bar "|" marking off the ending that inflection '
+            .'replaces, then a space, then the present-tense ending with a leading hyphen — '
+            .'"komm|a -er" (kommer), "tal|a -ar" (talar), "köp|a -er" (köper), "skriv|a -er" '
+            .'(skriver). Use no bar when the whole infinitive is the stem: "bo -r" (bor), "gå -r" '
+            .'(går). When the present tense is irregular, write that form out in full with no '
+            .'hyphen instead of an ending: "var|a är" (är), "kunn|a kan" (kan), "vet|a vet" (vet). '
+            .'The part before the bar plus the part after it must spell the lemma exactly.',
+    ],
+
     // Prose interpolated into CALL 1's prompt so the model applies this
     // language's own grammar correctly, beyond the per-attribute notes above.
     'prompt_note' => 'Swedish nouns carry a grammatical gender (see the noun.gender attribute); '
-        .'verbs, adjectives and other parts of speech carry no additional attributes.',
+        .'verbs are written in dictionary style (see dictionary_form); adjectives and other '
+        .'parts of speech carry no additional attributes.',
 
 ];

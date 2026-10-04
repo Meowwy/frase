@@ -46,15 +46,16 @@ class BaseWord extends Model
 
     /**
      * The lemma as the learner is expected to learn it — "ett hus" for a Swedish neuter
-     * noun, bare "hus" for a language whose guideline defines no display form. This is
-     * what every screen shows: staging chips, the base list, Words mode, Refresher.
+     * noun, "komm|a -er" for a Swedish verb, bare "hus" for a language whose guideline
+     * defines no display form. This is what every screen shows: staging chips, the base
+     * list, Words mode, Refresher.
      */
     public function displayForm(): string
     {
         $guideline = LanguageGuideline::for($this->language?->code);
 
         return $guideline
-            ? $guideline->displayForm($this->lemma, $this->part_of_speech, $this->grammar_attributes)
+            ? $guideline->displayForm($this->lemma, $this->part_of_speech, $this->grammar_attributes, $this->dictionary_form)
             : $this->lemma;
     }
 
@@ -70,10 +71,10 @@ class BaseWord extends Model
     /**
      * Find or create the base entry for one proposed word. The dedup key is
      * lemma + part of speech, so two proposals for the same word approved in either order
-     * both land on one row; `translation`/`grammar_attributes` are only written when the
-     * row is new, which is what makes them never-revised.
+     * both land on one row; `translation`/`grammar_attributes`/`dictionary_form` are only
+     * written when the row is new, which is what makes them never-revised.
      */
-    public static function resolve(User $user, Language $language, string $lemma, string $partOfSpeech, ?array $grammarAttributes, string $translation): self
+    public static function resolve(User $user, Language $language, string $lemma, string $partOfSpeech, ?array $grammarAttributes, string $translation, ?string $dictionaryForm = null): self
     {
         return self::firstOrCreate(
             [
@@ -85,6 +86,7 @@ class BaseWord extends Model
             [
                 'grammar_attributes' => $grammarAttributes,
                 'translation' => $translation,
+                'dictionary_form' => $dictionaryForm,
             ]
         );
     }

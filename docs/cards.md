@@ -104,19 +104,21 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `user_id`, `language_id` | owner + language |
 | `lemma` | canonical spelling |
 | `part_of_speech` | enum (`noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `determiner`, `numeral`, `interjection`), not nullable — part of the dedup key, not a revisable property. *run* the verb and *run* the noun are two rows |
+| `dictionary_form` | nullable string — the lemma as that language's dictionaries write it, for the parts of speech whose guideline asks for one (Swedish `verb` → `komm|a -er`); null everywhere else, which is most words. Stored rather than computed, because where a verb's stem ends and which present-tense ending it takes are facts about that one verb — unlike a noun's *en*/*ett*, which follows from `grammar_attributes`. **Not** part of the dedup key: `komma` is one entry |
 | `grammar_attributes` | nullable JSON (`array` cast) — the extra grammatical facts this language's guideline defines for this part of speech (e.g. Swedish noun `{"gender": "neuter"}`); null for a part-of-speech/language pair with nothing to say. See [ai-integration](ai-integration.md) "Language guidelines". **Not** named plain `attributes`: that collides with Eloquent's own internal attribute bag, which would make the column unreadable as `$this->attributes` from inside the model |
 | `translation` | set once at creation from CALL 1, never revised — sense lives on cards, not here |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
 
 Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key, not
-`lemma` alone. `grammar_attributes` and `translation` are set once, at creation, and never revised:
-**`BaseWord::resolve()`** is a `firstOrCreate` whose second argument holds exactly those two, so
-"never revised" is a property of the write rather than a rule someone has to remember. There is no
+`lemma` alone. `grammar_attributes`, `translation` and `dictionary_form` are set once, at creation,
+and never revised: **`BaseWord::resolve()`** is a `firstOrCreate` whose second argument holds
+exactly those three, so "never revised" is a property of the write rather than a rule someone has
+to remember. There is no
 expressions store — an expression card's surviving words link into `base_words` exactly like any
 other card's.
 
 **`BaseWord::displayForm()`** renders the lemma the way the learner is expected to learn it
-(*"ett hus"*), reading the language's guideline; **`BaseWord::stampRecall()`** is the only thing a
+(*"ett hus"*, *"komm|a -er"*), reading the language's guideline; **`BaseWord::stampRecall()`** is the only thing a
 word-level answer ever does to it.
 
 `card_base_word` — the pivot linking a card to the base entries for its Term's lexical words:
@@ -190,7 +192,7 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | Column | Notes |
 |---|---|
 | `proposal_id` | |
-| `lemma`, `part_of_speech`, `grammar_attributes`, `surface_form`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
+| `lemma`, `part_of_speech`, `dictionary_form`, `grammar_attributes`, `surface_form`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
 | `struck` | boolean, default false |
 
 **`Proposal::approve()`** resolves the `base_words` rows for every non-struck candidate (reusing

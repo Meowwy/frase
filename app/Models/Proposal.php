@@ -161,6 +161,7 @@ class Proposal extends Model
                     $candidate->part_of_speech,
                     $candidate->grammar_attributes,
                     $candidate->translation,
+                    $candidate->dictionary_form,
                 );
 
                 $card->baseWords()->attach($baseWord->id, ['surface_form' => $candidate->surface_form]);

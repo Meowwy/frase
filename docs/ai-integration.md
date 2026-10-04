@@ -209,22 +209,37 @@ Each file declares, for the language it covers:
 - which parts of speech the language uses (a subset of the shared enum — see [cards](cards.md));
 - which parts of speech carry **grammatical attributes**, the valid values for each, and how to
   **display** them (Swedish: `noun` → `gender` → `common`/`neuter`, displayed as *en*/*ett*);
+- which parts of speech are written in **dictionary form** (Swedish: `verb` → `komm|a -er`). This
+  is a separate declaration from an attribute precisely because it is *not* computable: *en*/*ett*
+  follows from `{gender, lemma}` by a fixed mapping, whereas where a verb's stem ends and which
+  present-tense ending it takes vary per verb. So CALL 1 is asked for the whole string, its format
+  is pinned down by that language's prose note, and the answer is stored;
 - a short prose note interpolated into CALL 1's prompt so the model applies that language's own
   rule correctly (e.g. "Every Swedish noun is either a common-gender or a neuter word...").
 
 A language with no guideline file still gets `part_of_speech` tagged on every base word (the model
-can do this from general knowledge), just no attributes — see [cards](cards.md) "The vocabulary
-base". Nothing here is model/param configuration; it's declarative language data, the same role
+can do this from general knowledge), just no attributes and no dictionary form — see
+[cards](cards.md) "The vocabulary base". Nothing here is model/param configuration; it's declarative language data, the same role
 `config/proficiency.php` plays for CEFR levels, just keyed by language instead of level.
 
 **`App\Support\LanguageGuideline`** is the only reader. It is a plain class, not an Eloquent model
-— there is no row behind it — and it owns three things besides the raw lookups: `promptNote()`
-(the language-wide note plus one per attribute, concatenated for CALL 1's system message),
-`allAttributes()` (the union used to build CALL 1's schema, above), and `displayForm()`, which turns
-`{lemma, part_of_speech, grammar_attributes}` into what the learner actually sees (*"ett hus"*).
-`BaseWord::displayForm()` and `ProposalBaseWord::displayForm()` are thin wrappers over that last
-one, so staging chips, the vocabulary base, Words mode and Refresher can never disagree about how a
-word is spelled.
+— there is no row behind it — and besides the raw lookups it owns: `promptNote()` (the language-wide
+note plus one per attribute plus the dictionary-form rule, concatenated for CALL 1's system
+message), `allAttributes()` (the union used to build CALL 1's schema, above),
+`wantsDictionaryForm($partOfSpeech)` / `usesDictionaryForms()` (the per-part-of-speech and
+whole-language forms of the same question — the first filters CALL 1's answer in
+`AnalyzeProposalJob`, the second decides whether the schema carries the property at all), and
+`displayForm()`, which turns `{lemma, part_of_speech, grammar_attributes, dictionary_form}` into
+what the learner actually sees (*"ett hus"*, *"komm|a -er"*; a stored dictionary form stands in for
+the lemma and the article prefixes still apply around it). `BaseWord::displayForm()` and
+`ProposalBaseWord::displayForm()` are thin wrappers over that last one, so staging chips, the
+vocabulary base, Words mode and Refresher can never disagree about how a word is spelled.
+
+Both the attribute properties and `dictionary_form` reach CALL 1's `base_words` schema as a **union
+across the learner's languages** — the call decides the language in the same answer, so the schema
+cannot be narrowed to one guideline up front. A Swedish verb's dictionary form can therefore come
+back on an English verb, which is why `AnalyzeProposalJob` discards any value the *detected*
+language's guideline does not ask for.
 
 ### Call 2 — three generators
 

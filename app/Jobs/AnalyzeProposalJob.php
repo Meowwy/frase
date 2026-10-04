@@ -117,6 +117,7 @@ class AnalyzeProposalJob implements ShouldQueue
                 'lemma' => $lemma,
                 'part_of_speech' => $partOfSpeech,
                 'grammar_attributes' => $this->grammarAttributes($guideline, $partOfSpeech, $candidate),
+                'dictionary_form' => $this->dictionaryForm($guideline, $partOfSpeech, $candidate),
                 'surface_form' => trim((string) ($candidate['surface_form'] ?? '')) ?: $lemma,
                 'translation' => trim((string) ($candidate['translation'] ?? '')),
             ];
@@ -154,6 +155,21 @@ class AnalyzeProposalJob implements ShouldQueue
         }
 
         return $kept;
+    }
+
+    /**
+     * The dictionary-style form, kept only when this language writes this part of speech
+     * that way. CALL 1's schema carries the property across the learner's languages, so a
+     * Swedish verb's "komm|a -er" can come back on an English verb — dropping it here is
+     * what keeps a language without the convention showing plain lemmas.
+     */
+    private function dictionaryForm(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate): ?string
+    {
+        if (! $guideline?->wantsDictionaryForm($partOfSpeech)) {
+            return null;
+        }
+
+        return trim((string) ($candidate['dictionary_form'] ?? '')) ?: null;
     }
 
     /**

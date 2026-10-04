@@ -54,10 +54,10 @@ class CaptureStagingTest extends TestCase
             'card_kind' => Card::SHAPE_PHRASE,
             'term' => 'hur mycket kostar det',
             'base_words' => [
-                ['lemma' => 'hur', 'part_of_speech' => 'adverb', 'surface_form' => 'hur', 'translation' => 'how', 'gender' => ''],
-                ['lemma' => 'mycket', 'part_of_speech' => 'adverb', 'surface_form' => 'mycket', 'translation' => 'much', 'gender' => ''],
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostar', 'translation' => 'to cost', 'gender' => ''],
-                ['lemma' => 'det', 'part_of_speech' => 'pronoun', 'surface_form' => 'det', 'translation' => 'it', 'gender' => ''],
+                ['lemma' => 'hur', 'part_of_speech' => 'adverb', 'surface_form' => 'hur', 'translation' => 'how', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'mycket', 'part_of_speech' => 'adverb', 'surface_form' => 'mycket', 'translation' => 'much', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostar', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'det', 'part_of_speech' => 'pronoun', 'surface_form' => 'det', 'translation' => 'it', 'gender' => '', 'dictionary_form' => ''],
             ],
             'anchor' => '',
         ], $overrides);
@@ -217,6 +217,12 @@ class CaptureStagingTest extends TestCase
         $this->assertSame(['hur', 'kosta', 'mycket'], $card->baseWords->pluck('lemma')->sort()->values()->all());
         $this->assertSame('kostar', $card->baseWords->firstWhere('lemma', 'kosta')->pivot->surface_form);
 
+        // The dictionary form is carried onto the base entry, so the verb is shown the way
+        // a Swedish learner meets it rather than as a bare infinitive.
+        $verb = $card->baseWords->firstWhere('lemma', 'kosta');
+        $this->assertSame('kost|a -ar', $verb->dictionary_form);
+        $this->assertSame('kost|a -ar', $verb->displayForm());
+
         // The proposal is gone: staging holds nothing once it has been acted on.
         $this->assertSame(0, Proposal::count());
     }
@@ -370,6 +376,116 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
+     * Swedish verbs are learned in dictionary style, and unlike a noun's gender that string
+     * cannot be derived from the lemma — so CALL 1 supplies it and it is stored. The chip
+     * and every later screen read "komm|a -er", not bare "komma".
+     */
+    public function test_a_swedish_verb_is_staged_and_stored_in_dictionary_style(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->analysis([
+            'card_kind' => Card::SHAPE_WORD,
+            'term' => 'komma',
+            'base_words' => [
+                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'surface_form' => 'komma', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+            ],
+            'anchor' => '[komma] hem',
+        ]), $this->cardContent());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'komma']);
+
+        $proposal = $user->proposals()->sole();
+        $word = $proposal->baseWords->sole();
+        $this->assertSame('komm|a -er', $word->dictionary_form);
+        $this->assertSame('komm|a -er', $word->displayForm());
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertSame('komm|a -er', BaseWord::sole()->displayForm());
+    }
+
+    /**
+     * The dictionary form is kept only where the detected language's guideline asks for it.
+     * CALL 1's schema carries the property across every language the learner has, so the
+     * model can offer one for a part of speech — or a language — that writes none.
+     */
+    public function test_a_dictionary_form_is_dropped_where_the_guideline_asks_for_none(): void
+    {
+        [$user] = $this->learner();
+
+        $this->fakeOpenAi($this->analysis([
+            'card_kind' => Card::SHAPE_PHRASE,
+            'term' => 'komma till ett hus',
+            'base_words' => [
+                // A Swedish noun: Swedish declares a dictionary form for verbs only.
+                ['lemma' => 'hus', 'part_of_speech' => 'noun', 'surface_form' => 'hus', 'translation' => 'house', 'gender' => 'neuter', 'dictionary_form' => 'hus, -et'],
+                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'surface_form' => 'komma', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+            ],
+            'anchor' => '',
+        ]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'komma till ett hus']);
+
+        $words = $user->proposals()->sole()->baseWords;
+        $noun = $words->firstWhere('lemma', 'hus');
+        $this->assertNull($noun->dictionary_form);
+        $this->assertSame('ett hus', $noun->displayForm());
+        $this->assertSame('komm|a -er', $words->firstWhere('lemma', 'komma')->dictionary_form);
+    }
+
+    /**
+     * An English verb gets none either: the property only reaches CALL 1's schema because
+     * the learner also has Swedish, so the answer has to be discarded per language.
+     */
+    public function test_an_english_verb_is_shown_as_a_bare_lemma(): void
+    {
+        [$user] = $this->learner();
+        $english = Language::firstWhere('code', 'en');
+        $user->languages()->attach($english->id, ['users_level' => 'B1']);
+
+        $this->fakeOpenAi($this->analysis([
+            'language' => 'English',
+            'card_kind' => Card::SHAPE_WORD,
+            'term' => 'come',
+            'base_words' => [
+                ['lemma' => 'come', 'part_of_speech' => 'verb', 'surface_form' => 'come', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'com|e -es'],
+            ],
+            'anchor' => '[come] home',
+        ]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'come']);
+
+        $word = $user->proposals()->sole()->baseWords->sole();
+        $this->assertNull($word->dictionary_form);
+        $this->assertSame('come', $word->displayForm());
+    }
+
+    /**
+     * Like the translation, the dictionary form is written once with the base entry and
+     * never revised — a later proposal for the same lemma reuses the row as it stands.
+     */
+    public function test_a_second_proposal_does_not_revise_a_stored_dictionary_form(): void
+    {
+        [$user, $language] = $this->learner();
+        Queue::fake();
+
+        BaseWord::create([
+            'user_id' => $user->id, 'language_id' => $language->id,
+            'lemma' => 'kosta', 'part_of_speech' => 'verb',
+            'translation' => 'to cost', 'dictionary_form' => 'kost|a -ar',
+        ]);
+
+        $proposal = $this->completedProposal($user, $language);
+        $proposal->baseWords->firstWhere('lemma', 'kosta')->update(['dictionary_form' => 'REVISED']);
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertSame(1, BaseWord::where('lemma', 'kosta')->count());
+        $this->assertSame('kost|a -ar', BaseWord::where('lemma', 'kosta')->sole()->dictionary_form);
+    }
+
+    /**
      * A proposal already through CALL 1, built directly so the tests that only care about
      * what happens next don't have to fake the call.
      */
@@ -383,10 +499,16 @@ class CaptureStagingTest extends TestCase
             'status' => Proposal::STATUS_COMPLETED,
         ]);
 
-        foreach ([['hur', 'adverb', 'hur', 'how'], ['mycket', 'adverb', 'mycket', 'much'], ['kosta', 'verb', 'kostar', 'to cost']] as [$lemma, $pos, $surface, $translation]) {
+        $candidates = [
+            ['hur', 'adverb', 'hur', 'how', null],
+            ['mycket', 'adverb', 'mycket', 'much', null],
+            ['kosta', 'verb', 'kostar', 'to cost', 'kost|a -ar'],
+        ];
+
+        foreach ($candidates as [$lemma, $pos, $surface, $translation, $dictionaryForm]) {
             $proposal->baseWords()->create([
-                'lemma' => $lemma, 'part_of_speech' => $pos,
-                'surface_form' => $surface, 'translation' => $translation,
+                'lemma' => $lemma, 'part_of_speech' => $pos, 'surface_form' => $surface,
+                'translation' => $translation, 'dictionary_form' => $dictionaryForm,
             ]);
         }
 

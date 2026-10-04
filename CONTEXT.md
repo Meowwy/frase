@@ -199,17 +199,33 @@ part-of-speech/language pairs carry none. Defined per language guideline (below)
 per-language into the schema.
 _Avoid_: properties, metadata, attributes (bare — too generic outside this context)
 
+**Dictionary form**:
+A base word written the way that language's dictionaries write it, for the parts of speech whose
+language has such a convention — a Swedish verb is *komm|a -er*, not bare *komma*. Unlike a
+grammatical attribute it cannot be derived from the lemma, so CALL 1 supplies the whole string and
+it is stored on the base word; it is set once and never revised, and it is not part of the dedup
+key. Which parts of speech have one is declared per language guideline (below).
+_Avoid_: conjugation, inflection, suffix, stem
+
 **Language guideline**:
 The per-language file (`resources/language-guidelines/`) that tells CALL 1 which parts of speech a
 language uses, which grammatical attributes apply to which part of speech and their valid values,
-and how to display them (e.g. Swedish `gender` → *en*/*ett*). One file per supported language;
-absent for a language, CALL 1 still tags part of speech but proposes no attributes.
+how to display them (e.g. Swedish `gender` → *en*/*ett*), and which parts of speech are written in
+dictionary form. One file per supported language; absent for a language, CALL 1 still tags part of
+speech but proposes no attributes and no dictionary form.
 _Avoid_: language config, grammar rules (bare)
 
 **Surface form**:
 The spelling one particular Term uses for one of its base words, carried on the link between them —
 *kostade* in the Term, *kosta* in the base.
 _Avoid_: inflection, variant, spelling, display form
+
+**Display form**:
+The one string every screen shows for a base word, built from its lemma plus whatever its language
+guideline adds — *ett hus* for a Swedish neuter noun, *komm|a -er* for a Swedish verb, bare *hus*
+for a language with no such rule. It is what the learner is expected to produce, so staging chips,
+the vocabulary base, Words mode and Refresher all show it and never the bare lemma.
+_Avoid_: label, rendered form, surface form (that is the Term's spelling — above)
 
 **Last recall**:
 The datetime a base word was last produced correctly. It is set only on a correct answer, and it

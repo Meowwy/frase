@@ -48,7 +48,8 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 
 `/base` — every word you have met in one language, one entry per word **and part of speech**
 (*run* the verb and *run* the noun are two different things to know). Each entry shows the word the
-way you are meant to learn it — a Swedish noun with its article, *"ett hus"*, not bare *"hus"* —
+way you are meant to learn it — a Swedish noun with its article, *"ett hus"*, not bare *"hus"*,
+a Swedish verb in dictionary form, *"komm|a -er"* —
 its part of speech, its translation, how many of your cards use it, and when you last recalled it.
 
 It is not a second review queue: it has no schedule. Its jobs are to stop the same word being

@@ -264,8 +264,9 @@ class AI extends Model
     }
 
     /**
-     * The per-word schema for CALL 1's `base_words`, plus one property per grammatical
-     * attribute any of the learner's languages defines.
+     * The per-word schema for CALL 1's `base_words`, plus a `dictionary_form` when any of
+     * the learner's languages writes one and one property per grammatical attribute any of
+     * them defines.
      *
      * The attributes have to be a UNION across the candidate languages: strict structured
      * outputs need the schema up front, and which language the Term is in is something
@@ -300,6 +301,15 @@ class AI extends Model
                 'description' => "The LEMMA's equivalent {$translationLanguage}, same part of speech: the word alone, never a sentence, never an explanation. At most 2 variants separated by \"; \". Translate the lemma, not the surface form.",
             ],
         ];
+
+        // Only asked for when at least one of the learner's languages writes some part of
+        // speech in dictionary style, so an English-only learner's schema is unchanged.
+        if (array_filter($guidelines, fn (LanguageGuideline $g) => $g->usesDictionaryForms())) {
+            $properties['dictionary_form'] = [
+                'type' => 'string',
+                'description' => 'The lemma written in the dictionary style of its own language, for the languages and parts of speech that have one — the exact format is given in the system message. Return an empty string for every other word, which is the normal answer.',
+            ];
+        }
 
         foreach ($guidelines as $guideline) {
             foreach ($guideline->allAttributes() as $name => $definition) {

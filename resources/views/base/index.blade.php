@@ -41,8 +41,9 @@
             <tbody class="divide-y divide-gray-700">
             @forelse($baseWords as $baseWord)
                 <tr class="hover:bg-white/10">
-                    {{-- The display form, not the bare lemma: a Swedish noun's article is
-                         part of what the learner is expected to learn. --}}
+                    {{-- The display form, not the bare lemma: a Swedish noun's article and a
+                         Swedish verb's dictionary suffix are part of what the learner is
+                         expected to learn. --}}
                     <td class="px-6 py-2 text-sm text-white">{{ $baseWord->displayForm() }}</td>
                     <td class="px-6 py-2 text-sm text-gray-400">{{ $baseWord->part_of_speech }}</td>
                     <td class="px-6 py-2 text-sm text-gray-300">{{ $baseWord->translation }}</td>

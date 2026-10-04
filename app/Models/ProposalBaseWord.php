@@ -29,15 +29,16 @@ class ProposalBaseWord extends Model
     }
 
     /**
-     * The chip's label — a Swedish chip reads "ett hus", not bare "hus". The proposal's
-     * language is the guideline to read, since the candidate has no language of its own.
+     * The chip's label — a Swedish chip reads "ett hus", not bare "hus", and "komm|a -er",
+     * not bare "komma". The proposal's language is the guideline to read, since the
+     * candidate has no language of its own.
      */
     public function displayForm(): string
     {
         $guideline = LanguageGuideline::for($this->proposal->language?->code);
 
         return $guideline
-            ? $guideline->displayForm($this->lemma, $this->part_of_speech, $this->grammar_attributes)
+            ? $guideline->displayForm($this->lemma, $this->part_of_speech, $this->grammar_attributes, $this->dictionary_form)
             : $this->lemma;
     }
 }
