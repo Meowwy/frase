@@ -238,17 +238,18 @@ proposal exactly as it was in staging rather than a half-written card.
 | Route | What it does |
 |---|---|
 | `POST /capture` (name `capture`) | validates `capturedWord`/`context`, writes the `proposals` row, dispatches `AnalyzeProposalJob`, answers JSON with the new staged count. Shared with the extension — see [browser-extension](browser-extension.md) |
-| `GET /staging` | the feed: every proposal, newest first, across every language |
+| `GET /staging` | the feed: every proposal, in capture order (oldest first), across every language |
 | `GET /staging/list` | the same list as `{rows, count, pending}` JSON, rendered from `staging/_proposals.blade.php` |
 | `POST /staging/{proposal}/words/{word}/known` | `known=1` strikes a new chip (inserts its `known_words` row), `known=0` un-knows it |
 | `POST /staging/{proposal}/expressions/{expression}/strike` | `struck=1` / `struck=0` on one fixed-expression chip |
 | `POST /staging/{proposal}/language` | correct the detected language — see below |
 | `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
+| `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
 | `POST /staging/{proposal}/merge/{card}` | `merge=1` / `merge=0` marks or unmarks one card for merge. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
-| `POST /staging/{proposal}/approve` | `409` with the existing card's id on an identical Term that still blocks (see "The duplicate check"), `422` when the proposal isn't approvable yet, else the new card's URL |
+| `POST /staging/{proposal}/approve` | `409` with the existing card's id on an identical Term that still blocks (see "The duplicate check"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
 | `DELETE /staging/{proposal}` | discard |
 
-Two deliberate shapes in the UI (`staging/index.blade.php`):
+Deliberate shapes in the UI (`staging/index.blade.php`):
 
 - **Every action re-renders the whole list from `/staging/list`.** The rules that decide which
   controls are live then exist only in PHP (`Proposal::isApprovable()`) and cannot drift out of
@@ -261,8 +262,17 @@ Two deliberate shapes in the UI (`staging/index.blade.php`):
   window, so the page tracks the ids being discarded and re-hides them after each refresh;
   otherwise the 2-second poll would resurrect a row the learner has already dismissed. Undo
   re-renders rather than un-hiding the row it captured, which a poll may since have replaced.
-  Navigating away inside the window leaves the proposal in staging — there is nowhere durable to
-  record the intent, and keeping it is the harmless direction to fail in.
+  Leaving or reloading the page inside the window would strand the timer, so on `pagehide` each
+  pending discard goes out as a `sendBeacon` (a POST with `_method=DELETE`, since a beacon can't
+  send a DELETE) — otherwise a reload straight after Discard brings the proposal back.
+- **Approve stays on staging.** The row collapses to a one-line "approving…" at once, the same as
+  a pending row, then to a link to the new card. The server has deleted the proposal by then, so
+  the page keeps these lines itself and puts them back, in capture order, after every re-render;
+  a reload drops them. The nav badge is decremented on the click, not when CALL 2 returns.
+- **A failed or stalled analysis offers Try again.** `Proposal::hasFailed()` is a `failed` status
+  or one that has sat in `pending`/`processing` for over `Proposal::STALLED_AFTER_MINUTES` — a job
+  that dies with its worker, or a queue nobody is working, never flips the status itself. A
+  stalled row also stops the poll.
 
 **Correcting the language or editing the Context re-runs CALL 1** (`Proposal::reanalyze()`) rather
 than patching the row: the candidate words were extracted, translated and tagged for the old

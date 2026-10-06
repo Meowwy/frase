@@ -205,7 +205,12 @@ class CaptureStagingTest extends TestCase
         $response = $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve");
 
         $card = Card::sole();
-        $response->assertStatus(200)->assertJson(['redirect' => '/cards/'.$card->id]);
+        // Staging stays open, so the answer is what the collapsed row and the badge need.
+        $response->assertStatus(200)->assertJson([
+            'url' => '/cards/'.$card->id,
+            'term' => 'hur mycket kostar det',
+            'staged_count' => 0,
+        ]);
 
         $this->assertSame('hur mycket kostar det', $card->term);
         $this->assertSame('how much does it cost', $card->translation);
@@ -566,6 +571,47 @@ class CaptureStagingTest extends TestCase
         $this->assertSame(1, FixedExpression::count());
         $this->assertSame('ALREADY THERE', $existing->fresh()->translation);
         $this->assertTrue(Card::sole()->fixedExpressions->contains($existing));
+    }
+
+    public function test_a_failed_analysis_is_offered_a_retry_that_runs_call_one_again(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->analysis());
+        $proposal = $user->proposals()->create(['raw_input' => 'hur mycket kostar det', 'status' => Proposal::STATUS_FAILED]);
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->assertJson(['pending' => false])->json('rows');
+        $this->assertStringContainsString('js-retry', $rows);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/retry")->assertStatus(200);
+
+        $this->assertSame(Proposal::STATUS_COMPLETED, $proposal->fresh()->status);
+        $this->assertSame('hur mycket kostar det', $proposal->fresh()->term);
+    }
+
+    public function test_an_analysis_that_stalls_shows_as_failed_and_stops_the_poll(): void
+    {
+        [$user] = $this->learner();
+        $proposal = $user->proposals()->create(['raw_input' => 'hus', 'status' => Proposal::STATUS_PROCESSING]);
+
+        $this->actingAs($user)->getJson('/staging/list')->assertJson(['pending' => true]);
+
+        $this->travel(Proposal::STALLED_AFTER_MINUTES + 1)->minutes();
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->assertJson(['pending' => false])->json('rows');
+        $this->assertStringContainsString('js-retry', $rows);
+        $this->assertTrue($proposal->fresh()->hasFailed());
+    }
+
+    public function test_staging_lists_proposals_in_the_order_they_were_captured(): void
+    {
+        [$user] = $this->learner();
+        Queue::fake();
+
+        foreach (['första', 'andra', 'tredje'] as $term) {
+            $this->actingAs($user)->postJson('/capture', ['capturedWord' => $term]);
+        }
+
+        $this->actingAs($user)->get('/staging')->assertSeeInOrder(['första', 'andra', 'tredje']);
     }
 
     public function test_discarding_leaves_nothing_behind(): void

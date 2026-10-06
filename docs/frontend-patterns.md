@@ -55,7 +55,9 @@ Three JS layers coexist, each with a distinct job — don't reach for the wrong 
   exists as Laravel's default scaffolding. jQuery's `$.post`/`$.ajax` is what every feature
   actually calls.
 - **Toastr** (CDN) is the client-side notification library — success/error toasts after an Ajax
-  action, rather than full-page flash messages, on most interactive pages.
+  action, rather than full-page flash messages, on most interactive pages. Its script must load
+  **after** jQuery: it binds to `window.jQuery` as it loads, and loaded first, every `toastr.*`
+  call throws — taking down whatever handler made it.
 - Ajax endpoints return either a redirect (non-AJAX form submissions), a plain status code
   (`response(200)`), or a JSON body — check `$request->ajax()`/`$request->expectsJson()` in a
   controller before assuming which one a given endpoint returns; several endpoints in this app

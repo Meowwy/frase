@@ -53,9 +53,11 @@ Staging holds every proposal — asynchronous, cross-language, outside the vocab
 learner acts on it. Nothing picks a language up front: it is detected, and staging is where a wrong
 detection gets corrected. The browser extension writes into staging the same way the web form does.
 
-**The fast path** is one feed, not a separate queue: capture shows an instant toast and bumps a
-persistent count badge, and a skeleton row appears at the top of the staging list, resolving into
-the real proposal once CALL 1 returns.
+**The fast path** is one feed, not a separate queue, listed in the order terms were captured:
+capture clears the form, notes the term was added and bumps a persistent count badge, and a
+skeleton row appears in the staging list, resolving into the real proposal once CALL 1 returns.
+If CALL 1 fails or takes more than a few minutes, the row shows as failed, with **Try again** and
+a bin to delete it.
 
 A proposal shows the Term, in its own block, with the detected (editable) language and the Context,
 which can be added, edited or cleared on any proposal. Changing the language or the Context
@@ -126,7 +128,8 @@ are different questions, and the already-present group answers the base one.
 #### Approve and Discard
 
 **Approve** writes the card, links its base words and fixed expressions, merges away the marked
-cards, and is the point CALL 2 finally runs. It is disabled until the proposal is analysed, a
+cards, and is the point CALL 2 finally runs. The learner stays on staging: the proposal collapses
+to one line at once and, when the card is written, becomes a link to it. It is disabled until the proposal is analysed, a
 sense is picked if senses were offered, and the identical-Term rule is satisfied — never by how
 many words it has. **Discard** removes the proposal immediately, with an undo toast for a few
 seconds; once it expires nothing is kept — no discard history, no draft state.

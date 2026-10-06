@@ -5,8 +5,8 @@
      staging, which is why the save-destination picker that used to sit here is gone.
 
      Self-contained, like <x-wordbox-picker>: it posts over AJAX and returns immediately,
-     so the learner is never left waiting on the AI. The instant feedback is a toast plus
-     the nav's staging badge; the proposal itself resolves in staging. --}}
+     so the learner is never left waiting on the AI. The instant feedback is a note beside
+     the staging link plus the nav's staging badge; the proposal itself resolves in staging. --}}
 
 <x-forms.form :action="route('capture')" method="post" id="captureForm" class="max-w-2xl space-y-3">
     <x-forms.input :label="false" name="capturedWord" id="captureWord" autocomplete="off"
@@ -20,6 +20,7 @@
         <a href="{{ route('staging') }}" class="text-sm text-white/60 hover:text-white transition-colors">
             Review staging
         </a>
+        <span id="captureNote" class="hidden text-sm text-green-400"></span>
     </div>
 </x-forms.form>
 
@@ -41,14 +42,13 @@
             $btn.prop('disabled', true);
 
             $.post($form.attr('action'), $form.serialize()).done(function (data) {
-                if (window.toastr) { toastr.success(data.message); }
-
-                // The badge is the persistent half of the feedback: the toast goes away,
-                // the count stays until the proposal is dealt with.
-                $('.js-staged-count').text(data.staged_count).removeClass('hidden');
-
+                $('#captureNote').text('✓ "' + $term.val().trim() + '" added').removeClass('hidden');
                 $term.val('').trigger('focus');
                 $('#captureContext').val('');
+
+                // The badge is the persistent half of the feedback: the note is replaced by
+                // the next capture, the count stays until the proposal is dealt with.
+                $('.js-staged-count').text(data.staged_count).removeClass('hidden');
 
                 // On the staging page itself, show the skeleton row straight away and let
                 // the list poll until CALL 1 has resolved it.

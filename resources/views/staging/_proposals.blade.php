@@ -4,8 +4,8 @@
 
 @forelse($proposals as $proposal)
     @php
-        $pending = in_array($proposal->status, [\App\Models\Proposal::STATUS_PENDING, \App\Models\Proposal::STATUS_PROCESSING], true);
-        $failed = $proposal->status === \App\Models\Proposal::STATUS_FAILED;
+        $pending = $proposal->isAwaitingAnalysis();
+        $failed = $proposal->hasFailed();
         $duplicates = $pending || $failed ? collect() : $proposal->duplicateCards();
         $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
     @endphp
@@ -17,18 +17,21 @@
                 <span class="text-sm text-white/40">reading "{{ $proposal->raw_input }}"…</span>
             </div>
         @elseif($failed)
-            <div class="flex items-center justify-between gap-3">
-                <p class="text-sm text-white/60">
-                    Could not read <span class="font-bold text-white">{{ $proposal->raw_input }}</span>. Discard it and try again.
-                </p>
-                <x-forms.button-small class="js-discard">Discard</x-forms.button-small>
+            {{-- CALL 1 failed or stalled (see Proposal::hasFailed()). --}}
+            <div class="flex items-center gap-3">
+                <span class="text-red-400">✕</span>
+                <span class="text-sm text-white/60">
+                    Could not read <span class="font-bold text-white">{{ $proposal->raw_input }}</span>
+                </span>
+                <x-forms.button-small class="js-retry ml-auto">Try again</x-forms.button-small>
+                <button type="button" class="js-discard text-white/50 hover:text-white" title="Delete">🗑</button>
             </div>
         @else
             {{-- The Term sits in a block of its own: nothing here is strikeable, and
                  striking never rewrites it. --}}
             <div class="flex flex-wrap items-baseline justify-between gap-3 border-b border-white/10 pb-3">
                 <div class="min-w-0">
-                    <span class="text-2xl font-medium break-words">{{ $proposal->term }}</span>
+                    <span class="js-term text-2xl font-medium break-words">{{ $proposal->term }}</span>
                 </div>
 
                 {{-- The detected language, editable: staging is where a wrong detection
@@ -188,5 +191,5 @@
         @endif
     </div>
 @empty
-    <p class="text-center text-white/40 py-10">Nothing in staging. Capture a term above.</p>
+    <p class="js-empty text-center text-white/40 py-10">Nothing in staging. Capture a term above.</p>
 @endforelse

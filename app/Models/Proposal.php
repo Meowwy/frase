@@ -47,6 +47,12 @@ class Proposal extends Model
     /** How many related cards staging lists per proposal. */
     public const MAX_RELATED_CARDS = 5;
 
+    /**
+     * How long CALL 1 may stay out before staging gives up on it and offers a retry. A job
+     * that dies with its worker, or a queue nobody is working, never flips the status itself.
+     */
+    public const STALLED_AFTER_MINUTES = 3;
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -81,6 +87,24 @@ class Proposal extends Model
             && $this->blockingDuplicates()->isEmpty();
     }
 
+    /**
+     * CALL 1 is still out on it, and hasn't been for so long that it has stalled.
+     */
+    public function isAwaitingAnalysis(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_PROCESSING], true)
+            && $this->updated_at->gt(now()->subMinutes(self::STALLED_AFTER_MINUTES));
+    }
+
+    /**
+     * CALL 1 failed (the API was down, or answered nothing usable) or stalled.
+     */
+    public function hasFailed(): bool
+    {
+        return $this->status === self::STATUS_FAILED
+            || ($this->status !== self::STATUS_COMPLETED && ! $this->isAwaitingAnalysis());
+    }
+
     public function isMarkedForMerge(Card $card): bool
     {
         return in_array($card->id, $this->merge_card_ids ?? [], true);
@@ -98,7 +122,7 @@ class Proposal extends Model
 
     /**
      * Send the proposal back through CALL 1, after the learner corrected its language or
-     * its Context. Everything CALL 1 produced was extracted for the old input, so it is
+     * its Context, or asked to try a failed one again. Everything CALL 1 produced was extracted for the old input, so it is
      * thrown away rather than patched. A language already set stays pinned (see
      * AnalyzeProposalJob).
      */

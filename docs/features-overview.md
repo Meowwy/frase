@@ -12,7 +12,8 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 
 - **AI-assisted capture** (the main way): type a term, optionally add the sentence/context it was
   seen in so the AI captures the right sense/domain, and press Capture. It returns **immediately**:
-  you get a toast and a count on the Staging nav link, and nothing else waits on the AI. You don't
+  the fields clear, a "✓ added" note appears beside the staging link and the Staging nav count
+  goes up, and nothing else waits on the AI. You don't
   pick a language — the app works out which of your languages the term is in.
 - **Staging** is where a captured term waits for you, and nothing is in your vocabulary until you
   approve it. Each proposal shows your term exactly as you typed it (only typos fixed — a lone
@@ -26,8 +27,10 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   tap a known one to un-know it, or an already-present one to see which of your cards use it (it is
   linked to the new card automatically).
 - **Approve** writes the card and its words — and only then is the definition, translation and
-  example sentence generated, so nothing is spent on a term you throw away. **Discard** leaves
-  nothing behind (with a few seconds to undo).
+  example sentence generated, so nothing is spent on a term you throw away. You stay on staging:
+  the proposal shrinks to one line, then becomes a link to the new card. **Discard** leaves
+  nothing behind (with a few seconds to undo). A term the AI couldn't read — it failed, or took
+  more than a few minutes — shows as failed, with **Try again** and a bin to delete it.
 - **Manual capture** (`/add`, no AI): type every field yourself. Useful when you already know
   exactly what you want on the card. It skips staging entirely.
 - **Browser extension**: capture a word from any webpage without visiting the site — it lands in

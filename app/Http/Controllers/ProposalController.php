@@ -60,7 +60,7 @@ class ProposalController extends Controller
     }
 
     /**
-     * The staging feed — one list, newest first, across every language.
+     * The staging feed — one list, in the order the terms were captured, across every language.
      */
     public function index()
     {
@@ -78,9 +78,7 @@ class ProposalController extends Controller
         return response()->json([
             'rows' => view('staging._proposals', $data)->render(),
             'count' => $data['proposals']->count(),
-            'pending' => $data['proposals']->contains(
-                fn (Proposal $p) => in_array($p->status, [Proposal::STATUS_PENDING, Proposal::STATUS_PROCESSING], true)
-            ),
+            'pending' => $data['proposals']->contains(fn (Proposal $p) => $p->isAwaitingAnalysis()),
         ]);
     }
 
@@ -160,6 +158,18 @@ class ProposalController extends Controller
     }
 
     /**
+     * Try CALL 1 again on a proposal whose analysis failed or stalled.
+     */
+    public function retry(Proposal $proposal)
+    {
+        $this->authorize('update', $proposal);
+
+        $proposal->reanalyze();
+
+        return response()->json(['reanalyzing' => true]);
+    }
+
+    /**
      * Mark (or unmark) one of the learner's existing cards to be removed when this proposal
      * is approved. Nothing happens to it until then, and discarding the proposal leaves it.
      */
@@ -198,7 +208,12 @@ class ProposalController extends Controller
             return response()->json(['message' => 'There was an error while creating the card.'], 500);
         }
 
-        return response()->json(['redirect' => '/cards/'.$card->id]);
+        // Staging stays open: the row collapses to a link to the new card.
+        return response()->json([
+            'url' => '/cards/'.$card->id,
+            'term' => $card->term,
+            'staged_count' => Auth::user()->proposals()->count(),
+        ]);
     }
 
     /**
@@ -220,7 +235,7 @@ class ProposalController extends Controller
     private function listData(): array
     {
         $user = Auth::user();
-        $proposals = $user->proposals()->with(['baseWords', 'fixedExpressions', 'language'])->latest('id')->get();
+        $proposals = $user->proposals()->with(['baseWords', 'fixedExpressions', 'language'])->oldest('id')->get();
 
         return [
             'proposals' => $proposals,

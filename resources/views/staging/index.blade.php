@@ -20,7 +20,7 @@
 
     @php
         // Whether CALL 1 is still out on anything, which is the only reason to poll.
-        $anyPending = $proposals->contains(fn ($p) => in_array($p->status, ['pending', 'processing'], true));
+        $anyPending = $proposals->contains(fn ($p) => $p->isAwaitingAnalysis());
     @endphp
 
     <script>
@@ -41,11 +41,43 @@
             // had been replaced.
             const discarding = new Set();
 
+            // Approved rows stay on the page as one line — "approving…" while CALL 2 runs,
+            // then a link to the new card — until the page is reloaded. The server has
+            // deleted the proposal by then, so each re-render puts these lines back in
+            // capture order. id → the line's current markup.
+            const settled = new Map();
+            const approving = new Set();
+
+            function setBadge(serverCount) {
+                const count = serverCount - discarding.size - approving.size;
+                $('.js-staged-count').text(Math.max(0, count)).toggleClass('hidden', count <= 0);
+            }
+
+            function placeSettled() {
+                settled.forEach(function ($line, id) {
+                    const $row = $list.find('.js-proposal[data-proposal-id="' + id + '"]');
+                    if ($row.length) { $row.empty().append($line); return; }
+
+                    const $wrap = $('<div class="rounded-xl border border-white/10 bg-white/5 p-4 js-proposal">')
+                        .attr('data-proposal-id', id).append($line);
+                    const $after = $list.find('.js-proposal').filter((i, el) => +$(el).data('proposal-id') > id).first();
+                    $after.length ? $wrap.insertBefore($after) : $list.append($wrap);
+                });
+                if (settled.size) { $list.find('.js-empty').remove(); }
+            }
+
+            function line(html, term) {
+                const $line = $(html);
+                $line.find('.js-line-term').text(term);
+                return $line;
+            }
+
             window.stagingRefresh = function () {
                 $.get('{{ route('staging.list') }}', function (data) {
                     $list.html(data.rows);
                     discarding.forEach(id => $list.find('.js-proposal[data-proposal-id="' + id + '"]').addClass('hidden'));
-                    $('.js-staged-count').text(data.count - discarding.size).toggleClass('hidden', data.count - discarding.size <= 0);
+                    placeSettled();
+                    setBadge(data.count);
 
                     clearTimeout(pollTimer);
                     // Poll only while CALL 1 is still out on something.
@@ -102,12 +134,37 @@
                 post(this, '/context', { context: $(this).data('context') }).done(window.stagingRefresh);
             });
 
+            $list.on('click', '.js-retry', function () {
+                $(this).prop('disabled', true);
+                post(this, '/retry').always(window.stagingRefresh);
+            });
+
+            // Approve collapses the row to one line at once, the same as a pending one, and
+            // stays on staging: once the card is written the line links to it.
             $list.on('click', '.js-approve', function () {
-                const $btn = $(this).prop('disabled', true).text('Approving…');
+                const id = proposalId(this);
+                const term = $(this).closest('.js-proposal').find('.js-term').text();
+
+                approving.add(id);
+                settled.set(id, line(
+                    '<div class="flex items-center gap-3"><span class="h-4 w-32 animate-pulse rounded bg-white/20"></span>' +
+                    '<span class="text-sm text-white/40">approving "<span class="js-line-term"></span>"…</span></div>', term));
+                placeSettled();
+                $('.js-staged-count').text(function (i, text) { return Math.max(0, (+text || 0) - 1); });
+
                 post(this, '/approve').done(function (data) {
-                    window.location = data.redirect;
+                    approving.delete(id);
+                    settled.set(id, line(
+                        '<div class="flex items-center gap-3"><span class="text-green-400">✓</span>' +
+                        '<a class="js-line-term font-bold hover:underline"></a><span class="text-sm text-white/40">approved</span></div>', data.term)
+                        .find('a').attr('href', data.url).end());
+                    placeSettled();
+                    setBadge(data.staged_count);
                 }).fail(function () {
-                    $btn.prop('disabled', false).text('Approve');
+                    // Not approved (a duplicate in the way, say): the full row comes back.
+                    approving.delete(id);
+                    settled.delete(id);
+                    window.stagingRefresh();
                 });
             });
 
@@ -126,6 +183,18 @@
                         if (window.toastr) { toastr.error('Could not regenerate that card.'); }
                         $btn.prop('disabled', false).text('Regenerate that card');
                     });
+            });
+
+            // Leaving the page inside an undo window still discards: the timer would never
+            // fire, so the pending DELETEs go out as beacons (POST + _method, since a beacon
+            // can't send a DELETE).
+            window.addEventListener('pagehide', function () {
+                discarding.forEach(function (id) {
+                    const body = new FormData();
+                    body.append('_token', csrf);
+                    body.append('_method', 'DELETE');
+                    navigator.sendBeacon('/staging/' + id, body);
+                });
             });
 
             // Discard with an undo window (see `discarding` above).
