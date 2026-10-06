@@ -37,7 +37,8 @@ At capture, CALL 1:
   *på grund av*), or a grammatical frame used in a set shape with gaps (*either … or …*, *inte bara
   … utan också*). Reflexive verbs (*lära sig*), literal verb + particle pairs and ordinary
   combinations (*make a decision*, *heavy rain*) are not fixed expressions. Each comes in its
-  canonical form, `…` marking a gap. A Term that is itself a fixed expression is returned as one;
+  canonical form, `…` marking a gap and a placeholder marking what it takes (*tycka om [någon]*,
+  translated *to like [someone]*). A Term that is itself a fixed expression is returned as one;
 - for a single-word Term captured **without a Context** that has two or more common senses
   (*run* the verb or noun, *bank* money or riverside), offers up to four **senses**, each with its
   part of speech, a short gloss and a translation.

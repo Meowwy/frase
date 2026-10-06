@@ -118,7 +118,10 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   yet the pattern is open (*vrida sig*, *tvätta sig*) and the meaning follows the verb. The test is
   now phrased the other way round: if a word can be swapped for another of its kind and the meaning
   simply follows, it is not a fixed expression. A Term that is itself a fixed expression is listed too. `form` is
-  canonical (`…` for a gap) so the same expression matches across cards. It sits before
+  canonical (`…` for a gap) so the same expression matches across cards, and shows how the
+  expression is used: a slot it takes is a bracketed placeholder in the Term's language
+  (*tycka om [någon]*, *make [something] up*), and `translation` marks the same slots in the native
+  language (*to like [someone]*) — a bare *tycka om* doesn't say whether it takes an object. It sits before
   `base_words` because of the next rule.
 - **`base_words`** are the Term's words, each reduced to its **lemma**, tagged with its
   **part of speech** (an `enum` over `LanguageGuideline::PARTS_OF_SPEECH`), with the surface form

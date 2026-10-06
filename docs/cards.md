@@ -143,7 +143,7 @@ any word that occurs in the Term only inside one, so *tycka om* is never split i
 | Column | Notes |
 |---|---|
 | `user_id`, `language_id` | owner + language |
-| `form` | canonical form (base form of each word, `…` for a gap). `NOCASE` collation, so the unique key `(user_id, language_id, form)` and every lookup are case-insensitive |
+| `form` | canonical form (base form of each word, `…` for a gap, a bracketed target-language placeholder for a slot it takes — `tycka om [någon]`; `translation` marks the same slot in the native language). `NOCASE` collation, so the unique key `(user_id, language_id, form)` and every lookup are case-insensitive |
 | `translation` | set once at creation from CALL 1, never revised — mirrors base words |
 | `last_recalled_at` | nullable, stamped by `Card::stampRecall()` when a card linking it is cleared |
 

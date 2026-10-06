@@ -239,7 +239,8 @@ _Avoid_: label, rendered form, surface form (that is the Term's spelling — abo
 A multi-word unit learnt as a whole, of exactly two kinds: one with a **meaning of its own** that
 its words don't add up to — a phrasal or particle verb (*make up* to invent, *take off*, *tycka
 om*), an idiom or a fixed unit (*på grund av*) — or a **grammatical frame** used in a set shape with
-gaps (*either … or …*, *inte bara … utan också*). Stored in its canonical form, `…` marking a gap.
+gaps (*either … or …*, *inte bara … utan också*). Stored in its canonical form, `…` marking a gap and a bracketed placeholder marking a slot it
+takes (*tycka om [någon]*).
 A pattern whose words swap freely for others of their kind is not one: a reflexive verb (*lära sig*,
 like *vrida sig*), a verb + particle that keeps its literal meaning, an ordinary combination (*make
 a decision*).

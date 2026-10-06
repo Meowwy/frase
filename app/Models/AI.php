@@ -265,9 +265,9 @@ class AI extends Model
                     'items' => [
                         'type' => 'object',
                         'properties' => [
-                            'form' => ['type' => 'string', 'description' => 'The canonical dictionary form: base form of each word, "…" marking a gap ("tycka om", not "tycker om").'],
+                            'form' => ['type' => 'string', 'description' => 'The canonical dictionary form, entirely in the Term\'s language: base form of each word, showing how the expression is used. Where it takes an object or a complement, mark that slot with a bracketed placeholder in the Term\'s language, where it goes ("tycka om [någon]", "på grund av [något]", "make [something] up", "in spite of [something]"); none where nothing attaches ("take off" of a plane). "…" still marks a gap in a grammatical frame ("either … or …"). Never the inflected form ("tycka om [någon]", not "tycker om").'],
                             'surface_form' => ['type' => 'string', 'description' => 'How the Term actually spells it.'],
-                            'translation' => ['type' => 'string', 'description' => 'A natural translation of the canonical form into the native language.'],
+                            'translation' => ['type' => 'string', 'description' => 'A natural translation of the canonical form into the native language, entirely in the native language, with the same slots marked by placeholders in the native language ("tycka om [någon]" → "to like [someone]"; "either … or …" keeps its "…").'],
                         ],
                         'required' => ['form', 'surface_form', 'translation'],
                         'additionalProperties' => false,
