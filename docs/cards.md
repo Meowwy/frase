@@ -100,8 +100,8 @@ Each candidate falls into exactly one **group** (`Proposal::groupOf()`), checked
 
 1. **Already present** (`Proposal::presenceIndex()`): matches `base_words` on
    `(user_id, language_id, lemma, part_of_speech)` — a matching lemma with a *different* part of
-   speech is a different vocabulary item. Shown aside with no strike control, expanding to the cards
-   that word is already used in, and linked to the new card on approval (`BaseWord::resolve()`
+   speech is a different vocabulary item. Shown in the tray, in Term order, with a green border and
+   no strike control, and linked to the new card on approval (`BaseWord::resolve()`
    reuses the row). Linking it is what makes coverage work, and hiding it would lose the fact the
    learner wants to see.
 2. **Known** (`Proposal::knownIndex()`): matches `known_words` on the same key, so striking *hus*
@@ -238,7 +238,7 @@ it.
 `surface_form`, `translation`, `struck`. Striking one is **per proposal** — unlike a word, a fixed
 expression is never remembered as known. Each chip is either **already present** (matches
 `fixed_expressions` on form, case-insensitively, via `Proposal::expressionPresenceIndex()` — one
-query per list: shown aside, not strikeable, linked) or **new** (strikeable; created unless struck).
+query per list: green-bordered, not strikeable, linked) or **new** (strikeable; created unless struck).
 
 **`Proposal::approve()`** resolves the `base_words` rows for every candidate that isn't known
 (reusing an existing one per the check above) and first-or-creates the `fixed_expressions` row for
@@ -322,7 +322,8 @@ Cards with the identical Term are left out; the duplicate notice shows those. Co
 without a query of its own: the presence index's base words already carry their cards, and the
 2-second poll is why that matters.
 
-**Merge.** Any related or identical card can be marked; the mark lives in `merge_card_ids` until
+**Merge.** Any related or identical card can be marked with its *merge into this card* switch (a
+switch, not a button, since marking runs nothing); the mark lives in `merge_card_ids` until
 approval and does nothing before it, so **discard removes nothing**. On approve, inside the
 transaction that writes the new card, each marked card (re-scoped to the learner and language)
 hands its wordbox memberships to the new card (`syncWithoutDetaching`, so no duplicates) and is
@@ -363,7 +364,7 @@ is the caller; nothing else in the app writes a generated card.
 `Card::scopeMatchingTerm($term)` is the single definition of "the learner already has this": a
 case-insensitive match, within one language, against `term` alone — the `word` leg is gone with
 the column. Owning a base word of a Term is a different fact from owning a card for that Term, and
-never blocks capturing the card; staging's already-present notice (above) is what surfaces the
+never blocks capturing the card; staging's green already-present chip (above) is what surfaces the
 base-word fact.
 
 `Proposal::duplicateCards()` reads it. An identical Term doesn't always mean a duplicate — *run*

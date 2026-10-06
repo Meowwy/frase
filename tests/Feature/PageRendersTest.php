@@ -127,7 +127,7 @@ class PageRendersTest extends TestCase
     }
 
     /**
-     * The already-present notice and the cards it expands to, which are resolved for the
+     * The already-present chip and the related cards read off it, which are resolved for the
      * whole list in one query (Proposal::presenceIndex) rather than per chip.
      */
     public function test_staging_flags_a_candidate_the_learner_already_has_in_the_base(): void
@@ -167,10 +167,9 @@ class PageRendersTest extends TestCase
         $response = $this->actingAs($this->user)->get('/staging');
 
         $response->assertStatus(200);
-        $response->assertSeeText('already in base');
-        // The notice expands to the cards that word is already used in.
+        // The card that word is already used in is listed as a related card.
         $response->assertSee('vad kostar det');
         // Exactly one of the two chips matched.
-        $this->assertSame(1, substr_count($response->getContent(), 'already in base'));
+        $this->assertSame(1, substr_count($response->getContent(), 'js-in-base'));
     }
 }

@@ -105,11 +105,6 @@
                     .done(window.stagingRefresh);
             });
 
-            // An already-present chip expands to the cards that word is used in.
-            $list.on('click', '.js-chip-body', function () {
-                $(this).closest('.js-chip-wrap').find('.js-chip-detail').toggleClass('hidden');
-            });
-
             // Correcting the detected language and answering the language picker are the
             // same call: the language is pinned and CALL 1 runs again.
             $list.on('change', '.js-language, .js-language-option', function () {

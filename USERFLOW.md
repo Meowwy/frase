@@ -62,8 +62,8 @@ skeleton row appears in the staging list, resolving into the real proposal once 
 If CALL 1 fails or takes more than a few minutes, the row shows as failed, with **Try again** and
 a bin to delete it.
 
-A proposal shows the Term, in its own block, with the detected (editable) language and the Context,
-which can be added, edited or cleared on any proposal. Changing the language or the Context
+A proposal shows the Term, in its own block, with the detected (editable) language; below its word
+and fixed-expression chips sits the Context, which can be added, edited or cleared on any proposal. Changing the language or the Context
 **re-runs CALL 1**, since the words were extracted, translated and tagged for the old language and
 sense.
 
@@ -71,11 +71,12 @@ sense.
 
 Each extracted word is a chip labelled with its **part of speech** and, where the language defines
 one, its **display form** — a Swedish chip reads *"ett hus"*, not bare *"hus"*, and *"komm|a -er"*,
-not bare *"komma"*. Every chip falls into exactly one of three groups:
+not bare *"komma"*. The chips run in the order the Term spells the words. Every chip falls into
+exactly one of three groups:
 
 - **Already present** — the learner already has this lemma **in the same part of speech** in their
-  vocabulary base. Shown aside with no strike control, since there is nothing to decide; tapping
-  it expands to the cards the word is already used in. Linked to the new card on approval. *Run*
+  vocabulary base. Shown in place with a thin green border and no strike control, since there is
+  nothing to decide. Linked to the new card on approval. *Run*
   the verb and *run* the noun are different base words, not duplicates of each other.
 - **Known** — the learner struck this word before. Shown aside, labelled *known*, never linked.
   Tapping it **un-knows** it and it becomes a new chip again.
@@ -92,7 +93,7 @@ proposal can get stuck in staging.
 #### Fixed expressions
 
 Fixed expressions are chips of their own, in their canonical form. One already in the learner's
-**expression base** is shown aside, not strikeable, and linked on approval. A new one can be
+**expression base** has the same green border, is not strikeable, and is linked on approval. A new one can be
 struck; unlike a word, a struck fixed expression is not remembered — the strike holds for this
 proposal only.
 
@@ -118,7 +119,7 @@ its base words, most shared words first, at most five so a common word can't flo
 single-word card whose word appears in the new Term is flagged *made redundant by this card* and
 listed first — it is the one the learner most likely wants to replace.
 
-Any related card can be marked to **merge**. Nothing happens to it until approval; then it is
+Any related card can be switched to **merge** into the new one. Nothing happens to it until approval; then it is
 removed, its wordbox memberships move to the new card, and its review progress and note are
 dropped — the new card starts fresh, so the learner actually reviews the longer Term they just
 saved. **Discarding the proposal removes nothing.**

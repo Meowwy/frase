@@ -391,9 +391,9 @@ class CaptureStagingTest extends TestCase
 
     /**
      * Owning a base word of a Term is a different fact from owning a card for it: the word
-     * is shown aside with no strike control, never blocks the capture, and is linked.
+     * is shown in the tray with no strike control, never blocks the capture, and is linked.
      */
-    public function test_an_already_present_word_is_shown_aside_and_linked_on_approval(): void
+    public function test_an_already_present_word_is_shown_unstrikeable_and_linked_on_approval(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
@@ -405,7 +405,7 @@ class CaptureStagingTest extends TestCase
         $word = $proposal->baseWords->firstWhere('lemma', 'kosta');
 
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
-        $this->assertStringContainsString('already in base', $rows);
+        $this->assertStringContainsString('js-in-base', $rows);
         $this->assertStringNotContainsString('data-word-id="'.$word->id.'"', $rows);
 
         $this->fakeOpenAi($this->cardContent());
@@ -596,10 +596,10 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
-     * Deduplicated against the expression base case-insensitively: shown aside with no
+     * Deduplicated against the expression base case-insensitively: shown with no
      * strike control, reused (its translation stands) and linked.
      */
-    public function test_a_fixed_expression_already_in_the_expression_base_is_shown_aside_and_reused(): void
+    public function test_a_fixed_expression_already_in_the_expression_base_is_shown_unstrikeable_and_reused(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
@@ -608,7 +608,7 @@ class CaptureStagingTest extends TestCase
         $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'surface_form' => 'hur mycket', 'translation' => 'how much']);
 
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
-        $this->assertStringContainsString('already in expression base', $rows);
+        $this->assertStringContainsString('js-in-base', $rows);
         $this->assertStringNotContainsString('js-strike-expression', $rows);
 
         $this->fakeOpenAi($this->cardContent());

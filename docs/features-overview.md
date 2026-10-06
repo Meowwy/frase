@@ -24,9 +24,9 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   language you mean), and the individual words it wants to add to your vocabulary base as a tray of
   chips. **Strike** a chip and that word is remembered as **known**: it is left out now and never
   proposed again, in any form — the card still teaches the whole term either way, and a card may
-  keep any number of words, none included. Known words and words you already have are shown aside:
-  tap a known one to un-know it, or an already-present one to see which of your cards use it (it is
-  linked to the new card automatically).
+  keep any number of words, none included. A word you already have stays in the tray with a green
+  border and nothing to decide (it is linked to the new card automatically); known words are shown
+  aside — tap one to un-know it.
 - **Approve** writes the card and its words — and only then is the definition, translation and
   example sentence generated, so nothing is spent on a term you throw away. You stay on staging:
   the proposal shrinks to one line, then becomes a link to the new card. **Discard** leaves
@@ -38,7 +38,7 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 - **Browser extension**: capture a word from any webpage without visiting the site — it lands in
   the same staging feed. See [browser-extension](browser-extension.md).
 - **Related cards**: each proposal lists your existing cards that share its words, most overlap
-  first, and flags a single-word card the new term makes redundant. Mark any of them to **merge**:
+  first, and flags a single-word card the new term makes redundant. Switch any of them to **merge**:
   on approval it is removed and its wordboxes move to the new card (its review progress and note
   don't). Discarding the proposal removes nothing.
 - **Capturing a term you already have** is blocked until you give it a Context (to keep both, e.g.

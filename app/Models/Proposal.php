@@ -178,7 +178,7 @@ class Proposal extends Model
      */
     public static function presenceIndex(Collection|SupportCollection $proposals): SupportCollection
     {
-        // The notice expands to the cards the word is already used in.
+        // Related cards are read off the cards each present word is already used in.
         return self::indexCandidates(BaseWord::with('cards:id,term'), $proposals);
     }
 
