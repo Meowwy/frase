@@ -78,6 +78,8 @@ them, without going back to the list each time. See [cards](cards.md).
 "general vocabulary", or everything), due-only vs. cram (everything regardless of schedule), then
 a mode:
 
+- **Translation** (the first mode) — see the translation, recall the term, flip to check. The
+  classic Anki-style review; a card in your own native language shows its definition instead.
 - **Sentences** — see a sentence with the term blanked out, try to recall it, flip to check.
 - **Sentences (writing)** — same sentence, but you type the missing word instead of flipping a
   card; forgiving about capitalization/punctuation/spelling of the surrounding text, not about the
@@ -94,7 +96,7 @@ a mode:
 
 ## Conversation practice (three ways)
 
-- **SRS Conversation mode** (a 5th mode in the study-session builder) — a short live chat with an
+- **SRS Conversation mode** (a mode in the study-session builder) — a short live chat with an
   AI partner built around up to 10 of your due words; the partner steers the conversation toward
   situations where you'd naturally use them, without ever saying the words itself. Using a word
   correctly counts as a correct review. Ends with a short feedback recap. See [learning-flow](learning-flow.md).

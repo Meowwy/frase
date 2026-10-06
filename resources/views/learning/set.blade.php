@@ -17,6 +17,14 @@
             <x-panel class="w-48">
                 <div class="py-8">
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
+                        <a href="/startLearning/0/translation">Translation</a>
+                    </h3>
+                    <p class="text-sm mt-4">Recall the term from its translation.</p>
+                </div>
+            </x-panel>
+            <x-panel class="w-48">
+                <div class="py-8">
+                    <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                         <a href="/startLearning/0/sentences">Sentences</a>
                     </h3>
                     <p class="text-sm mt-4">Recall the word from English sentence with blank space.</p>
@@ -75,7 +83,15 @@
                 <span id="reviewSentence">Review <span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> from <span id="startTarget" class="text-blue-400">all terms</span> by...</span>
                 <span id="noCardsSentence" class="hidden">No cards to review</span>
             </x-section-heading>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-center">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 text-center">
+                <x-panel class="mode-panel">
+                    <div class="py-8">
+                        <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
+                            <a href="#" class="mode-link" data-mode="translation">Translation</a>
+                        </h3>
+                        <p class="text-sm mt-4">Recall the term from its translation.</p>
+                    </div>
+                </x-panel>
                 {{-- Sentences comes in two halves: flip a card, or type the word in. --}}
                 <x-panel class="mode-panel !p-0 overflow-hidden divide-y divide-white/10">
                     <a href="#" class="mode-link group/half flex-1 p-4 flex flex-col justify-center" data-mode="sentences">

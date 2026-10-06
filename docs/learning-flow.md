@@ -1,8 +1,8 @@
 # Learning Flow (SRS flashcards)
 
-The card-set builder, the spaced-repetition scheduling algorithm, the four flashcard-style
+The card-set builder, the spaced-repetition scheduling algorithm, the five flashcard-style
 learning modes, and Refresher, the unscheduled vocabulary-base practice that sits alongside them.
-The fifth learning mode, live AI conversation, is only bootstrapped here — its actual chat logic is
+The sixth learning mode, live AI conversation, is only bootstrapped here — its actual chat logic is
 in [conversation-challenge](conversation-challenge.md)'s sibling doc, the SRS-specific one: see
 "Conversation mode" below, which hands off to `ChatController`.
 
@@ -63,17 +63,23 @@ every other mode from cards (`Learning::cardEntries()`). Both hand off to
 `Learning::renderDeck($cards, $mode)`, which serializes the deck into the shared view — and which
 Refresher also calls directly, being the same word-dealing shape without a session.
 
-For `sentences`, `sentences_write` and `definitions`, each entry is built **per card**,
+For `translation`, `sentences`, `sentences_write` and `definitions`, each entry is built **per card**,
 `{id, front, back, hint, wordbox}`:
 
 | Mode | front | back | hint |
 |---|---|---|---|
+| `translation` | `translation`, or `definition` when it is empty | the **Term** | `example_sentence` with the bracketed span replaced by `...` |
 | `sentences` | `example_sentence` with the bracketed span replaced by `...` | **the bracketed form** | `translation` |
 | `sentences_write` | *(see below — split, not a single front)* | *(none — the split carries `answer`)* | `translation` |
 | `definitions` | `definition` | the **Term** | `translation` |
 
 **Every mode's answer is the card's Term** — there is no focus word to answer instead of it (see
-[cards](cards.md) "What a card is built around"). `definitions` shows the Term itself as the back.
+[cards](cards.md) "What a card is built around"). `translation` and `definitions` show the Term itself as the back.
+
+`translation` is the classic Anki-style review and the builder's **first** tile. A native-language
+card (see [multi-language](multi-language.md)) is generated without a translation, so its
+definition stands in on the front — otherwise those cards would have an empty front. The hint is
+the blanked sentence rather than the translation, since the translation is already the question.
 
 The two Sentences modes take the answer from the sentence itself instead, because the gap is the
 question: whatever the brackets hide is what the learner has to produce. That is the Term too, but
@@ -89,7 +95,7 @@ focus word inside it. The full set is serialized as a JS variable (`let cards = 
 to `learning/index.blade.php`, which drives the whole session **client-side** — no per-card request
 during review.
 
-A correct answer in any of these three modes clears the card (SRS level/`next_study_at` advance —
+A correct answer in any of these four modes clears the card (SRS level/`next_study_at` advance —
 see "SRS algorithm" below) and stamps last-recall on **every** base word linked to it — producing
 the Term is producing all of its words. Conversation mode's clearing/stamping is the same; see
 "Conversation mode" below.
@@ -241,13 +247,12 @@ once `check()` sets the input `readOnly`, the **spacebar** works to trigger Chec
 like it advances a card elsewhere.
 
 In `set.blade.php`, the Sentences mode tile is split horizontally into two halves (`divide-y`,
-each its own hoverable `.mode-link`) — *Sentences* (flip-card) on top, *Writing* below — so the
-mode grid still shows 4 top-level tiles even though there are 5 modes total.
+each its own hoverable `.mode-link`) — *Sentences* (flip-card) on top, *Writing* below — so both
+share one tile in the mode grid.
 
 ## Conversation mode (live AI roleplay chat)
 
-`data-mode="conversation"` in `set.blade.php` is the fourth (well, fifth-counting-writing) mode —
-it replaced an earlier "Questions" panel that had gone dead (linked to a 404). Selecting it hands
+`data-mode="conversation"` in `set.blade.php` replaced an earlier "Questions" panel that had gone dead (linked to a 404). Selecting it hands
 off entirely to `Learning::startConversation()` (called from `renderLearningView`) instead of
 building a front/back/hint deck:
 

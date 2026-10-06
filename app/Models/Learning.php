@@ -268,6 +268,8 @@ class Learning extends Model
             $blankedSentence = preg_replace('/\[.*?\]/', '...', $card->example_sentence);
 
             $entry = match ($mode) {
+                // A native-language card has no translation, so its definition stands in.
+                'translation' => ['front' => $card->translation ?: $card->definition, 'back' => $card->target(), 'hint' => $blankedSentence],
                 // The back is the form the brackets actually hide, not the stored Term: the
                 // gap is the question, and the sentence inflects the Term as it needs to.
                 'sentences' => ['front' => $blankedSentence, 'back' => self::sentenceParts($card)['answer'], 'hint' => $card->translation],

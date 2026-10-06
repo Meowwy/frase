@@ -249,16 +249,21 @@ The session scope that serves every card in the selection regardless of schedule
 _Avoid_: practice, review all, free review
 
 **Cleared**:
-What a card becomes once its Term has been produced — as a whole (Sentences, Sentences-write,
-Definitions, Conversation), or in Words mode once every one of the card's base words has been
+What a card becomes once its Term has been produced — as a whole (Translation, Sentences,
+Sentences-write, Definitions, Conversation), or in Words mode once every one of the card's base words has been
 answered correctly. Either path advances the card's level. Every other word-level answer (Refresher)
 stamps a base word's last recall and never clears a card.
 _Avoid_: passed, completed, answered, correct
 
 **Learning mode**:
-How a session presents its cards — Sentences, Sentences (writing), Words, Definitions, or
-Conversation.
+How a session presents its cards — Translation, Sentences, Sentences (writing), Words,
+Definitions, or Conversation.
 _Avoid_: exercise, game, activity, drill
+
+**Translation**:
+The learning mode that shows a card's translation (its definition, for a native-language card) and
+elicits the Term — the classic Anki-style review, and the first mode the builder offers.
+_Avoid_: reverse mode, recall mode, flashcards
 
 **Words**:
 The learning mode that elicits the individual base words of due cards, shuffled. It is scheduled and

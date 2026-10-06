@@ -7,6 +7,7 @@ use App\Models\Card;
 use App\Models\Language;
 use App\Models\Learning;
 use App\Models\User;
+use App\Models\Wordbox;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -175,6 +176,49 @@ class WordsAndRefresherTest extends TestCase
         $this->assertCount(1, $deck);
         $this->assertSame('Said to politely refuse an offer.', $deck[0]['front']);
         $this->assertSame('I would rather not', $deck[0]['back']);
+    }
+
+    public function test_translation_mode_asks_for_the_term_from_its_translation(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->cardWithWords($user, $language, 'kostade', [['kosta', 'verb', null]], ['translation' => 'cost (past)']);
+
+        $deck = $this->deck($this->actingAs($user)
+            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
+            ->get('/startLearningSet/translation')->getContent());
+
+        $this->assertCount(1, $deck);
+        $this->assertSame('cost (past)', $deck[0]['front']);
+        $this->assertSame('kostade', $deck[0]['back']);
+        $this->assertSame('Jag undrar ... varje dag.', $deck[0]['hint']);
+    }
+
+    /**
+     * A native-language card has no translation, so its definition stands in on the front.
+     */
+    public function test_translation_mode_shows_a_native_cards_definition_on_the_front(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->cardWithWords($user, $language, 'hus', [], ['translation' => '', 'definition' => 'En byggnad att bo i.']);
+
+        $deck = $this->deck($this->actingAs($user)
+            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
+            ->get('/startLearningSet/translation')->getContent());
+
+        $this->assertSame('En byggnad att bo i.', $deck[0]['front']);
+        $this->assertSame('hus', $deck[0]['back']);
+    }
+
+    public function test_translation_mode_is_accepted_by_the_legacy_wordbox_entry_point(): void
+    {
+        [$user, $language] = $this->learner();
+        $card = $this->cardWithWords($user, $language, 'hus', [], ['translation' => 'house']);
+        $wordbox = Wordbox::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
+        $wordbox->cards()->attach($card->id);
+
+        $deck = $this->deck($this->actingAs($user)->get('/startLearning/'.$wordbox->id.'/translation')->getContent());
+
+        $this->assertSame('house', $deck[0]['front']);
     }
 
     /**
