@@ -134,6 +134,12 @@ question: **does it depend only on source code, or on the environment it runs in
     reflection.
   - JIT is left off (`opcache.jit_buffer_size` defaults to 0). This app is I/O-bound on SQLite
     and the OpenAI API, so JIT would add risk for no measurable gain.
+- **The queue worker** (`.fly/supervisor/conf.d/worker.conf`) runs `queue:work` beside php-fpm
+  and nginx, as `www-data` like php-fpm so it can write the SQLite file. Capture depends on it
+  (`AnalyzeProposalJob`), as do gap-fill and embeddings. `--timeout=85` stays under the database
+  queue's 90-second `retry_after`, so a slow OpenAI call is never picked up twice. It suspends with
+  the machine, which is harmless: jobs are only dispatched by requests, which wake it. Locally, run
+  `php artisan queue:work` yourself.
 - `fly.toml` uses `auto_stop_machines = 'suspend'`, which restores the machine from a RAM
   snapshot and **skips the entrypoint entirely** on resume. The boot-time work above therefore
   only runs on the first boot after a deploy, after a crash, or when Fly evicts a suspended
@@ -211,16 +217,6 @@ question: **does it depend only on source code, or on the environment it runs in
   [cards](cards.md) "The lexicon"); a fresh database — and the Fly machine — has it empty. Nothing
   breaks: Swedish then simply falls back to CALL 1's answers for gender and verb forms.
 
-- **Queued jobs don't run in production yet, and capture now depends on one.**
-  `AnalyzeProposalJob`, `GenerateGapFillJob` and `GenerateEmbeddingJob` are dispatched onto
-  `QUEUE_CONNECTION=database` (confirmed in `fly.toml` and `.env`), but there is **no
-  `queue:work`/`queue:listen` process defined anywhere in the deploy config**
-  (`Dockerfile`/`.fly/supervisor/conf.d` only run `php-fpm` and `nginx`). Until a worker process is
-  added there, these jobs sit in the `jobs` table and never execute in production — staging rows
-  stay skeletons forever, gap-fill polls forever, and embeddings are never generated. **This is now
-  a blocker for the main flow, not just two side features**, and adding a worker is the next
-  deploy-config change this app needs. Locally, run `php artisan queue:work`. See
-  [gap-fill](gap-fill.md), [cards](cards.md) "Staging".
 - `RegisteredUserController@store` still validates against the legacy free-text
   `targetLanguage`/`nativeLanguage`/`code` fields (there's a hardcoded invite `code` = `delina`)
   rather than the `languages`/`language_user` model introduced later (see [multi-language](multi-language.md)).
