@@ -53,7 +53,7 @@ class WordsAndRefresherTest extends TestCase
                 'translation' => 'en: '.$lemma,
             ]);
 
-            $card->baseWords()->attach($baseWord->id, ['surface_form' => $lemma.'r']);
+            $card->baseWords()->attach($baseWord->id);
         }
 
         return $card;
@@ -81,7 +81,7 @@ class WordsAndRefresherTest extends TestCase
         $this->assertCount(2, $deck);
 
         $house = collect($deck)->firstWhere('part_of_speech', 'noun');
-        // The lemma in its display form — never the "husr" surface form on the pivot.
+        // The lemma in its display form, never the inflected form the Term uses.
         $this->assertSame('ett hus', $house['back']);
         $this->assertSame('en: hus', $house['front']);
         $this->assertSame('Jag undrar ... varje dag.', $house['hint']);
@@ -132,7 +132,7 @@ class WordsAndRefresherTest extends TestCase
             'example_sentence' => 'Jag bor i [ett gult hus].',
             'next_study_at' => now(),
         ]);
-        $second->baseWords()->attach($shared->id, ['surface_form' => 'hus']);
+        $second->baseWords()->attach($shared->id);
 
         $deck = $this->deck($this->actingAs($user)
             ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])

@@ -59,7 +59,7 @@ class PageRendersTest extends TestCase
             'grammar_attributes' => ['gender' => 'neuter'],
             'translation' => 'house',
         ]);
-        $card->baseWords()->attach($baseWord->id, ['surface_form' => 'hus']);
+        $card->baseWords()->attach($baseWord->id);
 
         $response = $this->actingAs($this->user)->get('/cards/'.$card->id);
 
@@ -75,7 +75,7 @@ class PageRendersTest extends TestCase
     {
         $card = Card::factory()->create(['user_id' => $this->user->id, 'language_id' => $this->language->id, 'term' => 'jag tycker om dig']);
         $expression = FixedExpression::create(['user_id' => $this->user->id, 'language_id' => $this->language->id, 'form' => 'tycka om', 'translation' => 'to like']);
-        $card->fixedExpressions()->attach($expression->id, ['surface_form' => 'tycker om']);
+        $card->fixedExpressions()->attach($expression->id);
 
         $this->actingAs($this->user)->get('/base?tab=expressions')
             ->assertStatus(200)
@@ -112,7 +112,6 @@ class PageRendersTest extends TestCase
             'lemma' => 'hus',
             'part_of_speech' => 'noun',
             'grammar_attributes' => ['gender' => 'neuter'],
-            'surface_form' => 'hus',
             'translation' => 'house',
         ]);
 
@@ -145,7 +144,7 @@ class PageRendersTest extends TestCase
             'language_id' => $this->language->id,
             'term' => 'vad kostar det',
         ]);
-        $card->baseWords()->attach($existing->id, ['surface_form' => 'kostar']);
+        $card->baseWords()->attach($existing->id);
 
         $proposal = $this->user->proposals()->create([
             'language_id' => $this->language->id,
@@ -159,7 +158,6 @@ class PageRendersTest extends TestCase
             $proposal->baseWords()->create([
                 'lemma' => $lemma,
                 'part_of_speech' => $partOfSpeech,
-                'surface_form' => 'kostar',
                 'translation' => 'to cost',
             ]);
         }

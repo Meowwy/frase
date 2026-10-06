@@ -54,8 +54,8 @@ class SaveLearningTest extends TestCase
         $card = Card::factory()->create(['user_id' => $owner->id, 'language_id' => $language->id, 'level' => 1, 'next_study_at' => now()]);
         $baseWord = BaseWord::create(['user_id' => $owner->id, 'language_id' => $card->language_id, 'lemma' => 'tycka', 'part_of_speech' => 'verb', 'translation' => 'to think']);
         $expression = FixedExpression::create(['user_id' => $owner->id, 'language_id' => $card->language_id, 'form' => 'tycka om', 'translation' => 'to like']);
-        $card->baseWords()->attach($baseWord->id, ['surface_form' => 'tycker']);
-        $card->fixedExpressions()->attach($expression->id, ['surface_form' => 'tycker om']);
+        $card->baseWords()->attach($baseWord->id);
+        $card->fixedExpressions()->attach($expression->id);
 
         $this->actingAs($owner)->post('/saveLearning', [
             'results' => json_encode([['id' => $card->id, 'result' => 1]]),

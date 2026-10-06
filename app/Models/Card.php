@@ -39,21 +39,19 @@ class Card extends Model
 
     /**
      * The vocabulary-base entries for this card's Term — which of the Term's words the
-     * learner is actually collecting. The pivot carries the surface form the Term spells
-     * each one in. See docs/cards.md "The vocabulary base".
+     * learner is actually collecting. See docs/cards.md "The vocabulary base".
      */
     public function baseWords(): BelongsToMany
     {
-        return $this->belongsToMany(BaseWord::class, 'card_base_word')->withPivot('surface_form');
+        return $this->belongsToMany(BaseWord::class, 'card_base_word');
     }
 
     /**
-     * The expression-base entries for the fixed expressions in this card's Term. The pivot
-     * carries the surface form the Term spells each one in.
+     * The expression-base entries for the fixed expressions in this card's Term.
      */
     public function fixedExpressions(): BelongsToMany
     {
-        return $this->belongsToMany(FixedExpression::class, 'card_fixed_expression')->withPivot('surface_form');
+        return $this->belongsToMany(FixedExpression::class, 'card_fixed_expression');
     }
 
     /**

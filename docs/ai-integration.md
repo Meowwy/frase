@@ -89,8 +89,8 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   other_languages: [name, ...],              // only in the schema with 2+ candidate languages
   term,
   senses: [{part_of_speech, gloss, translation}, ...],
-  fixed_expressions: [{form, surface_form, translation}, ...],
-  base_words: [{lemma, part_of_speech, surface_form, translation, <attributes…>}, ...],
+  fixed_expressions: [{form, translation}, ...],
+  base_words: [{lemma, part_of_speech, translation, <attributes…>}, ...],
 }
 ```
 
@@ -124,8 +124,8 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   language (*to like [someone]*) — a bare *tycka om* doesn't say whether it takes an object. It sits before
   `base_words` because of the next rule.
 - **`base_words`** are the Term's words, each reduced to its **lemma**, tagged with its
-  **part of speech** (an `enum` over `LanguageGuideline::PARTS_OF_SPEECH`), with the surface form
-  the Term actually spells it in and a native translation — the translation is decided here, not
+  **part of speech** (an `enum` over `LanguageGuideline::PARTS_OF_SPEECH`), with a native
+  translation — the translation is decided here, not
   deferred to CALL 2 (see [cards](cards.md) "The vocabulary base"). The prompt is explicit that
   words come from the `term` field **only**, never from the Context, which is what keeps
   `collateral damage` from putting *damage* in the base; that a word occurring only inside one of

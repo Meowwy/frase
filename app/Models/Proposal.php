@@ -250,7 +250,7 @@ class Proposal extends Model
     /**
      * The learner's existing cards that share an already-present base word with this
      * proposal, as `{card, shared, redundant}`: most shared words first, capped. A lone-word
-     * card whose word is one of those base words is **made redundant** by this card and
+     * card whose Term is the lemma of one of those base words is **made redundant** by this card and
      * leads the list.
      *
      * Built from the presence index, whose base words already carry their cards, so a whole
@@ -263,7 +263,7 @@ class Proposal extends Model
     public function relatedCards(SupportCollection $present): SupportCollection
     {
         $shared = $this->baseWords->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)));
-        $forms = $shared->flatMap(fn (ProposalBaseWord $word) => [mb_strtolower($word->lemma), mb_strtolower($word->surface_form)]);
+        $lemmas = $shared->map(fn (ProposalBaseWord $word) => mb_strtolower($word->lemma));
 
         return $shared
             ->flatMap(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards)
@@ -272,7 +272,7 @@ class Proposal extends Model
             ->map(fn (SupportCollection $cards) => [
                 'card' => $cards->first(),
                 'shared' => $cards->count(),
-                'redundant' => $forms->contains(mb_strtolower(trim($cards->first()->term))),
+                'redundant' => $lemmas->contains(mb_strtolower(trim($cards->first()->term))),
             ])
             ->sortBy([['redundant', 'desc'], ['shared', 'desc']])
             ->take(self::MAX_RELATED_CARDS)
@@ -355,7 +355,7 @@ class Proposal extends Model
                     $candidate->dictionary_form,
                 );
 
-                $card->baseWords()->attach($baseWord->id, ['surface_form' => $candidate->surface_form]);
+                $card->baseWords()->attach($baseWord->id);
             }
 
             // A struck expression is skipped unless it has since entered the expression base,
@@ -370,7 +370,7 @@ class Proposal extends Model
                     ['translation' => $candidate->translation],
                 );
 
-                $card->fixedExpressions()->attach($expression->id, ['surface_form' => $candidate->surface_form]);
+                $card->fixedExpressions()->attach($expression->id);
             }
 
             // Merge: the marked cards hand their wordboxes to the new card and go. Their

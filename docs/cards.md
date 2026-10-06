@@ -46,7 +46,7 @@ are always about the whole Term, in whatever form it takes. `Card::target()` is 
 
 ### Helpers on the model
 
-- **`Card::baseWords()`** — `belongsToMany(BaseWord::class, 'card_base_word')->withPivot('surface_form')`,
+- **`Card::baseWords()`** — `belongsToMany(BaseWord::class, 'card_base_word')`,
   the card's linked vocabulary-base entries. See "The vocabulary base" below.
 
 Relations: `user()`, `theme()`, `language()`, `wordbox()` (belongs-to-many via `wordbox_card`),
@@ -83,14 +83,8 @@ to remember.
 stamps `last_recalled_at` through **`Card::stampRecall()`** (its base words and fixed expressions
 together); a correct word-level answer stamps that one word.
 
-`card_base_word` — the pivot linking a card to the base entries for its Term's words:
-
-| Column | Notes |
-|---|---|
-| `card_id`, `base_word_id` | |
-| `surface_form` | the spelling this card's Term actually uses (`kostade` in the Term, `kosta` in the base). Nothing reads it yet — it is carried for the deferred hide-a-word mode (out of scope, see `USERFLOW.md`) |
-
-Unique on `(card_id, base_word_id)` — one link per base entry per card, even when the Term repeats
+`card_base_word` — the pivot linking a card to the base entries for its Term's words, just
+`card_id` and `base_word_id`. Unique on `(card_id, base_word_id)` — one link per base entry per card, even when the Term repeats
 a word (`AnalyzeProposalJob` also drops a repeated lemma+part-of-speech from the chip tray, so the
 constraint is never reached in practice). There is **no cardinality rule**: a card may link no
 base words at all, or many. An earlier per-card minimum and maximum could leave a proposal
@@ -147,8 +141,7 @@ any word that occurs in the Term only inside one, so *tycka om* is never split i
 | `translation` | set once at creation from CALL 1, never revised — mirrors base words |
 | `last_recalled_at` | nullable, stamped by `Card::stampRecall()` when a card linking it is cleared |
 
-`card_fixed_expression` — the pivot, carrying the `surface_form` the Term spells it in (*tycker om*);
-unique on `(card_id, fixed_expression_id)`.
+`card_fixed_expression` — the pivot, unique on `(card_id, fixed_expression_id)`.
 
 There is no practice surface for fixed expressions: they don't enter Words mode, Refresher or
 Gap-fill. They are shown on the card detail page and on the **Expressions** tab of `/base`
@@ -239,14 +232,14 @@ each row's group is derived live (above).
 | Column | Notes |
 |---|---|
 | `proposal_id` | |
-| `lemma`, `part_of_speech`, `dictionary_form`, `grammar_attributes`, `surface_form`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
+| `lemma`, `part_of_speech`, `dictionary_form`, `grammar_attributes`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
 
 `known_words` — what the learner has struck, per learner and language: `user_id`, `language_id`,
 `lemma`, `part_of_speech`, unique on all four. Striking a new chip inserts a row; un-knowing deletes
 it.
 
 `proposal_fixed_expressions` — the fixed-expression chips, at most 3 per proposal: `form`,
-`surface_form`, `translation`, `struck`. Striking one is **per proposal** — unlike a word, a fixed
+`translation`, `struck`. Striking one is **per proposal** — unlike a word, a fixed
 expression is never remembered as known. Each chip is either **already present** (matches
 `fixed_expressions` on form, case-insensitively, via `Proposal::expressionPresenceIndex()` — one
 query per list: green-bordered, not strikeable, linked) or **new** (strikeable; created unless struck).
@@ -327,8 +320,8 @@ the chips, and the sense is kept as the card's Context so Regenerate stays in it
 **Related cards** (`Proposal::relatedCards()`) are the learner's cards linked to any of the
 proposal's already-present base words, most shared words first, at most 5
 (`Proposal::MAX_RELATED_CARDS`) so a common word can't flood the panel. A card whose Term is a lone
-word equal (case-insensitively) to one of those words' lemma or surface form is flagged *made
-redundant by this card* and listed first — it's the card the learner most likely wants to replace.
+word equal (case-insensitively) to one of those words' lemma is flagged *made redundant by this
+card* and listed first — it's the card the learner most likely wants to replace.
 Cards with the identical Term are left out; the duplicate notice shows those. Computed live, and
 without a query of its own: the presence index's base words already carry their cards, and the
 2-second poll is why that matters.

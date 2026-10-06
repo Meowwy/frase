@@ -177,9 +177,9 @@ class AI extends Model
      *
      * Returns ['language' => string, 'other_languages' => [string, ...] (only offered with
      * two or more candidate languages), 'term' => string, 'senses' => [['part_of_speech',
-     * 'gloss', 'translation'], ...], 'fixed_expressions' => [['form', 'surface_form',
-     * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech',
-     * 'surface_form', 'translation', <attributes>], ...]] or null on failure.
+     * 'gloss', 'translation'], ...], 'fixed_expressions' => [['form',
+     * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech', 'translation',
+     * <attributes>], ...]] or null on failure.
      *
      * @param  array<int, array{code:string, name:string}>  $candidateLanguages
      */
@@ -243,7 +243,7 @@ class AI extends Model
             $properties + [
                 'term' => [
                     'type' => 'string',
-                    'description' => 'The learner\'s Term exactly as they typed it, with spelling mistakes fixed and NOTHING else changed: keep every word, its inflection and the word order, and keep a whole sentence a whole sentence. Never reduce a word to its base form — "kostade" stays "kostade", "mice" stays "mice", even when the Term is a single word — never expand it, never shorten it and never replace any part of it with a placeholder.',
+                    'description' => 'The learner\'s Term exactly as they typed it, with spelling mistakes fixed and NOTHING else changed.',
                 ],
                 'senses' => [
                     'type' => 'array',
@@ -266,10 +266,9 @@ class AI extends Model
                         'type' => 'object',
                         'properties' => [
                             'form' => ['type' => 'string', 'description' => 'The canonical dictionary form, entirely in the Term\'s language: base form of each word, showing how the expression is used. Where it takes an object or a complement, mark that slot with a bracketed placeholder in the Term\'s language, where it goes ("tycka om [någon]", "på grund av [något]", "make [something] up", "in spite of [something]"); none where nothing attaches ("take off" of a plane). "…" still marks a gap in a grammatical frame ("either … or …"). Never the inflected form ("tycka om [någon]", not "tycker om").'],
-                            'surface_form' => ['type' => 'string', 'description' => 'How the Term actually spells it.'],
                             'translation' => ['type' => 'string', 'description' => 'A natural translation of the canonical form into the native language, entirely in the native language, with the same slots marked by placeholders in the native language ("tycka om [någon]" → "to like [someone]"; "either … or …" keeps its "…").'],
                         ],
-                        'required' => ['form', 'surface_form', 'translation'],
+                        'required' => ['form', 'translation'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -315,15 +314,11 @@ class AI extends Model
             'part_of_speech' => [
                 'type' => 'string',
                 'enum' => LanguageGuideline::PARTS_OF_SPEECH,
-                'description' => 'This word\'s grammatical category, judged from the role it plays IN THE TERM — "run" in "go for a run" is a noun, in "run fast" a verb. It is part of the vocabulary entry\'s identity and is never revised later, so get it right for this Term rather than for the word in general.',
-            ],
-            'surface_form' => [
-                'type' => 'string',
-                'description' => 'This word spelled EXACTLY as the term field above spells it, so it can be found there as a plain substring ("kostade" when the Term reads "hur mycket kostade det"). Equal to the lemma when the Term already uses the dictionary form.',
+                'description' => 'This word\'s grammatical category, judged from the role it plays IN THE TERM — "run" in "go for a run" is a noun, in "run fast" a verb. It is part of the vocabulary entry\'s identity.',
             ],
             'translation' => [
                 'type' => 'string',
-                'description' => "The LEMMA's equivalent {$translationLanguage}, same part of speech: the word alone, never a sentence, never an explanation. At most 2 variants separated by \"; \". Translate the lemma, not the surface form.",
+                'description' => "The LEMMA's equivalent {$translationLanguage}, same part of speech: the word alone. At most 2 variants separated by \"; \". Translate the lemma, not the form the Term spells it in.",
             ],
         ];
 

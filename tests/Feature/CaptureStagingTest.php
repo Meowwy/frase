@@ -57,10 +57,10 @@ class CaptureStagingTest extends TestCase
             'language' => 'Swedish',
             'term' => 'hur mycket kostar det',
             'base_words' => [
-                ['lemma' => 'hur', 'part_of_speech' => 'adverb', 'surface_form' => 'hur', 'translation' => 'how', 'gender' => '', 'dictionary_form' => ''],
-                ['lemma' => 'mycket', 'part_of_speech' => 'adverb', 'surface_form' => 'mycket', 'translation' => 'much', 'gender' => '', 'dictionary_form' => ''],
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostar', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
-                ['lemma' => 'det', 'part_of_speech' => 'pronoun', 'surface_form' => 'det', 'translation' => 'it', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'hur', 'part_of_speech' => 'adverb', 'translation' => 'how', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'mycket', 'part_of_speech' => 'adverb', 'translation' => 'much', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'det', 'part_of_speech' => 'pronoun', 'translation' => 'it', 'gender' => '', 'dictionary_form' => ''],
             ],
         ], $overrides);
     }
@@ -112,7 +112,6 @@ class CaptureStagingTest extends TestCase
 
         // "det" is a pronoun, so the proficiency filter drops it at B1.
         $this->assertSame(['hur', 'kosta', 'mycket'], $proposal->baseWords->pluck('lemma')->sort()->values()->all());
-        $this->assertSame('kostar', $proposal->baseWords->firstWhere('lemma', 'kosta')->surface_form);
     }
 
     public function test_an_a2_learner_keeps_the_function_words(): void
@@ -135,8 +134,8 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'in spite of',
             'base_words' => [
-                ['lemma' => 'in', 'part_of_speech' => 'preposition', 'surface_form' => 'in', 'translation' => 'v', 'gender' => ''],
-                ['lemma' => 'of', 'part_of_speech' => 'preposition', 'surface_form' => 'of', 'translation' => 'z', 'gender' => ''],
+                ['lemma' => 'in', 'part_of_speech' => 'preposition', 'translation' => 'v', 'gender' => ''],
+                ['lemma' => 'of', 'part_of_speech' => 'preposition', 'translation' => 'z', 'gender' => ''],
             ],
         ]), $this->cardContent());
 
@@ -161,7 +160,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'kostade',
             'base_words' => [
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostade', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
             ],
         ]), $this->cardContent(['sentence' => 'Biljetten [kostade] mer än jag trodde.', 'translation' => 'cost']));
 
@@ -175,7 +174,6 @@ class CaptureStagingTest extends TestCase
         $card = Card::sole();
         $this->assertSame('kostade', $card->term);
         $this->assertSame('kosta', $card->baseWords->sole()->lemma);
-        $this->assertSame('kostade', $card->baseWords->sole()->pivot->surface_form);
     }
 
     public function test_a_swedish_noun_carries_its_gender(): void
@@ -184,7 +182,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'hus',
             'base_words' => [
-                ['lemma' => 'hus', 'part_of_speech' => 'noun', 'surface_form' => 'hus', 'translation' => 'house', 'gender' => 'neuter'],
+                ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house', 'gender' => 'neuter'],
             ],
         ]));
 
@@ -215,7 +213,6 @@ class CaptureStagingTest extends TestCase
         $this->assertSame('hur mycket kostar det', $card->term);
         $this->assertSame('how much does it cost', $card->translation);
         $this->assertSame(['hur', 'kosta', 'mycket'], $card->baseWords->pluck('lemma')->sort()->values()->all());
-        $this->assertSame('kostar', $card->baseWords->firstWhere('lemma', 'kosta')->pivot->surface_form);
 
         // The dictionary form is carried onto the base entry, so the verb is shown the way
         // a Swedish learner meets it rather than as a bare infinitive.
@@ -266,7 +263,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'kostade',
             'base_words' => [
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostade', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
             ],
         ]), $this->cardContent());
 
@@ -327,8 +324,7 @@ class CaptureStagingTest extends TestCase
 
         foreach (range(1, 4) as $n) {
             $proposal->baseWords()->create([
-                'lemma' => 'ord'.$n, 'part_of_speech' => 'noun',
-                'surface_form' => 'ord'.$n, 'translation' => 'word'.$n,
+                'lemma' => 'ord'.$n, 'part_of_speech' => 'noun', 'translation' => 'word'.$n,
             ]);
         }
 
@@ -423,7 +419,7 @@ class CaptureStagingTest extends TestCase
                 ['part_of_speech' => 'noun', 'gloss' => 'a rule passed by parliament', 'translation' => 'law'],
             ],
             'base_words' => [
-                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'surface_form' => 'lag', 'translation' => 'team', 'gender' => 'neuter', 'dictionary_form' => ''],
+                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'translation' => 'team', 'gender' => 'neuter', 'dictionary_form' => ''],
             ],
         ]);
     }
@@ -456,7 +452,7 @@ class CaptureStagingTest extends TestCase
             'term' => 'lag',
             'senses' => [],
             'base_words' => [
-                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'surface_form' => 'lag', 'translation' => 'law', 'gender' => 'common', 'dictionary_form' => ''],
+                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'translation' => 'law', 'gender' => 'common', 'dictionary_form' => ''],
             ],
         ]));
 
@@ -480,7 +476,7 @@ class CaptureStagingTest extends TestCase
         $proposal = $this->completedProposal($user, $language);
         $this->fakeOpenAi($this->analysis([
             'base_words' => [
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostar', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
             ],
         ]));
 
@@ -533,7 +529,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi(
             $this->analysis(['term' => 'bad', 'other_languages' => ['German']]),
             $this->analysis(['language' => 'German', 'term' => 'bad', 'base_words' => [
-                ['lemma' => 'Bad', 'part_of_speech' => 'noun', 'surface_form' => 'bad', 'translation' => 'bath', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'Bad', 'part_of_speech' => 'noun', 'translation' => 'bath', 'gender' => '', 'dictionary_form' => ''],
             ]]),
         );
 
@@ -556,9 +552,9 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'jag tycker om dig',
             'fixed_expressions' => [
-                ['form' => 'tycka om', 'surface_form' => 'tycker om', 'translation' => 'to like'],
+                ['form' => 'tycka om', 'translation' => 'to like'],
                 // A repeat of the same form, differently cased, is one chip.
-                ['form' => 'Tycka om', 'surface_form' => 'tycker om', 'translation' => 'to like'],
+                ['form' => 'Tycka om', 'translation' => 'to like'],
             ],
             'base_words' => [],
         ]), $this->cardContent());
@@ -574,7 +570,6 @@ class CaptureStagingTest extends TestCase
         $expression = Card::sole()->fixedExpressions->sole();
         $this->assertSame('tycka om', $expression->form);
         $this->assertSame('to like', $expression->translation);
-        $this->assertSame('tycker om', $expression->pivot->surface_form);
     }
 
     public function test_a_struck_fixed_expression_is_not_saved(): void
@@ -582,7 +577,7 @@ class CaptureStagingTest extends TestCase
         [$user, $language] = $this->learner();
         Queue::fake();
         $proposal = $this->completedProposal($user, $language);
-        $expression = $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'surface_form' => 'hur mycket', 'translation' => 'how much']);
+        $expression = $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'translation' => 'how much']);
 
         $this->actingAs($user)
             ->postJson("/staging/{$proposal->id}/expressions/{$expression->id}/strike", ['struck' => 1])
@@ -605,7 +600,7 @@ class CaptureStagingTest extends TestCase
         Queue::fake();
         $existing = FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'Hur mycket', 'translation' => 'ALREADY THERE']);
         $proposal = $this->completedProposal($user, $language);
-        $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'surface_form' => 'hur mycket', 'translation' => 'how much']);
+        $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'translation' => 'how much']);
 
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
         $this->assertStringContainsString('js-in-base', $rows);
@@ -694,7 +689,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'komma',
             'base_words' => [
-                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'surface_form' => 'komma', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
             ],
         ]), $this->cardContent());
 
@@ -722,7 +717,7 @@ class CaptureStagingTest extends TestCase
     {
         $this->fakeOpenAi($this->analysis([
             'term' => $baseWord['lemma'],
-            'base_words' => [array_replace(['surface_form' => $baseWord['lemma'], 'translation' => 'x', 'gender' => '', 'dictionary_form' => ''], $baseWord)],
+            'base_words' => [array_replace(['translation' => 'x', 'gender' => '', 'dictionary_form' => ''], $baseWord)],
         ]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => $baseWord['lemma']]);
@@ -805,8 +800,8 @@ class CaptureStagingTest extends TestCase
             'term' => 'komma till ett hus',
             'base_words' => [
                 // A Swedish noun: Swedish declares a dictionary form for verbs only.
-                ['lemma' => 'hus', 'part_of_speech' => 'noun', 'surface_form' => 'hus', 'translation' => 'house', 'gender' => 'neuter', 'dictionary_form' => 'hus, -et'],
-                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'surface_form' => 'komma', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+                ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house', 'gender' => 'neuter', 'dictionary_form' => 'hus, -et'],
+                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
             ],
         ]));
 
@@ -833,7 +828,7 @@ class CaptureStagingTest extends TestCase
             'language' => 'English',
             'term' => 'come',
             'base_words' => [
-                ['lemma' => 'come', 'part_of_speech' => 'verb', 'surface_form' => 'come', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'com|e -es'],
+                ['lemma' => 'come', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'com|e -es'],
             ],
         ]));
 
@@ -875,7 +870,7 @@ class CaptureStagingTest extends TestCase
     private function cardUsing(User $user, Language $language, string $term, BaseWord ...$words): Card
     {
         $card = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => $term]);
-        $card->baseWords()->attach(collect($words)->pluck('id')->all(), ['surface_form' => $term]);
+        $card->baseWords()->attach(collect($words)->pluck('id')->all());
 
         return $card;
     }
@@ -899,8 +894,8 @@ class CaptureStagingTest extends TestCase
         foreach (range(1, 5) as $i) {
             $this->cardUsing($user, $language, "hur gammal $i", $hur);
         }
-        // A lone word the new Term now covers.
-        $redundant = $this->cardUsing($user, $language, 'kostar', $kosta);
+        // A lone word the new Term now covers (matched on the lemma).
+        $redundant = $this->cardUsing($user, $language, 'kosta', $kosta);
 
         $proposal = $this->completedProposal($user, $language);
         $related = $proposal->relatedCards(Proposal::presenceIndex(collect([$proposal])));
@@ -1041,14 +1036,14 @@ class CaptureStagingTest extends TestCase
         ]);
 
         $candidates = [
-            ['hur', 'adverb', 'hur', 'how', null],
-            ['mycket', 'adverb', 'mycket', 'much', null],
-            ['kosta', 'verb', 'kostar', 'to cost', 'kost|a -ar'],
+            ['hur', 'adverb', 'how', null],
+            ['mycket', 'adverb', 'much', null],
+            ['kosta', 'verb', 'to cost', 'kost|a -ar'],
         ];
 
-        foreach ($candidates as [$lemma, $pos, $surface, $translation, $dictionaryForm]) {
+        foreach ($candidates as [$lemma, $pos, $translation, $dictionaryForm]) {
             $proposal->baseWords()->create([
-                'lemma' => $lemma, 'part_of_speech' => $pos, 'surface_form' => $surface,
+                'lemma' => $lemma, 'part_of_speech' => $pos,
                 'translation' => $translation, 'dictionary_form' => $dictionaryForm,
             ]);
         }

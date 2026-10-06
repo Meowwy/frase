@@ -242,7 +242,7 @@ Every learning mode serves every card, except that Words mode skips cards with n
 - **Words** — pulls the **individual base words** of due cards (not the cards themselves),
   already-present ones included, into one shuffled, per-word session capped at **15 words**; a due
   card enters only if all of its base words fit under that cap. Front is the base word's own
-  translation, back is its **lemma** in its **display form** (never the inflected surface form —
+  translation, back is its **lemma** in its **display form** (never the inflected form the Term uses —
   for a Swedish noun the back is *"ett hus"*, not *"hus"*, and for a Swedish verb *"komm|a -er"*),
   hint is the parent card's context. **Part of speech is shown alongside the word on both front
   and back**, since two base words can share a lemma and differ only by part of speech. A card
@@ -259,9 +259,8 @@ Every learning mode serves every card, except that Words mode skips cards with n
   acceptable.
 - **Practice built on fixed expressions** — no mode, no Refresher, no Gap-fill use.
 - **Remembering struck fixed expressions** as known.
-- **The hide-a-word review mode** (a base word of a multi-word Term hidden mid-sentence). The
-  card/base-word link's surface form is built to support it, but the mode's own design is a future
-  effort.
+- **The hide-a-word review mode** (a base word of a multi-word Term hidden mid-sentence). It would
+  need the Term's own spelling of each word, which is no longer stored.
 - **Downloaded dictionaries for languages other than Swedish.** The plan is one per supported
   language with the AI as fallback; only Swedish has one today. Which tool supplies
   lemmatization, part-of-speech tagging and translation is an optimisation behind the same seam.

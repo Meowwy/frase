@@ -168,7 +168,6 @@ class AnalyzeProposalJob implements ShouldQueue
                 'part_of_speech' => $partOfSpeech,
                 'grammar_attributes' => $this->grammarAttributes($guideline, $partOfSpeech, $candidate, $lexicon[$key] ?? []),
                 'dictionary_form' => $this->dictionaryForm($guideline, $partOfSpeech, $candidate, $lexicon[$key] ?? []),
-                'surface_form' => trim((string) ($candidate['surface_form'] ?? '')) ?: $lemma,
                 'translation' => trim((string) ($candidate['translation'] ?? '')),
             ];
         }
@@ -192,7 +191,6 @@ class AnalyzeProposalJob implements ShouldQueue
             if ($form !== '') {
                 $clean[mb_strtolower($form)] ??= [
                     'form' => $form,
-                    'surface_form' => trim((string) ($expression['surface_form'] ?? '')) ?: $form,
                     'translation' => trim((string) ($expression['translation'] ?? '')),
                 ];
             }

@@ -223,17 +223,12 @@ grammatical attributes and dictionary forms win over CALL 1's answer wherever it
 Shared by every learner — it is not anyone's vocabulary base.
 _Avoid_: dictionary (bare), word list
 
-**Surface form**:
-The spelling one particular Term uses for one of its base words, carried on the link between them —
-*kostade* in the Term, *kosta* in the base.
-_Avoid_: inflection, variant, spelling, display form
-
 **Display form**:
 The one string every screen shows for a base word, built from its lemma plus whatever its language
 guideline adds — *ett hus* for a Swedish neuter noun, *komm|a -er* for a Swedish verb, bare *hus*
 for a language with no such rule. It is what the learner is expected to produce, so staging chips,
 the vocabulary base, Words mode and Refresher all show it and never the bare lemma.
-_Avoid_: label, rendered form, surface form (that is the Term's spelling — above)
+_Avoid_: label, rendered form
 
 **Fixed expression**:
 A multi-word unit learnt as a whole, of exactly two kinds: one with a **meaning of its own** that

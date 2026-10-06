@@ -123,9 +123,8 @@ record-the-first-answer) work unchanged on words instead of cards, and `card_ids
 one answer across the cards that share the word (empty for Refresher, which clears nothing):
 
 - **front** — the base word's own translation (from the vocabulary base);
-- **back** — the base word's **lemma**, never the inflected surface form — Words always tests the
-  lemma, unlike the deferred hide-a-word mode (out of scope — see `USERFLOW.md`), which is the one
-  place the surface form would matter. Rendered in its **display form** where the language's
+- **back** — the base word's **lemma**, never the inflected form the Term uses — Words always
+  tests the lemma. Rendered in its **display form** where the language's
   guideline defines one — a Swedish noun's back is *"ett hus"*, not bare *"hus"*, and a Swedish
   verb's is *"komm|a -er"* — see
   [cards](cards.md) "The vocabulary base" and [ai-integration](ai-integration.md) "Language

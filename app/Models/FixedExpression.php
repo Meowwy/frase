@@ -21,6 +21,6 @@ class FixedExpression extends Model
 
     public function cards(): BelongsToMany
     {
-        return $this->belongsToMany(Card::class, 'card_fixed_expression')->withPivot('surface_form');
+        return $this->belongsToMany(Card::class, 'card_fixed_expression');
     }
 }

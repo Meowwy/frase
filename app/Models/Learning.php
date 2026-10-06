@@ -331,7 +331,7 @@ class Learning extends Model
 
     /**
      * One base word as a flashcard. The back is always the LEMMA in its display form —
-     * "ett hus", never bare "hus" and never the inflected surface form the parent card's
+     * "ett hus", never bare "hus" and never the inflected form the parent card's
      * Term happens to use. Part of speech travels with it because two base words can share
      * a lemma and differ only by it.
      */
