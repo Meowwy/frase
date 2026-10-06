@@ -204,6 +204,7 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `context` | nullable, the learner's own input — editable in staging (see below) |
 | `term` | nullable until CALL 1 resolves |
 | `senses` | nullable JSON (`array` cast) — the sense picker's options, `[{part_of_speech, gloss, translation}, …]`, up to 4. Only ever set for a single-word Term captured without a Context with two or more common senses; `AnalyzeProposalJob::senses()` enforces that in PHP too, since a stray answer would block approval |
+| `merge_card_ids` | nullable JSON (`array` cast) — the existing cards marked to be merged away on approval (see "Related cards and Merge" below) |
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
 
@@ -229,7 +230,7 @@ query per list: shown aside, not strikeable, linked) or **new** (strikeable; cre
 (reusing an existing one per the check above) and first-or-creates the `fixed_expressions` row for
 every fixed expression that isn't struck (an already-present one is linked even if it was struck
 before it entered the base), writes the card and its `card_base_word` / `card_fixed_expression`
-links, deletes the proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
+links, merges away the marked cards, deletes the proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
 proposal exactly as it was in staging rather than a half-written card.
 
 ### Endpoints (`ProposalController`, `ProposalPolicy` for ownership)
@@ -243,7 +244,8 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /staging/{proposal}/expressions/{expression}/strike` | `struck=1` / `struck=0` on one fixed-expression chip |
 | `POST /staging/{proposal}/language` | correct the detected language — see below |
 | `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
-| `POST /staging/{proposal}/approve` | `409` with the existing card's id on a duplicate Term, `422` when the proposal isn't approvable yet, else the new card's URL |
+| `POST /staging/{proposal}/merge/{card}` | `merge=1` / `merge=0` marks or unmarks one card for merge. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
+| `POST /staging/{proposal}/approve` | `409` with the existing card's id on an identical Term that still blocks (see "The duplicate check"), `422` when the proposal isn't approvable yet, else the new card's URL |
 | `DELETE /staging/{proposal}` | discard |
 
 Two deliberate shapes in the UI (`staging/index.blade.php`):
@@ -276,6 +278,25 @@ the AI guessed. Picking one writes `"<term> (<part of speech>): <gloss>"` as the
 same Context endpoint. The re-run has a Context, so it returns no senses and extracts everything in
 the chosen sense, lexicon attributes included — there is no separate code path applying a sense to
 the chips, and the sense is kept as the card's Context so Regenerate stays in it.
+
+### Related cards and Merge
+
+**Related cards** (`Proposal::relatedCards()`) are the learner's cards linked to any of the
+proposal's already-present base words, most shared words first, at most 5
+(`Proposal::MAX_RELATED_CARDS`) so a common word can't flood the panel. A card whose Term is a lone
+word equal (case-insensitively) to one of those words' lemma or surface form is flagged *made
+redundant by this card* and listed first — it's the card the learner most likely wants to replace.
+Cards with the identical Term are left out; the duplicate notice shows those. Computed live, and
+without a query of its own: the presence index's base words already carry their cards, and the
+2-second poll is why that matters.
+
+**Merge.** Any related or identical card can be marked; the mark lives in `merge_card_ids` until
+approval and does nothing before it, so **discard removes nothing**. On approve, inside the
+transaction that writes the new card, each marked card (re-scoped to the learner and language)
+hands its wordbox memberships to the new card (`syncWithoutDetaching`, so no duplicates) and is
+deleted; the FK cascades take its wordbox, base-word, fixed-expression and manual links (both
+mirrored `synonyms` rows) with it. Its SRS progress and note are **not** carried over — the learner
+should actually review the longer Term they just saved, so the new card starts fresh.
 
 ## Capture flow (creating a card)
 
@@ -313,10 +334,14 @@ the column. Owning a base word of a Term is a different fact from owning a card 
 never blocks capturing the card; staging's already-present notice (above) is what surfaces the
 base-word fact.
 
-It runs at two points, both reading the same scope: `Proposal::duplicateCard()` at staging render
-time, so the proposal says up front that the Term is already held and offers **Regenerate that
-card** in place of Approve, and again inside `ProposalController::approve()`, which answers `409`
-— the render is a view of the world a moment ago, and only the second one is authoritative.
+`Proposal::duplicateCards()` reads it. An identical Term doesn't always mean a duplicate — *run*
+the verb and *run* the noun are two cards — so the proposal is approvable despite a match **only
+if** it has a non-empty Context **or** every matching card is marked for merge
+(`Proposal::blockingDuplicates()` is what's left otherwise, and `isApprovable()` requires it
+empty). While a match still blocks, staging names the card, disables Approve and offers
+**Regenerate that card**, Discard or Merge. The check runs at render time and again inside
+`ProposalController::approve()`, which answers `409` — the render is a view of the world a moment
+ago, and only the second one is authoritative.
 
 ## Regenerate
 
@@ -339,8 +364,8 @@ no `level`, no `next_study_at`, no `note`. `persist()` adds those for a new card
 hands the array straight to `update()`, which is what makes "keep the progress" a property of the
 mapping rather than a list of fields someone has to remember to exclude.
 
-A repeat capture reaches it through staging: the proposal shows the card that is in the way and
-offers **Regenerate that card**, which posts to `POST /cards/{card}/regenerate` and then discards
+A repeat capture reaches it through staging: the proposal shows the identical card that is in
+the way and offers **Regenerate that card**, which posts to `POST /cards/{card}/regenerate` and then discards
 the proposal. See "The duplicate check" above.
 
 ## Card detail page (`cards/show.blade.php`, `CardController@show`)

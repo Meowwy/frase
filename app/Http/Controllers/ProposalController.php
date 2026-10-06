@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeProposalJob;
+use App\Models\Card;
 use App\Models\KnownWord;
 use App\Models\Proposal;
 use App\Models\ProposalBaseWord;
@@ -16,7 +17,8 @@ use Illuminate\Support\Facades\Auth;
  * Capture writes a proposal and returns immediately — no card, no language picker, no
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
  * with: striking a candidate word as known or a fixed expression, correcting a wrong language detection, editing
- * the Context (or picking a sense, which is the same thing), and finally
+ * the Context (or picking a sense, which is the same thing), marking existing cards to merge
+ * away, and finally
  * approving (which writes the card and runs CALL 2) or discarding.
  *
  * See docs/cards.md "Staging" and USERFLOW.md.
@@ -158,15 +160,30 @@ class ProposalController extends Controller
     }
 
     /**
+     * Mark (or unmark) one of the learner's existing cards to be removed when this proposal
+     * is approved. Nothing happens to it until then, and discarding the proposal leaves it.
+     */
+    public function merge(Request $request, Proposal $proposal, Card $card)
+    {
+        $this->authorize('update', $proposal);
+        $this->authorize('delete', $card);
+        abort_unless($card->language_id === $proposal->language_id, 422);
+
+        $proposal->markForMerge($card, $request->boolean('merge'));
+
+        return response()->noContent();
+    }
+
+    /**
      * Approve: write the card and its base-word links, and pay for CALL 2 at last.
      */
     public function approve(Proposal $proposal)
     {
         $this->authorize('update', $proposal);
 
-        if ($duplicate = $proposal->duplicateCard()) {
+        if ($duplicate = $proposal->blockingDuplicates()->first()) {
             return response()->json([
-                'message' => 'You already have a card for "'.$duplicate->term.'".',
+                'message' => 'You already have a card for "'.$duplicate->term.'". Add a Context or merge it into this one.',
                 'duplicate_card_id' => $duplicate->id,
             ], 409);
         }
@@ -209,7 +226,8 @@ class ProposalController extends Controller
             'proposals' => $proposals,
             'targetLanguages' => $user->languages()->orderBy('name')->get(),
             // Resolved for the whole list in one query per store rather than per chip — see
-            // Proposal::presenceIndex() for why that matters on a polled endpoint.
+            // Proposal::presenceIndex() for why that matters on a polled endpoint. Related
+            // cards are read off alreadyInBase, so they add no query of their own.
             'alreadyInBase' => Proposal::presenceIndex($proposals),
             'knownWords' => Proposal::knownIndex($proposals),
             'expressionsInBase' => Proposal::expressionPresenceIndex($proposals),

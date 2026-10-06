@@ -41,7 +41,11 @@ class Proposal extends Model
 
     protected $casts = [
         'senses' => 'array',
+        'merge_card_ids' => 'array',
     ];
+
+    /** How many related cards staging lists per proposal. */
+    public const MAX_RELATED_CARDS = 5;
 
     public function user(): BelongsTo
     {
@@ -64,13 +68,32 @@ class Proposal extends Model
     }
 
     /**
-     * Whether Approve may fire: once CALL 1 has landed and, if it offered senses, one has
-     * been picked. How many base words are linked never matters — a card may link none of
-     * them, or many. The control disables itself on this rather than failing after the fact.
+     * Whether Approve may fire: once CALL 1 has landed, if it offered senses one has been
+     * picked, and no identical card is in the way. How many base words are linked never
+     * matters — a card may link none of them, or many. The control disables itself on this
+     * rather than failing after the fact.
      */
     public function isApprovable(): bool
     {
-        return $this->status === self::STATUS_COMPLETED && (bool) $this->language_id && empty($this->senses);
+        return $this->status === self::STATUS_COMPLETED
+            && (bool) $this->language_id
+            && empty($this->senses)
+            && $this->blockingDuplicates()->isEmpty();
+    }
+
+    public function isMarkedForMerge(Card $card): bool
+    {
+        return in_array($card->id, $this->merge_card_ids ?? [], true);
+    }
+
+    /**
+     * Mark an existing card to be removed when this proposal is approved, or unmark it.
+     */
+    public function markForMerge(Card $card, bool $merge): void
+    {
+        $ids = collect($this->merge_card_ids)->reject(fn (int $id) => $id === $card->id);
+
+        $this->update(['merge_card_ids' => ($merge ? $ids->push($card->id) : $ids)->values()->all()]);
     }
 
     /**
@@ -199,26 +222,75 @@ class Proposal extends Model
     }
 
     /**
-     * The card the learner already has for this exact Term, if any. The duplicate check
-     * narrows to the Term alone: owning a base word of a Term is a different fact, and
-     * the chip tray's already-present notice is what surfaces that one.
+     * The learner's existing cards that share an already-present base word with this
+     * proposal, as `{card, shared, redundant}`: most shared words first, capped. A lone-word
+     * card whose word is one of those base words is **made redundant** by this card and
+     * leads the list.
+     *
+     * Built from the presence index, whose base words already carry their cards, so a whole
+     * list costs no query beyond it. Cards with the identical Term are left out: the
+     * duplicate notice shows those.
+     *
+     * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
+     * @return \Illuminate\Support\Collection<int, array{card: Card, shared: int, redundant: bool}>
      */
-    public function duplicateCard(): ?Card
+    public function relatedCards(SupportCollection $present): SupportCollection
+    {
+        $shared = $this->baseWords->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)));
+        $forms = $shared->flatMap(fn (ProposalBaseWord $word) => [mb_strtolower($word->lemma), mb_strtolower($word->surface_form)]);
+
+        return $shared
+            ->flatMap(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards)
+            ->reject(fn (Card $card) => mb_strtolower($card->term) === mb_strtolower((string) $this->term))
+            ->groupBy('id')
+            ->map(fn (SupportCollection $cards) => [
+                'card' => $cards->first(),
+                'shared' => $cards->count(),
+                'redundant' => $forms->contains(mb_strtolower(trim($cards->first()->term))),
+            ])
+            ->sortBy([['redundant', 'desc'], ['shared', 'desc']])
+            ->take(self::MAX_RELATED_CARDS)
+            ->values();
+    }
+
+    /**
+     * The cards the learner already has for this exact Term. The duplicate check narrows to
+     * the Term alone: owning a base word of a Term is a different fact, and the chip tray's
+     * already-present notice is what surfaces that one.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Card>
+     */
+    public function duplicateCards(): Collection
     {
         if (blank($this->term) || ! $this->language_id) {
-            return null;
+            return new Collection;
         }
 
         return Card::where('user_id', $this->user_id)
             ->forLanguage($this->language_id)
             ->matchingTerm($this->term)
-            ->first();
+            ->get();
+    }
+
+    /**
+     * The identical cards that still stop this proposal being approved. A Context makes it
+     * a card of its own (*run* the verb beside *run* the noun); otherwise every identical
+     * card has to be marked for merge, so that merging is how a card gets replaced.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Card>
+     */
+    public function blockingDuplicates(): Collection
+    {
+        if (filled($this->context)) {
+            return new Collection;
+        }
+
+        return $this->duplicateCards()->reject(fn (Card $card) => $this->isMarkedForMerge($card));
     }
 
     /**
      * Write the card, its base-word and fixed-expression links and the base entries they
-     * need, then run CALL 2
-     * for its content. Returns the new card, or null when CALL 2 fails — in which case
+     * need, merge away the cards marked for it, then run CALL 2 for its content. Returns the new card, or null when CALL 2 fails — in which case
      * nothing is written and the proposal is still sitting in staging.
      *
      * The base rows are created first and reused rather than inserted blindly, so two
@@ -273,6 +345,16 @@ class Proposal extends Model
                 );
 
                 $card->fixedExpressions()->attach($expression->id, ['surface_form' => $candidate->surface_form]);
+            }
+
+            // Merge: the marked cards hand their wordboxes to the new card and go. Their
+            // progress and note stay behind — the new card is a fresh one to review. Deleting
+            // cascades their wordbox, base-word, fixed-expression and manual links.
+            $merged = Card::where('user_id', $user->id)->forLanguage($language->id)->whereKey($this->merge_card_ids ?? [])->with('wordbox')->get();
+
+            foreach ($merged as $old) {
+                $card->wordbox()->syncWithoutDetaching($old->wordbox->modelKeys());
+                $old->delete();
             }
 
             $this->delete();

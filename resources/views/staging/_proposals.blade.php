@@ -6,7 +6,8 @@
     @php
         $pending = in_array($proposal->status, [\App\Models\Proposal::STATUS_PENDING, \App\Models\Proposal::STATUS_PROCESSING], true);
         $failed = $proposal->status === \App\Models\Proposal::STATUS_FAILED;
-        $duplicate = $pending || $failed ? null : $proposal->duplicateCard();
+        $duplicates = $pending || $failed ? collect() : $proposal->duplicateCards();
+        $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
     @endphp
 
     <div class="rounded-xl border border-white/10 bg-white/5 p-4 js-proposal" data-proposal-id="{{ $proposal->id }}">
@@ -65,13 +66,20 @@
                 </div>
             @endif
 
-            @if($duplicate)
-                <p class="mt-3 text-sm text-white/60">
-                    You already have
-                    <a href="/cards/{{ $duplicate->id }}" class="font-bold text-white hover:underline">{{ $duplicate->term }}</a>.
-                    Nothing new can be saved for it — regenerate that card's content instead, or discard this.
-                </p>
-            @endif
+            {{-- An identical Term is saved as a second card only with a Context of its own, or
+                 by merging the old card into this one. --}}
+            @foreach($duplicates as $duplicate)
+                <div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-white/60">
+                    <span>
+                        You already have
+                        <a href="/cards/{{ $duplicate->id }}" class="font-bold text-white hover:underline">{{ $duplicate->term }}</a>.
+                        @if($blocked->contains($duplicate))
+                            Add a Context to keep both, merge it into this one, or regenerate it instead.
+                        @endif
+                    </span>
+                    @include('staging._merge-toggle', ['card' => $duplicate])
+                </div>
+            @endforeach
 
             {{-- The chip tray. New words are strikeable: ✕ records the word as known, so it
                  is never proposed again. Words already in the base and known words sit aside
@@ -152,11 +160,28 @@
                 </div>
             @endif
 
+            {{-- Related cards: what this card overlaps with, any of which can be merged away
+                 on approval (wordboxes carried over). --}}
+            @php $related = $proposal->relatedCards($alreadyInBase); @endphp
+            @if($related->isNotEmpty())
+                <div class="mt-3 space-y-1 text-sm">
+                    <p class="text-white/60">Related cards</p>
+                    @foreach($related as $item)
+                        <div class="flex flex-wrap items-center gap-2">
+                            <a href="/cards/{{ $item['card']->id }}" class="hover:underline">{{ $item['card']->term }}</a>
+                            @if($item['redundant'])
+                                <span class="text-xs text-orange-400">made redundant by this card</span>
+                            @endif
+                            @include('staging._merge-toggle', ['card' => $item['card']])
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
             <div class="mt-4 flex items-center gap-2">
-                @if($duplicate)
-                    <x-forms.button class="js-regenerate" data-card-id="{{ $duplicate->id }}">Regenerate that card</x-forms.button>
-                @else
-                    <x-forms.button class="js-approve" :disabled="$proposal->isApprovable() ? 'false' : 'true'">Approve</x-forms.button>
+                <x-forms.button class="js-approve" :disabled="$proposal->isApprovable() ? 'false' : 'true'">Approve</x-forms.button>
+                @if($blocked->isNotEmpty())
+                    <x-forms.button class="js-regenerate" data-card-id="{{ $blocked->first()->id }}">Regenerate that card</x-forms.button>
                 @endif
                 <x-forms.button-small class="js-discard">Discard</x-forms.button-small>
             </div>

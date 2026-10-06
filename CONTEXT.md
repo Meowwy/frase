@@ -136,9 +136,20 @@ form of it is ever proposed again. Staging shows it aside, labelled *known*; tap
 it and the chip becomes proposable again.
 _Avoid_: ignored word, blacklist, excluded word, struck word
 
+**Related cards**:
+The learner's existing cards that share a base word with a proposal, shown on it in staging. A
+lone-word card whose word the new Term contains is flagged *made redundant by this card*.
+_Avoid_: similar cards, synonyms, linked cards (those are the manual links in ORGANIZE)
+
+**Merge**:
+Marking a related or identical card to be removed when the proposal is approved; its wordboxes
+move to the new card, its review progress and note do not. Discarding the proposal removes nothing.
+A Term identical to an existing card is approved only with a Context of its own, or by merging.
+_Avoid_: replace, combine, delete (the card goes only on approval)
+
 **Regenerate**:
 Replacing an existing card's generated content while its review progress, note and links stay as
-they are. Capturing a term already saved offers this instead of ever making a second card.
+they are. Capturing a term already saved offers this, beside merging it away.
 _Avoid_: refresh, re-create, update
 
 ### ORGANIZE — the vocabulary base

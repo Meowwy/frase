@@ -11,6 +11,7 @@ use App\Models\Language;
 use App\Models\LexiconEntry;
 use App\Models\Proposal;
 use App\Models\User;
+use App\Models\Wordbox;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -774,6 +775,164 @@ class CaptureStagingTest extends TestCase
 
         $this->assertSame(1, BaseWord::where('lemma', 'kosta')->count());
         $this->assertSame('kost|a -ar', BaseWord::where('lemma', 'kosta')->sole()->dictionary_form);
+    }
+
+    /**
+     * An existing card of the learner's, linked to the given base words.
+     */
+    private function cardUsing(User $user, Language $language, string $term, BaseWord ...$words): Card
+    {
+        $card = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => $term]);
+        $card->baseWords()->attach(collect($words)->pluck('id')->all(), ['surface_form' => $term]);
+
+        return $card;
+    }
+
+    private function baseWord(User $user, Language $language, string $lemma, string $partOfSpeech): BaseWord
+    {
+        return BaseWord::create([
+            'user_id' => $user->id, 'language_id' => $language->id,
+            'lemma' => $lemma, 'part_of_speech' => $partOfSpeech, 'translation' => $lemma,
+        ]);
+    }
+
+    public function test_related_cards_are_sorted_by_shared_words_capped_and_lead_with_the_redundant_one(): void
+    {
+        [$user, $language] = $this->learner();
+        $hur = $this->baseWord($user, $language, 'hur', 'adverb');
+        $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
+        $kosta = $this->baseWord($user, $language, 'kosta', 'verb');
+
+        $both = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
+        foreach (range(1, 5) as $i) {
+            $this->cardUsing($user, $language, "hur gammal $i", $hur);
+        }
+        // A lone word the new Term now covers.
+        $redundant = $this->cardUsing($user, $language, 'kostar', $kosta);
+
+        $proposal = $this->completedProposal($user, $language);
+        $related = $proposal->relatedCards(Proposal::presenceIndex(collect([$proposal])));
+
+        $this->assertCount(5, $related);
+        $this->assertSame([$redundant->id, $both->id], $related->take(2)->pluck('card.id')->all());
+        $this->assertTrue($related->first()['redundant']);
+        $this->assertFalse($related->get(1)['redundant']);
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('made redundant by this card', $rows);
+        $this->assertStringContainsString('data-card-id="'.$redundant->id.'"', $rows);
+    }
+
+    public function test_merging_moves_the_wordboxes_and_deletes_the_old_card_with_its_links(): void
+    {
+        [$user, $language] = $this->learner();
+        $kosta = $this->baseWord($user, $language, 'kosta', 'verb');
+        $old = $this->cardUsing($user, $language, 'kostar', $kosta);
+        $wordbox = Wordbox::factory()->create(['user_id' => $user->id]);
+        $old->wordbox()->attach($wordbox->id);
+        $other = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
+        $old->linkedCards()->attach($other->id);
+        $other->linkedCards()->attach($old->id);
+        $proposal = $this->completedProposal($user, $language);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$old->id}", ['merge' => 1])->assertNoContent();
+        $this->assertSame([$old->id], $proposal->fresh()->merge_card_ids);
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertModelMissing($old);
+        $card = Card::where('term', 'hur mycket kostar det')->sole();
+        $this->assertTrue($card->wordbox->contains($wordbox));
+        $this->assertTrue($card->baseWords->contains($kosta));
+        $this->assertDatabaseMissing('card_base_word', ['card_id' => $old->id]);
+        $this->assertDatabaseMissing('synonyms', ['synonym_card_id' => $old->id]);
+        $this->assertModelExists($kosta);
+    }
+
+    public function test_unmarking_a_card_keeps_it(): void
+    {
+        [$user, $language] = $this->learner();
+        $old = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
+        $proposal = $this->completedProposal($user, $language);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$old->id}", ['merge' => 1]);
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$old->id}", ['merge' => 0]);
+
+        $this->assertSame([], $proposal->fresh()->merge_card_ids);
+    }
+
+    public function test_discarding_a_proposal_leaves_a_card_marked_for_merge(): void
+    {
+        [$user, $language] = $this->learner();
+        $old = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
+        $proposal = $this->completedProposal($user, $language);
+        $proposal->update(['merge_card_ids' => [$old->id]]);
+
+        $this->actingAs($user)->deleteJson("/staging/{$proposal->id}")->assertStatus(200);
+
+        $this->assertModelExists($old);
+    }
+
+    public function test_an_identical_term_is_blocked_without_a_context(): void
+    {
+        [$user, $language] = $this->learner();
+        Http::fake();
+        $this->cardUsing($user, $language, 'hur mycket kostar det');
+        $proposal = $this->completedProposal($user, $language);
+
+        $this->assertFalse($proposal->isApprovable());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(409);
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('Regenerate that card', $rows);
+        $this->assertStringContainsString('js-merge', $rows);
+    }
+
+    public function test_an_identical_term_with_a_context_is_approved_as_a_second_card(): void
+    {
+        [$user, $language] = $this->learner();
+        $existing = $this->cardUsing($user, $language, 'hur mycket kostar det');
+        $proposal = $this->completedProposal($user, $language);
+        $proposal->update(['context' => 'asking a friend, not a shop']);
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertSame(2, Card::count());
+        $this->assertModelExists($existing);
+    }
+
+    public function test_an_identical_term_is_approvable_once_the_duplicate_is_marked_for_merge(): void
+    {
+        [$user, $language] = $this->learner();
+        $existing = $this->cardUsing($user, $language, 'hur mycket kostar det');
+        $proposal = $this->completedProposal($user, $language);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$existing->id}", ['merge' => 1]);
+        $this->assertTrue($proposal->fresh()->isApprovable());
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertModelMissing($existing);
+        $this->assertSame(1, Card::count());
+    }
+
+    public function test_a_learner_cannot_mark_someone_elses_card_or_one_in_another_language(): void
+    {
+        [$user, $language] = $this->learner();
+        [$stranger] = $this->learner();
+        $theirs = Card::factory()->create(['user_id' => $stranger->id, 'language_id' => $language->id]);
+        $english = Language::where('code', 'en')->sole();
+        $elsewhere = Card::factory()->create(['user_id' => $user->id, 'language_id' => $english->id]);
+        $proposal = $this->completedProposal($user, $language);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$theirs->id}", ['merge' => 1])->assertStatus(403);
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$elsewhere->id}", ['merge' => 1])->assertStatus(422);
+        $this->actingAs($stranger)->postJson("/staging/{$proposal->id}/merge/{$theirs->id}", ['merge' => 1])->assertStatus(403);
+
+        $this->assertNull($proposal->fresh()->merge_card_ids);
     }
 
     /**
