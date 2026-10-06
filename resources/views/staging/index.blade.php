@@ -29,27 +29,17 @@
         $(function () {
             const csrf = '{{ csrf_token() }}';
             const $list = $('#stagingList');
-            const UNDO_MS = 6000;
             let pollTimer;
 
-            // Discard hides the row and only sends the DELETE once the undo window closes,
-            // so "undo" is cancelling a timer and nothing is ever kept server-side (no
-            // discard history, which is the point). The row is therefore still in every
-            // re-render until then, so the ids being discarded are tracked here and hidden
-            // again after each one — otherwise the 2s poll would resurrect a row the
-            // learner has already dismissed, and Undo would then be unhiding a node that
-            // had been replaced.
-            const discarding = new Set();
-
-            // Approved rows stay on the page as one line — "approving…" while CALL 2 runs,
-            // then a link to the new card — until the page is reloaded. The server has
-            // deleted the proposal by then, so each re-render puts these lines back in
-            // capture order. id → the line's current markup.
+            // Approved and discarded rows stay on the page as one line — "approving…" while
+            // CALL 2 runs, then a link to the new card; or "discarded" with Capture again —
+            // until the page is reloaded. The server has deleted the proposal by then, so
+            // each re-render puts these lines back in capture order. id → the line's markup.
             const settled = new Map();
             const approving = new Set();
 
             function setBadge(serverCount) {
-                const count = serverCount - discarding.size - approving.size;
+                const count = serverCount - approving.size;
                 $('.js-staged-count').text(Math.max(0, count)).toggleClass('hidden', count <= 0);
             }
 
@@ -75,7 +65,6 @@
             window.stagingRefresh = function () {
                 $.get('{{ route('staging.list') }}', function (data) {
                     $list.html(data.rows);
-                    discarding.forEach(id => $list.find('.js-proposal[data-proposal-id="' + id + '"]').addClass('hidden'));
                     placeSettled();
                     setBadge(data.count);
 
@@ -190,53 +179,44 @@
                     });
             });
 
-            // Leaving the page inside an undo window still discards: the timer would never
-            // fire, so the pending DELETEs go out as beacons (POST + _method, since a beacon
-            // can't send a DELETE).
-            window.addEventListener('pagehide', function () {
-                discarding.forEach(function (id) {
-                    const body = new FormData();
-                    body.append('_token', csrf);
-                    body.append('_method', 'DELETE');
-                    navigator.sendBeacon('/staging/' + id, body);
-                });
+            // Discard deletes the proposal at once and leaves a one-line "discarded" note in
+            // its place, like an approved row. Nothing is kept server-side, so Capture again
+            // is a fresh capture of the same input; the new proposal joins the end of the list.
+            $list.on('click', '.js-discard', function () {
+                const $row = $(this).closest('.js-proposal');
+                const id = $row.data('proposal-id');
+                const term = $row.find('.js-term').text() || $row.attr('data-raw-input');
+
+                $.ajax({ url: '/staging/' + id, type: 'DELETE', data: { _token: csrf } })
+                    .done(function (data) {
+                        settled.set(id, line(
+                            '<div class="flex items-center gap-3"><span class="text-white/40">✕</span>' +
+                            '<span class="js-line-term font-bold text-white/60"></span><span class="text-sm text-white/40">discarded</span>' +
+                            '<button type="button" class="js-capture-again ml-auto text-sm text-white/60 underline hover:text-white">Capture again</button></div>', term)
+                            .find('.js-capture-again').attr({ 'data-raw-input': $row.attr('data-raw-input'), 'data-context': $row.attr('data-context') }).end());
+                        placeSettled();
+                        setBadge(data.staged_count);
+                    })
+                    .fail(function () {
+                        if (window.toastr) { toastr.error('Could not discard that proposal.'); }
+                    });
             });
 
-            // Discard with an undo window (see `discarding` above).
-            $list.on('click', '.js-discard', function () {
+            $list.on('click', '.js-capture-again', function () {
                 const id = proposalId(this);
+                const $btn = $(this).prop('disabled', true);
 
-                discarding.add(id);
-                $(this).closest('.js-proposal').addClass('hidden');
-                $('.js-staged-count').text(function (i, text) { return Math.max(0, (+text || 0) - 1); });
-
-                const hide = () => discarding.delete(id);
-
-                const timer = setTimeout(function () {
-                    hide();
-                    $.ajax({ url: '/staging/' + id, type: 'DELETE', data: { _token: csrf } })
-                        .done(window.stagingRefresh);
-                }, UNDO_MS);
-
-                if (! window.toastr) { return; }
-
-                // escapeHtml is on globally (see html-layout); this one body is static
-                // markup with nothing user-supplied in it, so it opts out for the link.
-                const $toast = toastr.info('Discarded. <a href="#" class="js-undo font-bold underline">Undo</a>', null, {
-                    timeOut: UNDO_MS,
-                    extendedTimeOut: 0,
-                    escapeHtml: false,
-                });
-
-                $toast.on('click', '.js-undo', function (e) {
-                    e.preventDefault();
-                    clearTimeout(timer);
-                    hide();
-                    toastr.clear($toast);
-                    // Re-render rather than unhiding the row: a poll may have replaced it
-                    // by now, and the one we captured would no longer be in the document.
-                    window.stagingRefresh();
-                });
+                $.post('{{ route('capture') }}', { _token: csrf, capturedWord: $btn.attr('data-raw-input'), context: $btn.attr('data-context') })
+                    .done(function () {
+                        settled.delete(id);
+                        $list.find('.js-proposal[data-proposal-id="' + id + '"]').remove();
+                        window.stagingRefresh();
+                    })
+                    .fail(function (xhr) {
+                        const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not capture it again.';
+                        if (window.toastr) { toastr.error(msg); }
+                        $btn.prop('disabled', false);
+                    });
             });
         });
     </script>

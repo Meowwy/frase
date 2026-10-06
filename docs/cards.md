@@ -256,20 +256,17 @@ Deliberate shapes in the UI (`staging/index.blade.php`):
   controls are live then exist only in PHP (`Proposal::isApprovable()`) and cannot drift out of
   step with the markup. The cost is a re-render on each click, which is invisible next to the
   AI calls this page is otherwise waiting on.
-- **The undo window is the toast's, client-side.** Discard hides the row and only fires the `DELETE`
-  once the toast expires, so "undo" is cancelling a timer. There is no discard history and no
-  tombstone row to clean up — which is exactly what the spec asks for, and why undo is *not* a
-  server-side restore. The consequence is that the proposal is still in every re-render during that
-  window, so the page tracks the ids being discarded and re-hides them after each refresh;
-  otherwise the 2-second poll would resurrect a row the learner has already dismissed. Undo
-  re-renders rather than un-hiding the row it captured, which a poll may since have replaced.
-  Leaving or reloading the page inside the window would strand the timer, so on `pagehide` each
-  pending discard goes out as a `sendBeacon` (a POST with `_method=DELETE`, since a beacon can't
-  send a DELETE) — otherwise a reload straight after Discard brings the proposal back.
-- **Approve stays on staging.** The row collapses to a one-line "approving…" at once, the same as
-  a pending row, then to a link to the new card. The server has deleted the proposal by then, so
-  the page keeps these lines itself and puts them back, in capture order, after every re-render;
-  a reload drops them. The nav badge is decremented on the click, not when CALL 2 returns.
+- **Approve and Discard both stay on staging, as one line.** Approve collapses the row to
+  "approving…" at once, the same as a pending row, then to a link to the new card; the nav badge is
+  decremented on the click, not when CALL 2 returns. Discard sends the `DELETE` at once and
+  collapses the row to "discarded" with **Capture again** — the learner sees what went, where it
+  was, instead of a row vanishing behind a toast. The server has deleted the proposal either way,
+  so the page keeps these lines itself and puts them back, in capture order, after every
+  re-render; a reload drops them.
+- **Capture again is a fresh capture, not a restore.** There is no discard history and no
+  tombstone row: the discarded line carries the proposal's raw input and Context as attributes
+  (not jQuery `.data()`, which each re-render's `.html()` wipes) and posts them to `POST /capture`,
+  so CALL 1 runs again and the new proposal joins the end of the list.
 - **A failed or stalled analysis offers Try again.** `Proposal::hasFailed()` is a `failed` status
   or one that has sat in `pending`/`processing` for over `Proposal::STALLED_AFTER_MINUTES` — a job
   that dies with its worker, or a queue nobody is working, never flips the status itself. A

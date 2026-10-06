@@ -30,7 +30,8 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 - **Approve** writes the card and its words — and only then is the definition, translation and
   example sentence generated, so nothing is spent on a term you throw away. You stay on staging:
   the proposal shrinks to one line, then becomes a link to the new card. **Discard** leaves
-  nothing behind (with a few seconds to undo). A term the AI couldn't read — it failed, or took
+  nothing behind: the proposal shrinks to a "discarded" line with **Capture again**, which captures
+  the same term and context afresh. A term the AI couldn't read — it failed, or took
   more than a few minutes — shows as failed, with **Try again** and a bin to delete it.
 - **Manual capture** (`/add`, no AI): type every field yourself. Useful when you already know
   exactly what you want on the card. It skips staging entirely.

@@ -219,7 +219,7 @@ class ProposalController extends Controller
 
     /**
      * Discard: the proposal is gone. Nothing is kept — no discard history, no draft state.
-     * The undo window is the toast's own, client-side, before this ever fires.
+     * Staging's "Capture again" is a fresh capture of the same input, not a restore.
      */
     public function destroy(Proposal $proposal)
     {

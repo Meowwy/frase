@@ -141,8 +141,9 @@ are different questions, and the already-present group answers the base one.
 cards, and is the point CALL 2 finally runs. The learner stays on staging: the proposal collapses
 to one line at once and, when the card is written, becomes a link to it. It is disabled until the proposal is analysed, a
 language is picked if the language picker was offered, a sense is picked if senses were offered, and the identical-Term rule is satisfied — never by how
-many words it has. **Discard** removes the proposal immediately, with an undo toast for a few
-seconds; once it expires nothing is kept — no discard history, no draft state.
+many words it has. **Discard** removes the proposal immediately and nothing is kept — no discard
+history, no draft state. The row collapses to a one-line *discarded* note with **Capture again**,
+which captures the same raw input and Context afresh, as a new proposal at the end of the list.
 
 ## ORGANIZE
 

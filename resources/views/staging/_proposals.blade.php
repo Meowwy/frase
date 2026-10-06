@@ -10,7 +10,9 @@
         $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
     @endphp
 
-    <div class="rounded-xl border border-white/10 bg-white/5 p-4 js-proposal" data-proposal-id="{{ $proposal->id }}">
+    {{-- The raw input and Context ride along so a discarded row can capture them again. --}}
+    <div class="rounded-xl border border-white/10 bg-white/5 p-4 js-proposal" data-proposal-id="{{ $proposal->id }}"
+         data-raw-input="{{ $proposal->raw_input }}" data-context="{{ $proposal->context }}">
         @if($pending)
             <div class="flex items-center gap-3">
                 <span class="h-4 w-32 animate-pulse rounded bg-white/20"></span>
