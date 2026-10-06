@@ -319,4 +319,28 @@ class WordsAndRefresherTest extends TestCase
         // Coverage: the row carries its cards' Terms for the side panel.
         $response->assertSee('ett stort hus');
     }
+
+    public function test_the_vocabulary_base_live_search_filters_by_word_translation_and_part_of_speech(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->cardWithWords($user, $language, 'ett stort hus', [
+            ['hus', 'noun', ['gender' => 'neuter']],
+            ['stor', 'adjective', []],
+        ]);
+
+        $rows = fn (array $query) => $this->actingAs($user)
+            ->getJson('/base?'.http_build_query($query), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->json('rows');
+
+        $this->assertStringContainsString('ett hus', $rows(['search' => 'hu']));
+        $this->assertStringNotContainsString('adjective', $rows(['search' => 'hu']));
+        $this->assertStringContainsString('adjective', $rows(['translation' => 'en: st']));
+        $this->assertStringNotContainsString('ett hus', $rows(['part_of_speech' => 'adjective']));
+        $this->assertStringContainsString('No words match.', $rows(['search' => 'xyz']));
+
+        // The filter offers only the parts of speech the base has.
+        $this->actingAs($user)->get('/base')
+            ->assertSee('<option value="adjective"', false)
+            ->assertDontSee('<option value="verb"', false);
+    }
 }

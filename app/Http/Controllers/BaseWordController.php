@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BaseWord;
 use App\Models\Learning;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -27,35 +28,71 @@ class BaseWordController extends Controller
      * The vocabulary base, one language at a time, with each entry's coverage — the cards
      * using the word, counted in the table and listed in the side panel. Its second tab is
      * the expression base, laid out the same way.
+     *
+     * Like the /cards list, one endpoint serves both the page and the live search: an AJAX
+     * request gets just the rows and pagination back.
      */
     public function index(Request $request)
     {
         $user = Auth::user();
         $languageId = $this->resolveLanguage($request);
+        $search = trim((string) $request->query('search', ''));
+        $translation = trim((string) $request->query('translation', ''));
         $view = [
             'targetLanguages' => $user->languages()->orderBy('name')->get(),
             'activeLanguageId' => $languageId,
+            'search' => $search,
+            'translation' => $translation,
         ];
 
         if ($request->query('tab') === 'expressions') {
-            return view('base.expressions', $view + [
-                'expressions' => $user->fixedExpressions()
-                    ->with('cards:id,term')
-                    ->when($languageId, fn ($q) => $q->where('language_id', $languageId))
-                    ->orderBy('form')
-                    ->paginate(50)
-                    ->appends($request->query()),
-            ]);
+            $expressions = $user->fixedExpressions()
+                ->with('cards:id,term')
+                ->when($languageId, fn ($q) => $q->where('language_id', $languageId))
+                ->when($search !== '', fn ($q) => $q->where('form', 'like', '%'.$search.'%'))
+                ->when($translation !== '', fn ($q) => $q->where('translation', 'like', '%'.$translation.'%'))
+                ->orderBy('form')
+                ->paginate(50)
+                ->appends($request->query());
+
+            return $this->respond($request, 'base.expressions', 'base._expression-rows', $view + ['expressions' => $expressions], $expressions);
         }
+
+        $partOfSpeech = (string) $request->query('part_of_speech', '');
 
         $baseWords = $user->baseWords()
             ->with(['language', 'cards:id,term'])
             ->when($languageId, fn ($q) => $q->where('language_id', $languageId))
+            ->when($search !== '', fn ($q) => $q->where('lemma', 'like', '%'.$search.'%'))
+            ->when($translation !== '', fn ($q) => $q->where('translation', 'like', '%'.$translation.'%'))
+            ->when($partOfSpeech !== '', fn ($q) => $q->where('part_of_speech', $partOfSpeech))
             ->orderBy('lemma')
             ->paginate(50)
             ->appends($request->query());
 
-        return view('base.index', $view + ['baseWords' => $baseWords]);
+        return $this->respond($request, 'base.index', 'base._word-rows', $view + [
+            'baseWords' => $baseWords,
+            'partOfSpeech' => $partOfSpeech,
+            // The filter offers only the parts of speech this language's base actually has.
+            'partsOfSpeech' => $user->baseWords()
+                ->when($languageId, fn ($q) => $q->where('language_id', $languageId))
+                ->distinct()->orderBy('part_of_speech')->pluck('part_of_speech'),
+        ], $baseWords);
+    }
+
+    /**
+     * The full page, or for the live search just the rows and pagination.
+     */
+    private function respond(Request $request, string $page, string $rows, array $view, LengthAwarePaginator $paginator)
+    {
+        if ($request->ajax()) {
+            return response()->json([
+                'rows' => view($rows, $view)->render(),
+                'pagination' => $paginator->links()->toHtml(),
+            ]);
+        }
+
+        return view($page, $view);
     }
 
     /**

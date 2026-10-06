@@ -7,42 +7,29 @@
                 <table class="min-w-full divide-y divide-gray-700 bg-white/5">
                     <thead>
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Word</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Part of speech</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Translation</th>
+                        @include('base._search-input', ['name' => 'search', 'placeholder' => 'Word', 'value' => $search])
+                        <th class="px-6 py-3 text-left">
+                            <select name="part_of_speech"
+                                    class="js-base-filter w-full border-0 border-b border-white/60 bg-transparent py-1 pl-0 text-xs font-medium text-gray-300 uppercase tracking-wider focus:outline-none focus:ring-0">
+                                <option value="" class="bg-[#111]">Part of speech</option>
+                                @foreach($partsOfSpeech as $option)
+                                    <option value="{{ $option }}" class="bg-[#111]" @selected($partOfSpeech === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                        </th>
+                        @include('base._search-input', ['name' => 'translation', 'placeholder' => 'Translation', 'value' => $translation])
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cards</th>
                     </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-700">
-                    @forelse($baseWords as $baseWord)
-                        <tr class="js-base-row cursor-pointer hover:bg-white/10">
-                            {{-- The display form, not the bare lemma: a Swedish noun's article and a
-                                 Swedish verb's dictionary suffix are part of what the learner is
-                                 expected to learn. --}}
-                            <td class="px-6 py-2 text-sm text-white">
-                                {{ $baseWord->displayForm() }}
-                                @include('base._row-cards', ['title' => $baseWord->displayForm(), 'cards' => $baseWord->cards])
-                            </td>
-                            <td class="px-6 py-2 text-sm text-gray-400">{{ $baseWord->part_of_speech }}</td>
-                            <td class="px-6 py-2 text-sm text-gray-300">{{ $baseWord->translation }}</td>
-                            {{-- Coverage: a word used across many phrases is owned by no single
-                                 card's review, which is half of why the base exists. --}}
-                            <td class="px-6 py-2 text-sm text-gray-400">{{ $baseWord->cards->count() }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="px-6 py-6 text-center text-sm text-gray-400">
-                                No words yet — approve a proposal in staging and its words land here.
-                            </td>
-                        </tr>
-                    @endforelse
+                    <tbody id="baseRows" class="divide-y divide-gray-700">
+                    @include('base._word-rows')
                     </tbody>
                 </table>
             </div>
 
-            <div class="mt-4">{{ $baseWords->links() }}</div>
+            <div id="basePagination" class="mt-4">{{ $baseWords->links() }}</div>
         </div>
 
-        @include('base._panel')
+        @include('base._panel', ['tab' => 'words'])
     </div>
 </x-html-layout>

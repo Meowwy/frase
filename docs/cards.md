@@ -165,6 +165,12 @@ the row (`base/_row-cards`), so a click is a client-side swap with no request
 (`base/_panel`). Last recall is not shown on the page; it is still stamped, and Refresher still
 orders by it.
 
+The column headers are live filters, the same way as on `/cards`: search inputs for the word
+(`search`, on `lemma`) or expression (`search`, on `form`) and for the translation, and on the
+words tab a part-of-speech select offering only the parts of speech that language's base has. An
+AJAX request to `/base` returns just the rows (`base/_word-rows`, `base/_expression-rows`) and the
+pagination, which the panel script swaps in.
+
 ## The lexicon
 
 `lexicon_entries` — a downloaded reference dictionary, global (no `user_id`): `language_code`,

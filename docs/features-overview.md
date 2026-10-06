@@ -63,12 +63,13 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 (*run* the verb and *run* the noun are two different things to know). Each entry shows the word the
 way you are meant to learn it — a Swedish noun with its article, *"ett hus"*, not bare *"hus"*,
 a Swedish verb in dictionary form, *"komm|a -er"* —
-its part of speech, its translation and how many of your cards use it. Click a row and the panel
-on the right lists those cards' terms.
+its part of speech, its translation and how many of your cards use it. Search by word or
+translation as you type, or filter by part of speech. Click a row and the panel on the right lists
+those cards' terms.
 
 An **Expressions** tab lists your **fixed expressions** — multi-word units you learn as a whole,
-like *tycka om* or *either … or …* — the same way: translation, card count, and the cards'
-terms in the side panel. They are picked out of the terms you capture and shown in staging as their
+like *tycka om* or *either … or …* — the same way: translation, card count, search, and the
+cards' terms in the side panel. They are picked out of the terms you capture and shown in staging as their
 own chips (strike one to skip it for that capture); a card's page lists them next to its words.
 
 It is not a second review queue: it has no schedule. Its jobs are to stop the same word being
