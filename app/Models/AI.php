@@ -364,10 +364,10 @@ class AI extends Model
         $isNative = is_null($nativeLanguage);
         $definitionLanguage = self::definitionLanguage($level, $language, $nativeLanguage ?? $language);
 
-        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term — a single word, a phrase or a whole utterance, exactly in the form the learner met it. The Term is already fixed and correctly spelled, so never swap it, never shorten it, never reword it and never reduce it to a base form. Every field is about the WHOLE Term — never about one word inside it.";
+        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term — a single word, a phrase or a whole utterance, exactly in the form the learner met it. The Term is already fixed and correctly spelled, so don't change it. Every field is about the WHOLE Term — never about one word inside it.";
 
         if (! is_null($context)) {
-            $system .= ' The context the learner supplied fixes WHICH sense, domain or situation this card is about, so every field must reflect ONLY that.';
+            $system .= ' The context the learner supplied fixes WHICH sense, domain or situation this card is about, so every field must reflect ONLY that. The context might be in target, native language or in English.';
         }
 
         if ($isNative) {
