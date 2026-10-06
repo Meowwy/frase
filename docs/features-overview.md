@@ -76,7 +76,7 @@ It is not a second review queue: it has no schedule. Its jobs are to stop the sa
 collected twice and to show you which words run through many of your phrases without belonging to
 any one card. See [cards](cards.md) "The vocabulary base".
 
-## Vocabulary list
+## Cards list (nav: "Cards")
 
 `/cards` — every saved term in one searchable, filterable table: filter by language, by wordbox
 (or "general vocabulary" = no wordbox), and search by term or definition text as you type. Each row shows the term, its translation, its definition and

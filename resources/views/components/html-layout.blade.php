@@ -45,7 +45,7 @@
                     Staging
                     <span @class(['js-staged-count ml-1 rounded-full bg-orange-700 px-2 text-xs', 'hidden' => $stagedCount === 0])>{{ $stagedCount }}</span>
                 </a>
-                <a href="/cards" class="hover:text-blue-400 transition-colors">Vocabulary</a>
+                <a href="/cards" class="hover:text-blue-400 transition-colors">Cards</a>
                 <a href="/base" class="hover:text-blue-400 transition-colors">Base</a>
                 <a href="/filterCardsForLearning/due" class="hover:text-blue-400 transition-colors">Learn</a>
                 <a href="/conversation" class="hover:text-blue-400 transition-colors">Conversation</a>
