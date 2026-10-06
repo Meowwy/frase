@@ -60,15 +60,6 @@ class BaseWord extends Model
     }
 
     /**
-     * Stamp a correct recall. This is the only thing a word-level answer outside Words
-     * mode ever does — it schedules nothing and never clears a card.
-     */
-    public function stampRecall(): void
-    {
-        $this->update(['last_recalled_at' => now()]);
-    }
-
-    /**
      * Find or create the base entry for one proposed word. The dedup key is
      * lemma + part of speech, so two proposals for the same word approved in either order
      * both land on one row; `translation`/`grammar_attributes`/`dictionary_form` are only

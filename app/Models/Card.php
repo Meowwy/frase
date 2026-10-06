@@ -47,6 +47,26 @@ class Card extends Model
         return $this->belongsToMany(BaseWord::class, 'card_base_word')->withPivot('surface_form');
     }
 
+    /**
+     * The expression-base entries for the fixed expressions in this card's Term. The pivot
+     * carries the surface form the Term spells each one in.
+     */
+    public function fixedExpressions(): BelongsToMany
+    {
+        return $this->belongsToMany(FixedExpression::class, 'card_fixed_expression')->withPivot('surface_form');
+    }
+
+    /**
+     * Stamp a correct recall of the whole Term on everything it links: producing the Term
+     * is producing its base words and its fixed expressions. Expects both relations to be
+     * loaded, since callers stamp a batch of cards.
+     */
+    public function stampRecall(): void
+    {
+        BaseWord::whereKey($this->baseWords->modelKeys())->update(['last_recalled_at' => now()]);
+        FixedExpression::whereKey($this->fixedExpressions->modelKeys())->update(['last_recalled_at' => now()]);
+    }
+
     public function scopeForLanguage($query, $languageId)
     {
         return $query->where('language_id', $languageId);

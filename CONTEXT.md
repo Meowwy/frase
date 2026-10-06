@@ -109,7 +109,8 @@ _Avoid_: inbox, queue, drafts, pending, review (that belongs to LEARN)
 
 **Proposal**:
 One captured Term awaiting approval in staging, together with everything the AI proposes for it: the
-Term with its typos fixed, its base words and, for an ambiguous lone word, its senses.
+Term with its typos fixed, its base words, its fixed expressions and, for an ambiguous lone word,
+its senses.
 _Avoid_: draft, candidate, suggestion, staged card (it is more than a card)
 
 **Sense picker**:
@@ -211,8 +212,21 @@ for a language with no such rule. It is what the learner is expected to produce,
 the vocabulary base, Words mode and Refresher all show it and never the bare lemma.
 _Avoid_: label, rendered form, surface form (that is the Term's spelling — above)
 
+**Fixed expression**:
+A multi-word unit learnt as a whole because no word in it can be swapped without breaking it or
+changing its meaning — a frame with a gap (*inte bara … utan också*), a fixed unit (*på grund av*)
+or a non-literal particle verb (*tycka om*). Stored in its canonical form, `…` marking a gap.
+Ordinary combinations (*make a decision*, *heavy rain*) are not fixed expressions.
+_Avoid_: idiom, collocation, phrase, expression card (there is only one kind of card)
+
+**Expression base**:
+The learner's inventory of fixed expressions in one language, alongside the vocabulary base. Like
+it, it has no schedule; its entries are linked to the cards whose Terms contain them. *Expression*
+on its own always means this, never a kind of card.
+_Avoid_: phrasebook, idiom list
+
 **Last recall**:
-The datetime a base word was last produced correctly. It is set only on a correct answer, and it
+The datetime a base word or fixed expression was last produced correctly. It is set only on a correct answer, and it
 schedules nothing.
 _Avoid_: last studied, last seen, reviewed at, due date
 

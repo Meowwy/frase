@@ -73,6 +73,11 @@
                     .done(window.stagingRefresh);
             });
 
+            $list.on('click', '.js-strike-expression', function () {
+                post(this, '/expressions/' + $(this).data('expression-id') + '/strike', { struck: $(this).data('struck') })
+                    .done(window.stagingRefresh);
+            });
+
             // An already-present chip expands to the cards that word is used in.
             $list.on('click', '.js-chip-body', function () {
                 $(this).closest('.js-chip-wrap').find('.js-chip-detail').toggleClass('hidden');

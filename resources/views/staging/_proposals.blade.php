@@ -124,6 +124,34 @@
                 </div>
             @endif
 
+            {{-- Fixed expressions, learnt as wholes. A new one is struck for this proposal
+                 only; one already in the expression base has nothing to decide and is linked. --}}
+            @if($proposal->fixedExpressions->isNotEmpty())
+                <div class="mt-3 flex flex-wrap gap-2">
+                    @foreach($proposal->fixedExpressions as $expression)
+                        @if($expressionsInBase->has($proposal->expressionKeyFor($expression)))
+                            <span class="rounded-lg border border-white/5 px-2 py-0.5 text-xs text-white/50">
+                                {{ $expression->form }}
+                                <span class="text-orange-400">already in expression base</span>
+                            </span>
+                        @else
+                            <span @class([
+                                'inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm',
+                                'border-blue-500/30 bg-blue-500/10' => ! $expression->struck,
+                                'border-white/5 text-white/30 line-through' => $expression->struck,
+                            ])>
+                                <span>
+                                    {{ $expression->form }}
+                                    <span class="text-xs text-white/40">expression</span>
+                                </span>
+                                <button type="button" class="js-strike-expression text-white/50 hover:text-white"
+                                        data-expression-id="{{ $expression->id }}" data-struck="{{ $expression->struck ? 0 : 1 }}">{{ $expression->struck ? '＋' : '✕' }}</button>
+                            </span>
+                        @endif
+                    @endforeach
+                </div>
+            @endif
+
             <div class="mt-4 flex items-center gap-2">
                 @if($duplicate)
                     <x-forms.button class="js-regenerate" data-card-id="{{ $duplicate->id }}">Regenerate that card</x-forms.button>

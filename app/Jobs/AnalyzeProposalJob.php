@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Resolves CALL 1 against a freshly captured proposal: language detection, the Term with
- * its typos fixed, the candidate base words and, for an ambiguous lone word, its senses.
+ * its typos fixed, the candidate base words and fixed expressions and, for an ambiguous lone
+ * word, its senses.
  *
  * Capture writes the proposal row and returns immediately, so this runs on the queue and
  * the staging list resolves its skeleton row once the status flips to `completed` (the
@@ -77,6 +78,7 @@ class AnalyzeProposalJob implements ShouldQueue
                 $language,
                 $user->levelForLanguage($language),
             );
+            $this->storeFixedExpressions((array) ($analysis['fixed_expressions'] ?? []));
         } catch (\Throwable $e) {
             Log::error('Proposal analysis failed for proposal '.$this->proposal->id.': '.$e->getMessage());
             $this->proposal->update(['status' => Proposal::STATUS_FAILED]);
@@ -146,6 +148,31 @@ class AnalyzeProposalJob implements ShouldQueue
 
         foreach ($this->applyProficiencyFilter($clean, $level) as $candidate) {
             $this->proposal->baseWords()->create($candidate);
+        }
+    }
+
+    /**
+     * Write the fixed-expression chips: at most 3, one per form. Whether each is already in
+     * the expression base is decided live at render, like the words' groups.
+     */
+    private function storeFixedExpressions(array $expressions): void
+    {
+        $clean = [];
+
+        foreach ($expressions as $expression) {
+            $form = trim((string) ($expression['form'] ?? ''));
+
+            if ($form !== '') {
+                $clean[mb_strtolower($form)] ??= [
+                    'form' => $form,
+                    'surface_form' => trim((string) ($expression['surface_form'] ?? '')) ?: $form,
+                    'translation' => trim((string) ($expression['translation'] ?? '')),
+                ];
+            }
+        }
+
+        foreach (array_slice($clean, 0, 3) as $expression) {
+            $this->proposal->fixedExpressions()->create($expression);
         }
     }
 

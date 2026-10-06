@@ -71,9 +71,9 @@
             </div>
         </div>
 
-        <!-- Which of the Term's words are in the vocabulary base. Not a review list: the
-             base carries no schedule, only coverage. -->
-        @if($card->baseWords->isNotEmpty())
+        <!-- Which of the Term's words are in the vocabulary base, and its fixed expressions.
+             Not a review list: neither base carries a schedule, only coverage. -->
+        @if($card->baseWords->isNotEmpty() || $card->fixedExpressions->isNotEmpty())
             <div class="mb-6 flex flex-wrap items-center gap-2">
                 <span class="text-xs uppercase tracking-wider text-white/40">base words</span>
                 @foreach($card->baseWords as $baseWord)
@@ -81,6 +81,13 @@
                        class="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm hover:bg-white/10 transition-colors">
                         {{ $baseWord->displayForm() }}
                         <span class="ml-1 text-xs text-white/40">{{ $baseWord->part_of_speech }}</span>
+                    </a>
+                @endforeach
+                @foreach($card->fixedExpressions as $expression)
+                    <a href="{{ route('base', ['language_id' => $card->language_id, 'tab' => 'expressions']) }}"
+                       class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-sm hover:bg-blue-500/20 transition-colors">
+                        {{ $expression->form }}
+                        <span class="ml-1 text-xs text-white/40">expression</span>
                     </a>
                 @endforeach
             </div>

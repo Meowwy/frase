@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\BaseWord;
 use App\Models\Card;
+use App\Models\FixedExpression;
+use App\Models\Language;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -42,6 +45,24 @@ class SaveLearningTest extends TestCase
         $response->assertRedirect('/completeLearning');
         $card->refresh();
         $this->assertSame(2, $card->level);
+    }
+
+    public function test_a_correct_review_stamps_the_cards_base_words_and_fixed_expressions(): void
+    {
+        $owner = User::factory()->create();
+        $language = Language::firstOrCreate(['code' => 'sv'], ['name' => 'Swedish', 'native_name' => 'Svenska', 'flag' => '🇸🇪']);
+        $card = Card::factory()->create(['user_id' => $owner->id, 'language_id' => $language->id, 'level' => 1, 'next_study_at' => now()]);
+        $baseWord = BaseWord::create(['user_id' => $owner->id, 'language_id' => $card->language_id, 'lemma' => 'tycka', 'part_of_speech' => 'verb', 'translation' => 'to think']);
+        $expression = FixedExpression::create(['user_id' => $owner->id, 'language_id' => $card->language_id, 'form' => 'tycka om', 'translation' => 'to like']);
+        $card->baseWords()->attach($baseWord->id, ['surface_form' => 'tycker']);
+        $card->fixedExpressions()->attach($expression->id, ['surface_form' => 'tycker om']);
+
+        $this->actingAs($owner)->post('/saveLearning', [
+            'results' => json_encode([['id' => $card->id, 'result' => 1]]),
+        ]);
+
+        $this->assertNotNull($baseWord->fresh()->last_recalled_at);
+        $this->assertNotNull($expression->fresh()->last_recalled_at);
     }
 
     public function test_it_resets_the_level_on_a_wrong_review(): void

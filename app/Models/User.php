@@ -76,6 +76,14 @@ class User extends Authenticatable
         return $this->hasMany(BaseWord::class);
     }
 
+    /**
+     * The user's expression base across every language: their fixed expressions.
+     */
+    public function fixedExpressions()
+    {
+        return $this->hasMany(FixedExpression::class);
+    }
+
     public function wordboxes()
     {
         return $this->hasMany(Wordbox::class);

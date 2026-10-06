@@ -79,8 +79,9 @@ exactly those three, so "never revised" is a property of the write rather than a
 to remember. 
 
 **`BaseWord::displayForm()`** renders the lemma the way the learner is expected to learn it
-(*"ett hus"*, *"komm|a -er"*), reading the language's guideline; **`BaseWord::stampRecall()`** is the only thing a
-word-level answer ever does to it.
+(*"ett hus"*, *"komm|a -er"*), reading the language's guideline. A correct whole-Term answer
+stamps `last_recalled_at` through **`Card::stampRecall()`** (its base words and fixed expressions
+together); a correct word-level answer stamps that one word.
 
 `card_base_word` — the pivot linking a card to the base entries for its Term's words:
 
@@ -127,6 +128,29 @@ query storm that never ends.
   why it is a PHP filter after the call rather than an instruction inside it.
   It **always applies**, even when it leaves the tray empty (`in spite of` at C1): with no
   cardinality rule, an empty tray is still approvable.
+
+## The expression base
+
+`fixed_expressions` — the learner's **fixed expressions**, per language: multi-word units that pass
+the **swap test** (no word can be swapped without breaking the unit or changing its meaning) —
+frames with a gap (*inte bara … utan också*), fixed units (*på grund av*) and non-literal particle
+verbs (*tycka om*). Ordinary combinations (*make a decision*) are not fixed expressions. They live
+beside the vocabulary base rather than inside it because they are learnt as wholes: CALL 1 leaves out
+any word that occurs in the Term only inside one, so *tycka om* is never split into *tycka* + *om*.
+
+| Column | Notes |
+|---|---|
+| `user_id`, `language_id` | owner + language |
+| `form` | canonical form (base form of each word, `…` for a gap). `NOCASE` collation, so the unique key `(user_id, language_id, form)` and every lookup are case-insensitive |
+| `translation` | set once at creation from CALL 1, never revised — mirrors base words |
+| `last_recalled_at` | nullable, stamped by `Card::stampRecall()` when a card linking it is cleared |
+
+`card_fixed_expression` — the pivot, carrying the `surface_form` the Term spells it in (*tycker om*);
+unique on `(card_id, fixed_expression_id)`.
+
+There is no practice surface for fixed expressions: they don't enter Words mode, Refresher or
+Gap-fill. They are shown on the card detail page and on the **Expressions** tab of `/base`
+(`/base?tab=expressions`: form, translation, last recall, and the cards using each one).
 
 ## The lexicon
 
@@ -195,9 +219,17 @@ each row's group is derived live (above).
 `lemma`, `part_of_speech`, unique on all four. Striking a new chip inserts a row; un-knowing deletes
 it.
 
+`proposal_fixed_expressions` — the fixed-expression chips, at most 3 per proposal: `form`,
+`surface_form`, `translation`, `struck`. Striking one is **per proposal** — unlike a word, a fixed
+expression is never remembered as known. Each chip is either **already present** (matches
+`fixed_expressions` on form, case-insensitively, via `Proposal::expressionPresenceIndex()` — one
+query per list: shown aside, not strikeable, linked) or **new** (strikeable; created unless struck).
+
 **`Proposal::approve()`** resolves the `base_words` rows for every candidate that isn't known
-(reusing an existing one per the check above), writes the card and its `card_base_word` links, deletes the
-proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
+(reusing an existing one per the check above) and first-or-creates the `fixed_expressions` row for
+every fixed expression that isn't struck (an already-present one is linked even if it was struck
+before it entered the base), writes the card and its `card_base_word` / `card_fixed_expression`
+links, deletes the proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
 proposal exactly as it was in staging rather than a half-written card.
 
 ### Endpoints (`ProposalController`, `ProposalPolicy` for ownership)
@@ -208,6 +240,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `GET /staging` | the feed: every proposal, newest first, across every language |
 | `GET /staging/list` | the same list as `{rows, count, pending}` JSON, rendered from `staging/_proposals.blade.php` |
 | `POST /staging/{proposal}/words/{word}/known` | `known=1` strikes a new chip (inserts its `known_words` row), `known=0` un-knows it |
+| `POST /staging/{proposal}/expressions/{expression}/strike` | `struck=1` / `struck=0` on one fixed-expression chip |
 | `POST /staging/{proposal}/language` | correct the detected language — see below |
 | `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
 | `POST /staging/{proposal}/approve` | `409` with the existing card's id on a duplicate Term, `422` when the proposal isn't approvable yet, else the new card's URL |
@@ -231,7 +264,8 @@ Two deliberate shapes in the UI (`staging/index.blade.php`):
 
 **Correcting the language or editing the Context re-runs CALL 1** (`Proposal::reanalyze()`) rather
 than patching the row: the candidate words were extracted, translated and tagged for the old
-language and sense, so they cannot be carried over. It deletes the chips, clears `senses`, writes the
+language and sense, so they cannot be carried over. It deletes the word and fixed-expression chips,
+clears `senses`, writes the
 new value, flips the status back to `pending` and re-dispatches. `AnalyzeProposalJob` reads a
 pre-set `language_id` as "pinned" and offers the model only that one language, so the re-run can't
 drift back to its original guess.

@@ -1,0 +1,41 @@
+{{-- Shared by both /base tabs: title, Refresher, the tab switch and the language filter. --}}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Vocabulary base</h1>
+        <p class="text-sm text-white/50">
+            The words you are learning in this language, one entry per lemma and part of
+            speech, and the fixed expressions you learn as wholes. Neither carries a review
+            schedule — that lives on your cards.
+        </p>
+    </div>
+    <a href="{{ route('refresher', ['language_id' => $activeLanguageId]) }}">
+        <x-forms.button>Refresher</x-forms.button>
+    </a>
+</div>
+
+{{-- The two bases: words, and fixed expressions learnt as wholes. --}}
+<div class="mb-4 flex gap-4 border-b border-white/10 text-sm">
+    @foreach(['words' => 'Words', 'expressions' => 'Expressions'] as $key => $label)
+        <a href="{{ route('base', ['language_id' => $activeLanguageId, 'tab' => $key]) }}"
+           @class([
+               'pb-2 -mb-px border-b-2',
+               'border-blue-500 text-white' => $tab === $key,
+               'border-transparent text-white/50 hover:text-white' => $tab !== $key,
+           ])>{{ $label }}</a>
+    @endforeach
+</div>
+
+@if($targetLanguages->count() > 1)
+    <div class="mb-4 flex flex-wrap gap-2">
+        @foreach($targetLanguages as $language)
+            <a href="{{ route('base', ['language_id' => $language->id, 'tab' => $tab]) }}"
+               @class([
+                   'rounded-lg border border-white/10 px-3 py-1 text-sm transition-colors',
+                   'bg-blue-600/30 ring-1 ring-blue-500' => (int) $activeLanguageId === $language->id,
+                   'bg-white/5 hover:bg-white/10' => (int) $activeLanguageId !== $language->id,
+               ])>
+                {{ $language->flag }} {{ $language->name }}
+            </a>
+        @endforeach
+    </div>
+@endif

@@ -6,6 +6,7 @@ use App\Jobs\AnalyzeProposalJob;
 use App\Models\KnownWord;
 use App\Models\Proposal;
 use App\Models\ProposalBaseWord;
+use App\Models\ProposalFixedExpression;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Auth;
  *
  * Capture writes a proposal and returns immediately — no card, no language picker, no
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
- * with: striking a candidate word as known, correcting a wrong language detection, editing
+ * with: striking a candidate word as known or a fixed expression, correcting a wrong language detection, editing
  * the Context (or picking a sense, which is the same thing), and finally
  * approving (which writes the card and runs CALL 2) or discarding.
  *
@@ -107,6 +108,20 @@ class ProposalController extends Controller
     }
 
     /**
+     * Strike (or un-strike) one fixed expression so it isn't saved. Unlike a word this is
+     * per proposal: a struck fixed expression is never remembered as known.
+     */
+    public function strikeExpression(Request $request, Proposal $proposal, ProposalFixedExpression $expression)
+    {
+        $this->authorize('update', $proposal);
+        abort_unless($expression->proposal_id === $proposal->id, 404);
+
+        $expression->update(['struck' => $request->boolean('struck')]);
+
+        return response()->noContent();
+    }
+
+    /**
      * Correct a wrong language detection. The candidate words were extracted (and
      * translated, and tagged) for the language CALL 1 guessed, so they can't simply be
      * re-pointed: the proposal goes back through CALL 1, this time pinned to the language
@@ -188,7 +203,7 @@ class ProposalController extends Controller
     private function listData(): array
     {
         $user = Auth::user();
-        $proposals = $user->proposals()->with(['baseWords', 'language'])->latest('id')->get();
+        $proposals = $user->proposals()->with(['baseWords', 'fixedExpressions', 'language'])->latest('id')->get();
 
         return [
             'proposals' => $proposals,
@@ -197,6 +212,7 @@ class ProposalController extends Controller
             // Proposal::presenceIndex() for why that matters on a polled endpoint.
             'alreadyInBase' => Proposal::presenceIndex($proposals),
             'knownWords' => Proposal::knownIndex($proposals),
+            'expressionsInBase' => Proposal::expressionPresenceIndex($proposals),
         ];
     }
 }

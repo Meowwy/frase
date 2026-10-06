@@ -55,6 +55,11 @@ way you are meant to learn it — a Swedish noun with its article, *"ett hus"*, 
 a Swedish verb in dictionary form, *"komm|a -er"* —
 its part of speech, its translation, how many of your cards use it, and when you last recalled it.
 
+An **Expressions** tab lists your **fixed expressions** — multi-word units you learn as a whole,
+like *tycka om* or *inte bara … utan också* — with their translation, the cards using them, and when
+you last recalled them. They are picked out of the terms you capture and shown in staging as their
+own chips (strike one to skip it for that capture); a card's page lists them next to its words.
+
 It is not a second review queue: it has no schedule. Its jobs are to stop the same word being
 collected twice and to show you which words run through many of your phrases without belonging to
 any one card. See [cards](cards.md) "The vocabulary base".

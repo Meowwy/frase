@@ -138,7 +138,7 @@ class CardController extends Controller
             ->orderBy('term')
             ->get(['cards.id', 'term', 'translation']);
 
-        $card->load(['language', 'baseWords']);
+        $card->load(['language', 'baseWords', 'fixedExpressions']);
         $wordbox = $card->wordbox()->first();
 
         // Neighbours for the prev/next arrows: the user's other cards in this card's

@@ -89,6 +89,7 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   language,                                  // one of the candidate language NAMES
   term,
   senses: [{part_of_speech, gloss, translation}, ...],
+  fixed_expressions: [{form, surface_form, translation}, ...],
   base_words: [{lemma, part_of_speech, surface_form, translation, <attributes…>}, ...],
 }
 ```
@@ -101,12 +102,20 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   more common senses (*run* the verb or noun, *bank* money or riverside): then at most 4, gloss and
   translation in the native language. They feed staging's sense picker (see [cards](cards.md)
   "Staging"); it sits before `base_words` so the model has settled the ambiguity before extracting.
+- **`fixed_expressions`**: at most 3, from the Term only. The prompt carries the **swap test** (a
+  multi-word unit in which no word can be swapped without breaking it or changing its meaning),
+  names the three kinds it covers (gapped frames, fixed units, non-literal particle verbs) and
+  explicitly excludes ordinary combinations (*make a decision*, *heavy rain*), which models
+  otherwise over-report. A Term that is itself a fixed expression is listed too. `form` is
+  canonical (`…` for a gap) so the same expression matches across cards. It sits before
+  `base_words` because of the next rule.
 - **`base_words`** are the Term's words, each reduced to its **lemma**, tagged with its
   **part of speech** (an `enum` over `LanguageGuideline::PARTS_OF_SPEECH`), with the surface form
   the Term actually spells it in and a native translation — the translation is decided here, not
   deferred to CALL 2 (see [cards](cards.md) "The vocabulary base"). The prompt is explicit that
   words come from the `term` field **only**, never from the Context, which is what keeps
-  `collateral damage` from putting *damage* in the base, and that an **article** is never listed,
+  `collateral damage` from putting *damage* in the base; that a word occurring only inside one of
+  the `fixed_expressions` is skipped (*tycka om* is learnt whole); and that an **article** is never listed,
   at any level (an article is never worth a vocabulary entry, so there is nothing for PHP to
   decide). Everything level- or learner-dependent — the B1+ function-word filter, known words,
   already-present words — is deterministic PHP after the call instead (see [cards](cards.md)).

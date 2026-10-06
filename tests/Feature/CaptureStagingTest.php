@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\AnalyzeProposalJob;
 use App\Models\BaseWord;
 use App\Models\Card;
+use App\Models\FixedExpression;
 use App\Models\KnownWord;
 use App\Models\Language;
 use App\Models\LexiconEntry;
@@ -495,6 +496,75 @@ class CaptureStagingTest extends TestCase
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'lag', 'context' => 'fotboll']);
 
         $this->assertNull($user->proposals()->sole()->senses);
+    }
+
+    public function test_fixed_expressions_are_staged_and_linked_on_approval(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->analysis([
+            'term' => 'jag tycker om dig',
+            'fixed_expressions' => [
+                ['form' => 'tycka om', 'surface_form' => 'tycker om', 'translation' => 'to like'],
+                // A repeat of the same form, differently cased, is one chip.
+                ['form' => 'Tycka om', 'surface_form' => 'tycker om', 'translation' => 'to like'],
+            ],
+            'base_words' => [],
+        ]), $this->cardContent());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'jag tycker om dig']);
+        $proposal = $user->proposals()->sole();
+
+        $this->assertSame(['tycka om'], $proposal->fixedExpressions->pluck('form')->all());
+        $this->assertStringContainsString('js-strike-expression', $this->actingAs($user)->getJson('/staging/list')->json('rows'));
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $expression = Card::sole()->fixedExpressions->sole();
+        $this->assertSame('tycka om', $expression->form);
+        $this->assertSame('to like', $expression->translation);
+        $this->assertSame('tycker om', $expression->pivot->surface_form);
+    }
+
+    public function test_a_struck_fixed_expression_is_not_saved(): void
+    {
+        [$user, $language] = $this->learner();
+        Queue::fake();
+        $proposal = $this->completedProposal($user, $language);
+        $expression = $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'surface_form' => 'hur mycket', 'translation' => 'how much']);
+
+        $this->actingAs($user)
+            ->postJson("/staging/{$proposal->id}/expressions/{$expression->id}/strike", ['struck' => 1])
+            ->assertNoContent();
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertSame(0, FixedExpression::count());
+        $this->assertCount(0, Card::sole()->fixedExpressions);
+    }
+
+    /**
+     * Deduplicated against the expression base case-insensitively: shown aside with no
+     * strike control, reused (its translation stands) and linked.
+     */
+    public function test_a_fixed_expression_already_in_the_expression_base_is_shown_aside_and_reused(): void
+    {
+        [$user, $language] = $this->learner();
+        Queue::fake();
+        $existing = FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'Hur mycket', 'translation' => 'ALREADY THERE']);
+        $proposal = $this->completedProposal($user, $language);
+        $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'surface_form' => 'hur mycket', 'translation' => 'how much']);
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('already in expression base', $rows);
+        $this->assertStringNotContainsString('js-strike-expression', $rows);
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertSame(1, FixedExpression::count());
+        $this->assertSame('ALREADY THERE', $existing->fresh()->translation);
+        $this->assertTrue(Card::sole()->fixedExpressions->contains($existing));
     }
 
     public function test_discarding_leaves_nothing_behind(): void

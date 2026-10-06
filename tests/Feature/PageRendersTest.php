@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\BaseWord;
 use App\Models\Card;
+use App\Models\FixedExpression;
 use App\Models\Language;
 use App\Models\Proposal;
 use App\Models\User;
@@ -68,6 +69,21 @@ class PageRendersTest extends TestCase
         $response->assertSee('ett hus');
 
         $this->actingAs($this->user)->get('/cards/edit/'.$card->id)->assertStatus(200);
+    }
+
+    public function test_the_expression_base_tab_and_card_detail_show_fixed_expressions(): void
+    {
+        $card = Card::factory()->create(['user_id' => $this->user->id, 'language_id' => $this->language->id, 'term' => 'jag tycker om dig']);
+        $expression = FixedExpression::create(['user_id' => $this->user->id, 'language_id' => $this->language->id, 'form' => 'tycka om', 'translation' => 'to like']);
+        $card->fixedExpressions()->attach($expression->id, ['surface_form' => 'tycker om']);
+
+        $this->actingAs($this->user)->get('/base?tab=expressions')
+            ->assertStatus(200)
+            ->assertSee('tycka om')
+            ->assertSee('to like')
+            ->assertSee('jag tycker om dig');
+
+        $this->actingAs($this->user)->get('/cards/'.$card->id)->assertSee('tycka om');
     }
 
     public function test_staging_renders_a_skeleton_for_a_proposal_call_one_has_not_reached_yet(): void

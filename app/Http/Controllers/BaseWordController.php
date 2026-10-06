@@ -25,12 +25,28 @@ class BaseWordController extends Controller
 
     /**
      * The vocabulary base, one language at a time, with each entry's coverage — how many
-     * cards use the word — and when it was last recalled.
+     * cards use the word — and when it was last recalled. Its second tab is the expression
+     * base: each fixed expression with the cards using it.
      */
     public function index(Request $request)
     {
         $user = Auth::user();
         $languageId = $this->resolveLanguage($request);
+        $view = [
+            'targetLanguages' => $user->languages()->orderBy('name')->get(),
+            'activeLanguageId' => $languageId,
+        ];
+
+        if ($request->query('tab') === 'expressions') {
+            return view('base.expressions', $view + [
+                'expressions' => $user->fixedExpressions()
+                    ->with('cards:id,term')
+                    ->when($languageId, fn ($q) => $q->where('language_id', $languageId))
+                    ->orderBy('form')
+                    ->paginate(50)
+                    ->appends($request->query()),
+            ]);
+        }
 
         $baseWords = $user->baseWords()
             ->with('language')
@@ -40,11 +56,7 @@ class BaseWordController extends Controller
             ->paginate(50)
             ->appends($request->query());
 
-        return view('base.index', [
-            'baseWords' => $baseWords,
-            'targetLanguages' => $user->languages()->orderBy('name')->get(),
-            'activeLanguageId' => $languageId,
-        ]);
+        return view('base.index', $view + ['baseWords' => $baseWords]);
     }
 
     /**

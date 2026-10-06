@@ -176,7 +176,8 @@ class AI extends Model
      * for its own language (see App\Support\LanguageGuideline).
      *
      * Returns ['language' => string, 'term' => string, 'senses' => [['part_of_speech',
-     * 'gloss', 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech',
+     * 'gloss', 'translation'], ...], 'fixed_expressions' => [['form', 'surface_form',
+     * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech',
      * 'surface_form', 'translation', <attributes>], ...]] or null on failure.
      *
      * @param  array<int, array{code:string, name:string}>  $candidateLanguages
@@ -244,9 +245,23 @@ class AI extends Model
                         'additionalProperties' => false,
                     ],
                 ],
+                'fixed_expressions' => [
+                    'type' => 'array',
+                    'description' => 'The fixed expressions in the Term, at most 3, taken ONLY from the term field — never from the context. A fixed expression is a multi-word unit that passes the swap test: no word in it can be swapped for another without breaking it or changing its meaning. That includes frames with a gap ("inte bara … utan också", "not only … but also"), fixed units ("på grund av", "in spite of") and particle verbs whose meaning is not the sum of their words ("tycka om", "give up"). Ordinary combinations whose words can be swapped freely ("make a decision", "heavy rain") are NOT fixed expressions. If the whole Term is itself a fixed expression, list it. Usually this is empty.',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'form' => ['type' => 'string', 'description' => 'The canonical dictionary form: base form of each word, "…" marking a gap ("tycka om", not "tycker om").'],
+                            'surface_form' => ['type' => 'string', 'description' => 'How the Term actually spells it.'],
+                            'translation' => ['type' => 'string', 'description' => 'A natural translation of the canonical form into the native language.'],
+                        ],
+                        'required' => ['form', 'surface_form', 'translation'],
+                        'additionalProperties' => false,
+                    ],
+                ],
                 'base_words' => [
                     'type' => 'array',
-                    'description' => 'The Term\'s own words, one entry each, in the order the Term spells them. Take words ONLY from the term field above — never from the context. Skip a word that repeats one already listed. Never list an article (definite or indefinite, e.g. "the", "a", "an", "en", "ett", "der", "le").',
+                    'description' => 'The Term\'s own words, one entry each, in the order the Term spells them. Take words ONLY from the term field above — never from the context. Skip a word that repeats one already listed. Skip a word that occurs in the Term only inside one of the fixed_expressions above — it is learnt as part of that whole. Never list an article (definite or indefinite, e.g. "the", "a", "an", "en", "ett", "der", "le").',
                     'items' => [
                         'type' => 'object',
                         'properties' => $baseWordProperties,

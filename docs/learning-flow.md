@@ -96,8 +96,8 @@ to `learning/index.blade.php`, which drives the whole session **client-side** �
 during review.
 
 A correct answer in any of these four modes clears the card (SRS level/`next_study_at` advance —
-see "SRS algorithm" below) and stamps last-recall on **every** base word linked to it — producing
-the Term is producing all of its words. Conversation mode's clearing/stamping is the same; see
+see "SRS algorithm" below) and stamps last-recall on **every** base word and fixed expression
+linked to it (`Card::stampRecall()`) — producing the Term is producing all of them. Conversation mode's clearing/stamping is the same; see
 "Conversation mode" below.
 
 `mode === 'conversation'` **short-circuits** this whole flow — see "Conversation mode" below.
@@ -186,7 +186,8 @@ input.
 `POST /saveLearning` takes two parallel JSON arrays, both of `{id, result}`:
 
 - **`results`** — per **card**. Besides the schedule, a correct result stamps `last_recalled_at` on
-  every base word linked to that card: producing the Term is producing all of its words.
+  every base word and fixed expression linked to that card (`Card::stampRecall()`) — this covers
+  Words-mode card clears too, which arrive here as card results.
 - **`words`** — per **base word**, which Words mode and Refresher send. A correct answer stamps that
   word's own last recall; nothing here touches a card's schedule, because whether the card cleared
   is already decided in `results`. The update is scoped through `Auth::user()->baseWords()`, so an
