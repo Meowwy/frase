@@ -107,11 +107,17 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   more common senses (*run* the verb or noun, *bank* money or riverside): then at most 4, gloss and
   translation in the native language. They feed staging's sense picker (see [cards](cards.md)
   "Staging"); it sits before `base_words` so the model has settled the ambiguity before extracting.
-- **`fixed_expressions`**: at most 3, from the Term only. The prompt carries the **swap test** (a
-  multi-word unit in which no word can be swapped without breaking it or changing its meaning),
-  names the three kinds it covers (gapped frames, fixed units, non-literal particle verbs) and
-  explicitly excludes ordinary combinations (*make a decision*, *heavy rain*), which models
-  otherwise over-report. A Term that is itself a fixed expression is listed too. `form` is
+- **`fixed_expressions`**: at most 3, from the Term only. The prompt allows **exactly two kinds**:
+  a unit with a meaning of its own that its words don't add up to (phrasal/particle verbs such as
+  *make up*, *take off*, *tycka om*; idioms; fixed units such as *på grund av*), and a grammatical
+  frame used in a set shape with gaps (*either … or …*, *inte bara … utan också*). It then names
+  what is **not** one, because models over-report: ordinary combinations (*make a decision*, *heavy
+  rain*), literal verb + particle pairs (*titta på*), and **reflexive verbs** (*lära sig*). The last
+  is a failure, not a guess: an earlier prompt stated the rule as a bare *swap test* ("no word can
+  be swapped without breaking it"), and the model flagged *lära sig*, reading *sig* as unswappable —
+  yet the pattern is open (*vrida sig*, *tvätta sig*) and the meaning follows the verb. The test is
+  now phrased the other way round: if a word can be swapped for another of its kind and the meaning
+  simply follows, it is not a fixed expression. A Term that is itself a fixed expression is listed too. `form` is
   canonical (`…` for a gap) so the same expression matches across cards. It sits before
   `base_words` because of the next rule.
 - **`base_words`** are the Term's words, each reduced to its **lemma**, tagged with its

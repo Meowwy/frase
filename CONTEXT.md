@@ -236,10 +236,13 @@ the vocabulary base, Words mode and Refresher all show it and never the bare lem
 _Avoid_: label, rendered form, surface form (that is the Term's spelling — above)
 
 **Fixed expression**:
-A multi-word unit learnt as a whole because no word in it can be swapped without breaking it or
-changing its meaning — a frame with a gap (*inte bara … utan också*), a fixed unit (*på grund av*)
-or a non-literal particle verb (*tycka om*). Stored in its canonical form, `…` marking a gap.
-Ordinary combinations (*make a decision*, *heavy rain*) are not fixed expressions.
+A multi-word unit learnt as a whole, of exactly two kinds: one with a **meaning of its own** that
+its words don't add up to — a phrasal or particle verb (*make up* to invent, *take off*, *tycka
+om*), an idiom or a fixed unit (*på grund av*) — or a **grammatical frame** used in a set shape with
+gaps (*either … or …*, *inte bara … utan också*). Stored in its canonical form, `…` marking a gap.
+A pattern whose words swap freely for others of their kind is not one: a reflexive verb (*lära sig*,
+like *vrida sig*), a verb + particle that keeps its literal meaning, an ordinary combination (*make
+a decision*).
 _Avoid_: idiom, collocation, phrase
 
 **Expression base**:

@@ -32,9 +32,10 @@ At capture, CALL 1:
   of speech carry (see "Part of speech and grammatical attributes" below). Articles are never
   extracted, nor is a word that occurs in the Term only inside one of its fixed expressions —
   *tycka om* is learnt as a whole, not as *tycka* + *om*;
-- extracts up to three **fixed expressions** from the Term — multi-word units in which no word can
-  be swapped without breaking it or changing its meaning: a frame with a gap (*inte bara … utan
-  också*), a fixed unit (*på grund av*) or a non-literal particle verb (*tycka om*). Ordinary
+- extracts up to three **fixed expressions** from the Term, of exactly two kinds: a unit with a
+  meaning of its own that its words don't add up to (*make up* to invent, *take off*, *tycka om*,
+  *på grund av*), or a grammatical frame used in a set shape with gaps (*either … or …*, *inte bara
+  … utan också*). Reflexive verbs (*lära sig*), literal verb + particle pairs and ordinary
   combinations (*make a decision*, *heavy rain*) are not fixed expressions. Each comes in its
   canonical form, `…` marking a gap. A Term that is itself a fixed expression is returned as one;
 - for a single-word Term captured **without a Context** that has two or more common senses

@@ -131,10 +131,12 @@ query storm that never ends.
 
 ## The expression base
 
-`fixed_expressions` — the learner's **fixed expressions**, per language: multi-word units that pass
-the **swap test** (no word can be swapped without breaking the unit or changing its meaning) —
-frames with a gap (*inte bara … utan också*), fixed units (*på grund av*) and non-literal particle
-verbs (*tycka om*). Ordinary combinations (*make a decision*) are not fixed expressions. They live
+`fixed_expressions` — the learner's **fixed expressions**, per language, of exactly two kinds:
+units with a meaning of their own that their words don't add up to (phrasal and particle verbs like
+*make up*, *take off*, *tycka om*; idioms; fixed units like *på grund av*) and grammatical frames
+used in a set shape with gaps (*either … or …*, *inte bara … utan också*). Reflexive verbs (*lära
+sig*), literal verb + particle pairs and ordinary combinations (*make a decision*) are not — see
+[ai-integration](ai-integration.md) for why the prompt names them. They live
 beside the vocabulary base rather than inside it because they are learnt as wholes: CALL 1 leaves out
 any word that occurs in the Term only inside one, so *tycka om* is never split into *tycka* + *om*.
 
