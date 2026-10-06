@@ -82,22 +82,6 @@
                 post(this, '/language', { language_id: $(this).val() }).done(window.stagingRefresh);
             });
 
-            $list.on('click', '.js-anchor-save', function () {
-                const anchor = $(this).closest('.js-anchor').find('.js-anchor-input').val();
-                post(this, '/anchor', { anchor: anchor }).done(window.stagingRefresh);
-            });
-
-            $list.on('click', '.js-anchor-clear', function () {
-                post(this, '/anchor', { anchor: '' }).done(window.stagingRefresh);
-            });
-
-            $list.on('click', '.js-anchor-replace', function () {
-                const $btn = $(this).prop('disabled', true);
-                post(this, '/anchor', { regenerate: 1 })
-                    .done(window.stagingRefresh)
-                    .fail(() => $btn.prop('disabled', false));
-            });
-
             $list.on('click', '.js-approve', function () {
                 const $btn = $(this).prop('disabled', true).text('Approving…');
                 post(this, '/approve').done(function (data) {

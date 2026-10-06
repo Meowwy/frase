@@ -27,12 +27,6 @@ class CardController extends Controller
         $term = trim((string) $request->query('term', ''));
         $definition = trim((string) $request->query('definition', ''));
 
-        // Term-type filter: one of the two types, or 'both' (the default, no constraint).
-        $type = (string) $request->query('type', 'both');
-        if (! in_array($type, Card::TERM_TYPES, true)) {
-            $type = 'both';
-        }
-
         // Legacy entry: dashboard theme card links here with ?theme=<name>. Pre-filter
         // by that theme and open the picker on the theme's language.
         $theme = null;
@@ -59,10 +53,6 @@ class CardController extends Controller
             $query->whereDoesntHave('wordbox');
         } elseif (is_numeric($wordbox)) {
             $query->whereHas('wordbox', fn ($q) => $q->where('wordboxes.id', $wordbox));
-        }
-
-        if ($type !== 'both') {
-            $query->ofTermType($type);
         }
 
         if ($term !== '') {
@@ -98,7 +88,6 @@ class CardController extends Controller
             'activeLanguageId' => $languageId,
             'term' => $term,
             'definition' => $definition,
-            'type' => $type,
         ]);
     }
 
@@ -110,11 +99,8 @@ class CardController extends Controller
         $this->authorize('view', $card);
 
         // Escape first so any raw HTML in the AI-generated sentence can't reach the
-        // `{!! !!}` output in the view — only the <span> we add below is trusted. The
-        // anchor phrase brackets the Term by the same convention, so it gets the same
-        // treatment (see docs/cards.md "The anchor phrase").
+        // `{!! !!}` output in the view — only the <span> we add below is trusted.
         $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="text-gray-300 font-bold">$1</span>', e($card->example_sentence));
-        $card->anchor_html = preg_replace('/\[(.*?)\]/', '<span class="font-bold">$1</span>', e($card->anchor));
 
         if (! is_null($card->theme_id)) {
             $theme = Theme::where('user_id', Auth::id())
@@ -294,24 +280,6 @@ class CardController extends Controller
         // The column is NOT NULL; nullable in the request so the field can be cleared.
         $data['example_sentence'] ??= '';
 
-        // Term type is a derived predicate over `card_shape`, so a correction to it has to
-        // be written back as a shape. A lexical card's word/phrase split is re-derived from
-        // the submitted Term every time rather than carried over, so editing a word card's
-        // Term into several words can't leave a multi-word Term stored as a word card —
-        // still carrying an anchor phrase, and still expected to link exactly one base word.
-        $shape = $data['term_type'] === Card::TYPE_EXPRESSION
-            ? Card::SHAPE_EXPRESSION
-            : (str_contains(trim($data['term']), ' ') ? Card::SHAPE_PHRASE : Card::SHAPE_WORD);
-
-        unset($data['term_type']);
-        $data['card_shape'] = $shape;
-
-        // Only a word card may carry an anchor phrase, so a shape change has to drop it.
-        if ($shape !== Card::SHAPE_WORD) {
-            $data['anchor'] = null;
-            $data['anchor_translation'] = null;
-        }
-
         $card->update($data);
 
         return redirect('/cards/'.$card->id);
@@ -394,18 +362,14 @@ class CardController extends Controller
         }
 
         $data = $request->validated();
-        $isWord = $data['card_shape'] === Card::SHAPE_WORD;
 
         $card = $user->cards()->create([
             'term' => $data['term'],
-            'card_shape' => $data['card_shape'],
             'theme_id' => ($request->theme_id != -1 ? $request->theme_id : null),
             'language_id' => $language->id,
             'level' => 1,
             'translation' => $data['translation'] ?? '',
             'example_sentence' => $data['example_sentence'] ?? '',
-            'anchor' => $isWord ? ($data['anchor'] ?? null) : null,
-            'anchor_translation' => $isWord ? ($data['anchor_translation'] ?? null) : null,
             'note' => $data['note'] ?? null,
             'definition' => $data['definition'],
             'next_study_at' => now(),

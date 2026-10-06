@@ -41,15 +41,13 @@ class PageRendersTest extends TestCase
         }
     }
 
-    public function test_the_card_detail_page_renders_a_word_card_with_its_anchor_and_base_words(): void
+    public function test_the_card_detail_page_renders_a_card_with_its_base_words(): void
     {
         $card = Card::factory()->create([
             'user_id' => $this->user->id,
             'language_id' => $this->language->id,
             'term' => 'hus',
-            'card_shape' => Card::SHAPE_WORD,
-            'anchor' => 'ett stort [hus]',
-            'anchor_translation' => 'a big house',
+            'translation' => 'a house',
         ]);
 
         $baseWord = BaseWord::create([
@@ -65,10 +63,9 @@ class PageRendersTest extends TestCase
         $response = $this->actingAs($this->user)->get('/cards/'.$card->id);
 
         $response->assertStatus(200);
-        $response->assertSee('a big house');
+        $response->assertSee('a house');
         // The base-word chip shows the display form, not the bare lemma.
         $response->assertSee('ett hus');
-        $response->assertSee(Card::TYPE_LEXICAL);
 
         $this->actingAs($this->user)->get('/cards/edit/'.$card->id)->assertStatus(200);
     }
@@ -86,14 +83,12 @@ class PageRendersTest extends TestCase
         $response->assertSee('reading "kostar"', false);
     }
 
-    public function test_staging_renders_a_resolved_word_proposal_with_its_chip_and_anchor(): void
+    public function test_staging_renders_a_resolved_proposal_with_its_chip(): void
     {
         $proposal = $this->user->proposals()->create([
             'language_id' => $this->language->id,
             'raw_input' => 'hus',
             'term' => 'hus',
-            'card_shape' => Card::SHAPE_WORD,
-            'anchor' => 'ett stort [hus]',
             'status' => Proposal::STATUS_COMPLETED,
         ]);
 
@@ -111,7 +106,6 @@ class PageRendersTest extends TestCase
         // The chip reads "ett hus", not bare "hus", and carries its part of speech.
         $response->assertSee('ett hus');
         $response->assertSee('noun');
-        $response->assertSee('ett stort [hus]');
         $response->assertSee('Approve');
         $response->assertSee('js-strike', false);
     }
@@ -141,7 +135,6 @@ class PageRendersTest extends TestCase
             'language_id' => $this->language->id,
             'raw_input' => 'hur mycket kostar det',
             'term' => 'hur mycket kostar det',
-            'card_shape' => Card::SHAPE_PHRASE,
             'status' => Proposal::STATUS_COMPLETED,
         ]);
 

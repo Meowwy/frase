@@ -51,24 +51,10 @@ served and `session(['more_cards_available' => true])` is set (the UI can then s
 more due" hint); otherwise all due cards are served. `cram` scope always returns everything,
 uncapped. The returned collection is always `->shuffle()`d.
 
-### Term-type filtering per mode
-
-`sentences`, `sentences_write`, and `definitions` are **lexical-only** modes
-(`Learning::LEXICAL_ONLY_MODES`) — their card fronts are built from a blanked example sentence or
-a dictionary definition, both of which only make sense for a naming unit, not a whole utterance.
-`Learning::modeTypeFilter($mode)` returns a closure applying `Card::scopeOfTermType(TYPE_LEXICAL)`
-— the derived term type's lexical leg, read off `card_shape`, see [cards](cards.md) "Card shape and
-term type" — that **every** card query in both
-`getCardsForLearning`/`getCardsForSelection` applies via `->tap()`. This is applied **before** the
-due-count/15-card cap, not after — filtering the collection afterward would have skewed which
-cards land inside the cap. `words` and `conversation` modes pass no restriction, so they keep both
-types; `lexical` cards are served by every mode exactly as before this filter existed — it only
-ever *removes* expressions from the lexical-only modes.
-
-There is **no frontend surface for this yet**: the mode buttons in `set.blade.php` are always
-offered regardless of whether a selection has any lexical cards, and the "N due cards" counts
-computed in `web.php` are not mode-aware, so a lexical-only mode can end up serving fewer cards
-than the count implied.
+Every mode serves every card. There is one kind of card (see [cards](cards.md)), so Sentences,
+Sentences-write and Definitions no longer skip cards that used to be classed as expressions: a
+whole-sentence Term's example is a two-line exchange and its definition says when you'd say it, so
+both fronts still work. Only Words mode narrows the pool, to cards that have base words (below).
 
 ## Rendering a session (`Learning::renderLearningView($mode)`)
 
@@ -114,9 +100,8 @@ the Term is producing all of its words. Conversation mode's clearing/stamping is
 
 `words` no longer builds one entry per card. It pulls the **individual base words** of due cards
 into one shuffled, per-word session capped at **15 words**: a due card enters the pool only if
-*all* of its base words fit under that cap — no card contributes a partial word set. This can't
-overflow a single card, because a card is capped at 5 base words (see [cards](cards.md)). Cards
-with **zero** base words (an expression whose words were all filtered at capture — see
+*all* of its base words fit under that cap — no card contributes a partial word set, so a card
+with more than 15 base words would never enter the pool (no real Term has that many). Cards with **zero** base words (every word struck or filtered at capture — see
 [cards](cards.md) "The vocabulary base") are excluded from this pool entirely; they can only clear
 through the other modes.
 
@@ -266,8 +251,7 @@ it replaced an earlier "Questions" panel that had gone dead (linked to a 404). S
 off entirely to `Learning::startConversation()` (called from `renderLearningView`) instead of
 building a front/back/hint deck:
 
-1. Takes **up to 10** cards from the current selection (no mode-type filter — expressions are
-   included).
+1. Takes **up to 10** cards from the current selection.
 2. Resolves the language's CEFR level via `User::levelForLanguage()`.
 3. Calls `AI::startConversation()` for an opening line (see [ai-integration](ai-integration.md)). On failure,
    redirects back to `/setLearning` with a popup message rather than rendering a broken chat.

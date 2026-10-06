@@ -52,7 +52,6 @@ class CaptureStagingTest extends TestCase
     {
         return array_replace([
             'language' => 'Swedish',
-            'card_kind' => Card::SHAPE_PHRASE,
             'term' => 'hur mycket kostar det',
             'base_words' => [
                 ['lemma' => 'hur', 'part_of_speech' => 'adverb', 'surface_form' => 'hur', 'translation' => 'how', 'gender' => '', 'dictionary_form' => ''],
@@ -60,7 +59,6 @@ class CaptureStagingTest extends TestCase
                 ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostar', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
                 ['lemma' => 'det', 'part_of_speech' => 'pronoun', 'surface_form' => 'det', 'translation' => 'it', 'gender' => '', 'dictionary_form' => ''],
             ],
-            'anchor' => '',
         ], $overrides);
     }
 
@@ -107,7 +105,6 @@ class CaptureStagingTest extends TestCase
         $proposal = $user->proposals()->sole();
         $this->assertSame(Proposal::STATUS_COMPLETED, $proposal->status);
         $this->assertSame('hur mycket kostar det', $proposal->term);
-        $this->assertSame(Card::SHAPE_PHRASE, $proposal->card_shape);
         $this->assertSame('Swedish', $proposal->language->name);
 
         // "det" is a pronoun, so the proficiency filter drops it at B1.
@@ -126,75 +123,71 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
-     * The proficiency filter must never cut below what the shape needs. A phrase made only
-     * of function words would otherwise arrive with an empty tray — permanently
-     * unapprovable, with nothing to un-strike back into existence.
+     * The proficiency filter always applies, even when it empties the tray: a card may end
+     * with no base words at all and is still approvable.
      */
-    public function test_the_proficiency_filter_stands_down_rather_than_emptying_a_phrase(): void
+    public function test_the_proficiency_filter_always_applies_even_down_to_no_base_words(): void
     {
         [$user] = $this->learner('C1');
         $this->fakeOpenAi($this->analysis([
             'term' => 'in spite of',
             'base_words' => [
                 ['lemma' => 'in', 'part_of_speech' => 'preposition', 'surface_form' => 'in', 'translation' => 'v', 'gender' => ''],
-                ['lemma' => 'spite', 'part_of_speech' => 'preposition', 'surface_form' => 'spite', 'translation' => 'vzdor', 'gender' => ''],
                 ['lemma' => 'of', 'part_of_speech' => 'preposition', 'surface_form' => 'of', 'translation' => 'z', 'gender' => ''],
             ],
-        ]));
+        ]), $this->cardContent());
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'in spite of']);
 
         $proposal = $user->proposals()->sole();
-        $this->assertCount(3, $proposal->baseWords);
-        $this->assertTrue($proposal->isApprovable());
-    }
-
-    /**
-     * An expression may legitimately end with no base words, so the filter is free to empty
-     * it — and it stays approvable.
-     */
-    public function test_an_expression_may_be_filtered_down_to_no_base_words(): void
-    {
-        [$user] = $this->learner('C1');
-        $this->fakeOpenAi($this->analysis([
-            'card_kind' => Card::SHAPE_EXPRESSION,
-            'term' => 'fine by me',
-            'base_words' => [
-                ['lemma' => 'by', 'part_of_speech' => 'preposition', 'surface_form' => 'by', 'translation' => 'od', 'gender' => ''],
-                ['lemma' => 'me', 'part_of_speech' => 'pronoun', 'surface_form' => 'me', 'translation' => 'mě', 'gender' => ''],
-            ],
-        ]));
-
-        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'fine by me']);
-
-        $proposal = $user->proposals()->sole();
         $this->assertCount(0, $proposal->baseWords);
         $this->assertTrue($proposal->isApprovable());
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+        $this->assertCount(0, Card::sole()->baseWords);
     }
 
     /**
-     * A word card is exactly one base word — its own lemma — and is the only shape that
-     * carries an anchor phrase. Swedish nouns also carry a gender, which is what makes the
-     * chip and the base entry read "ett hus" rather than bare "hus".
+     * The Term is kept exactly as typed, a lone inflected word included: the card shows
+     * "kostade" while the base word gets the lemma. Swedish nouns also carry a gender,
+     * which is what makes a chip read "ett hus" rather than bare "hus".
      */
-    public function test_a_word_proposal_keeps_its_anchor_and_its_swedish_noun_gender(): void
+    public function test_an_inflected_lone_word_is_stored_as_typed_while_its_base_word_gets_the_lemma(): void
     {
         [$user] = $this->learner();
         $this->fakeOpenAi($this->analysis([
-            'card_kind' => Card::SHAPE_WORD,
+            'term' => 'kostade',
+            'base_words' => [
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostade', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+            ],
+        ]), $this->cardContent(['sentence' => 'Biljetten [kostade] mer än jag trodde.', 'translation' => 'cost']));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'kostade']);
+
+        $proposal = $user->proposals()->sole();
+        $this->assertSame('kostade', $proposal->term);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $card = Card::sole();
+        $this->assertSame('kostade', $card->term);
+        $this->assertSame('kosta', $card->baseWords->sole()->lemma);
+        $this->assertSame('kostade', $card->baseWords->sole()->pivot->surface_form);
+    }
+
+    public function test_a_swedish_noun_carries_its_gender(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->analysis([
             'term' => 'hus',
             'base_words' => [
                 ['lemma' => 'hus', 'part_of_speech' => 'noun', 'surface_form' => 'hus', 'translation' => 'house', 'gender' => 'neuter'],
             ],
-            'anchor' => 'ett stort [hus]',
         ]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'hus']);
 
-        $proposal = $user->proposals()->sole();
-        $this->assertSame('ett stort [hus]', $proposal->anchor);
-
-        $word = $proposal->baseWords->sole();
+        $word = $user->proposals()->sole()->baseWords->sole();
         $this->assertSame(['gender' => 'neuter'], $word->grammar_attributes);
         $this->assertSame('ett hus', $word->displayForm());
     }
@@ -212,8 +205,6 @@ class CaptureStagingTest extends TestCase
         $response->assertStatus(200)->assertJson(['redirect' => '/cards/'.$card->id]);
 
         $this->assertSame('hur mycket kostar det', $card->term);
-        $this->assertSame(Card::SHAPE_PHRASE, $card->card_shape);
-        $this->assertSame(Card::TYPE_LEXICAL, $card->termType());
         $this->assertSame('how much does it cost', $card->translation);
         $this->assertSame(['hur', 'kosta', 'mycket'], $card->baseWords->pluck('lemma')->sort()->values()->all());
         $this->assertSame('kostar', $card->baseWords->firstWhere('lemma', 'kosta')->pivot->surface_form);
@@ -241,7 +232,7 @@ class CaptureStagingTest extends TestCase
         $this->actingAs($user)
             ->postJson("/staging/{$proposal->id}/words/{$struck->id}/strike", ['struck' => true])
             ->assertStatus(200)
-            ->assertJson(['kept' => 2, 'approvable' => true]);
+            ->assertJson(['approvable' => true]);
 
         $this->fakeOpenAi($this->cardContent());
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
@@ -251,25 +242,26 @@ class CaptureStagingTest extends TestCase
         $this->assertSame(['kosta', 'mycket'], $card->baseWords->pluck('lemma')->sort()->values()->all());
     }
 
-    public function test_a_phrase_proposal_cannot_be_approved_with_every_word_struck(): void
+    /**
+     * Approval is never gated on how many base words a card has: none, or more than five.
+     */
+    public function test_a_proposal_with_every_word_struck_still_approves(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
-        Http::fake();
         $proposal = $this->completedProposal($user, $language);
         $proposal->baseWords()->update(['struck' => true]);
 
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(422);
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
 
-        $this->assertSame(0, Card::count());
-        Http::assertNothingSent();
+        $this->assertCount(0, Card::sole()->baseWords);
     }
 
-    public function test_a_phrase_proposal_cannot_be_approved_over_the_base_word_cap(): void
+    public function test_a_proposal_with_more_than_five_base_words_approves(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
-        Http::fake();
         $proposal = $this->completedProposal($user, $language);
 
         foreach (range(1, 4) as $n) {
@@ -279,8 +271,10 @@ class CaptureStagingTest extends TestCase
             ]);
         }
 
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(422);
-        Http::assertNothingSent();
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertCount(7, Card::sole()->baseWords);
     }
 
     /**
@@ -385,12 +379,10 @@ class CaptureStagingTest extends TestCase
     {
         [$user] = $this->learner();
         $this->fakeOpenAi($this->analysis([
-            'card_kind' => Card::SHAPE_WORD,
             'term' => 'komma',
             'base_words' => [
                 ['lemma' => 'komma', 'part_of_speech' => 'verb', 'surface_form' => 'komma', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
             ],
-            'anchor' => '[komma] hem',
         ]), $this->cardContent());
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'komma']);
@@ -416,7 +408,6 @@ class CaptureStagingTest extends TestCase
     private function captureWord(User $user, array $baseWord): Proposal
     {
         $this->fakeOpenAi($this->analysis([
-            'card_kind' => Card::SHAPE_WORD,
             'term' => $baseWord['lemma'],
             'base_words' => [array_replace(['surface_form' => $baseWord['lemma'], 'translation' => 'x', 'gender' => '', 'dictionary_form' => ''], $baseWord)],
         ]));
@@ -498,14 +489,12 @@ class CaptureStagingTest extends TestCase
         [$user] = $this->learner();
 
         $this->fakeOpenAi($this->analysis([
-            'card_kind' => Card::SHAPE_PHRASE,
             'term' => 'komma till ett hus',
             'base_words' => [
                 // A Swedish noun: Swedish declares a dictionary form for verbs only.
                 ['lemma' => 'hus', 'part_of_speech' => 'noun', 'surface_form' => 'hus', 'translation' => 'house', 'gender' => 'neuter', 'dictionary_form' => 'hus, -et'],
                 ['lemma' => 'komma', 'part_of_speech' => 'verb', 'surface_form' => 'komma', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
             ],
-            'anchor' => '',
         ]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'komma till ett hus']);
@@ -529,12 +518,10 @@ class CaptureStagingTest extends TestCase
 
         $this->fakeOpenAi($this->analysis([
             'language' => 'English',
-            'card_kind' => Card::SHAPE_WORD,
             'term' => 'come',
             'base_words' => [
                 ['lemma' => 'come', 'part_of_speech' => 'verb', 'surface_form' => 'come', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'com|e -es'],
             ],
-            'anchor' => '[come] home',
         ]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'come']);
@@ -579,7 +566,6 @@ class CaptureStagingTest extends TestCase
             'language_id' => $language->id,
             'raw_input' => 'hur mycket kostar det',
             'term' => 'hur mycket kostar det',
-            'card_shape' => Card::SHAPE_PHRASE,
             'status' => Proposal::STATUS_COMPLETED,
         ]);
 

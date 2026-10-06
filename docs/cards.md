@@ -12,74 +12,37 @@ Base columns from the original migration plus everything added since:
 |---|---|
 | `user_id`, `language_id` | owner + the single language this card belongs to |
 | `theme_id` | nullable, `onDelete('set null')` — see [wordboxes-themes-tags](wordboxes-themes-tags.md) |
-| `card_shape` | `'word'` \| `'phrase'` \| `'expression'`, **not nullable** — replaces `term_type`, set once at creation from CALL 1's `card_kind`. See "Card shape and term type" below |
-| `term` | the Term itself, in the card's own spelling — renamed from `phrase` (see [ai-integration](ai-integration.md)) |
+| `term` | the Term itself, exactly as the learner gave it with only typos fixed — renamed from `phrase` (see [ai-integration](ai-integration.md)) |
 | `translation` | native-language equivalent; `''` for a native-language card (column is `NOT NULL`) |
-| `example_sentence` | one sentence with the whole **Term** wrapped in `[brackets]` once — powers the Sentences learning modes |
-| `anchor`, `anchor_translation` | nullable, **word-shape only** — the anchor phrase, the Term's occurrence marked `[bracketed]` inside it (same convention as `example_sentence`), plus its own translation. See "The anchor phrase" below |
-| `definition` | dictionary definition or (for an expression) a usage note |
+| `example_sentence` | one sentence with the whole **Term** wrapped in `[brackets]` once (a two-line exchange when the Term is itself a sentence) — powers the Sentences learning modes |
+| `definition` | what the Term means or, for a whole utterance, when you'd say it |
 | `note` | nullable free-text, user-editable, not AI-generated |
-| `context` | nullable — the learner's own context input, kept so a card can be regenerated in the sense it was captured in; may seed the anchor phrase, never rewritten by it |
+| `context` | nullable — the learner's own context input, kept so a card can be regenerated in the sense it was captured in |
 | `level` | integer SRS box/level — see [learning-flow](learning-flow.md) "SRS algorithm" |
 | `last_studied`, `next_study_at` | SRS scheduling dates |
 | `embedding` | nullable JSON array (`array` cast) — see [search-and-linking](search-and-linking.md) |
 
 Dropped by the vocabulary-base redesign (migration
-`2026_09_27_000001_redesign_cards_for_vocabulary_base`, which also renamed `phrase` → `term` and
-**backfills `card_shape` from `term_type` before dropping it** — existing cards' base words are
-expendable, their shape is not: letting every old expression card default to `word` would quietly
-undo what `term_type` existed for and put whole utterances back into the lexical-only learning
-modes, so the backfill maps `expression` → `expression` and splits the rest on word count):
+`2026_09_27_000001_redesign_cards_for_vocabulary_base`, which also renamed `phrase` → `term`):
 `word` (there is no focus word — see "What a card is built around" below), `example_1`,
-`example_2`, `example_3` (the "learn it in a phrase instead" suggestions they powered are gone; the
-anchor phrase replaces that role for word cards) and `term_type` (now derived — see below).
-`question` had already gone earlier
+`example_2`, `example_3` and `term_type`. `question` had already gone earlier
 (`2026_08_04_000001_add_examples_and_note_drop_question_from_cards`).
+
+Dropped by `2026_10_06_000001_drop_card_shape_and_anchor`: `card_shape`, `anchor` and
+`anchor_translation`. **There is one kind of card.** Every Term used to be classified as a word,
+phrase or expression, which drove three generators, per-shape base-word limits, an anchor phrase
+for word cards only and learning modes that silently skipped expressions — distinctions that
+didn't help anyone learn. Existing data was expendable, so nothing was backfilled.
 
 ## Model (`app/Models/Card.php`)
 
-### Card shape and term type
-
-`card_shape` is the stored column (`Card::SHAPES` — `'word'`\|`'phrase'`\|`'expression'`),
-populated once from CALL 1's `card_kind` — see [ai-integration](ai-integration.md). Lexical vs.
-expression is a **derived predicate** over it, in two places and nowhere else:
-
-- **`Card::termType()`** — `card_shape === 'expression' ? TYPE_EXPRESSION : TYPE_LEXICAL`, for
-  display (the card detail page, the type `<select>` on `cards/edit.blade.php`).
-- **`Card::scopeOfTermType($termType)`** — the query form, used by the `/cards` type filter and
-  `Learning::modeTypeFilter`. Because it is one scope, "lexical means the word and phrase shapes"
-  is stated once.
-
-The type `<select>` on the edit form stays user-correctable, so `CardController::update()` resolves
-it *back* to a shape: expression → `'expression'`; lexical → word or phrase, **re-derived from the
-submitted Term's word count every time** rather than carried over from what the card already was.
-Carrying it over looks harmless and isn't: editing a word card's Term from `hus` to `ett stort hus`
-would leave a multi-word Term stored as a word card, still carrying an anchor phrase and still
-expected to link exactly one base word. Moving off the word shape drops the anchor phrase, which
-only a word card may carry.
-
-The manual `/add` path has no AI answer to read a shape off, so its form asks for one
-(`StoreCardRequest` validates it against `Card::SHAPES`); the column also carries a `'word'`
-default for completeness.
-
 ### What a card is built around
 
-Every card has exactly one thing it is about: its **Term**, always. There is no focus word and no
+Every card has exactly one thing it is about: its **Term**, always — kept exactly as the learner
+typed it, with only typos fixed. A lone inflected word stays inflected (`kostade`) and a pasted
+sentence stays a sentence; only the card's base words carry lemmas. There is no focus word and no
 word/phrase split inside a Term — `translation`, `definition` and the `example_sentence` brackets
-are always about the whole Term, in whatever form it takes. This replaces the old `word ?? phrase`
-target: `Card::target()` collapses to the Term, and `Card::resolveFocusWord()` and
-`Card::phraseHtml()` (which existed to bold a focus word inside a phrase) are retired along with
-the column that fed them.
-
-### The anchor phrase
-
-A lone word is not replaced by a phrase card built around it — it keeps its own card and gains a
-**word-shape-only**, nullable phrase as a property: `anchor` holds the Term's occurrence in
-`[brackets]` inside a natural setting (`[collateral] damage`), `anchor_translation` its own
-translation. It is proposed by CALL 1 at capture (from the Context when that already contains the
-Term in a natural phrase, otherwise invented), editable in staging (see below), and its translation
-is written by CALL 2 at approval. Its other words never reach the vocabulary base — only the Term
-does. Re-suggesting one later is a regenerate.
+are always about the whole Term, in whatever form it takes. `Card::target()` is the Term.
 
 ### Helpers on the model
 
@@ -113,15 +76,13 @@ Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real d
 `lemma` alone. `grammar_attributes`, `translation` and `dictionary_form` are set once, at creation,
 and never revised: **`BaseWord::resolve()`** is a `firstOrCreate` whose second argument holds
 exactly those three, so "never revised" is a property of the write rather than a rule someone has
-to remember. There is no
-expressions store — an expression card's surviving words link into `base_words` exactly like any
-other card's.
+to remember. 
 
 **`BaseWord::displayForm()`** renders the lemma the way the learner is expected to learn it
 (*"ett hus"*, *"komm|a -er"*), reading the language's guideline; **`BaseWord::stampRecall()`** is the only thing a
 word-level answer ever does to it.
 
-`card_base_word` — the pivot linking a card to the base entries for its Term's lexical words:
+`card_base_word` — the pivot linking a card to the base entries for its Term's words:
 
 | Column | Notes |
 |---|---|
@@ -130,12 +91,9 @@ word-level answer ever does to it.
 
 Unique on `(card_id, base_word_id)` — one link per base entry per card, even when the Term repeats
 a word (`AnalyzeProposalJob` also drops a repeated lemma+part-of-speech from the chip tray, so the
-constraint is never reached in practice). Cardinality is enforced at proposal-approval time against
-`card_shape` by **`Proposal::isApprovable()`**, not as a DB constraint: a **word** card links
-exactly one base word (its own lemma — the proficiency filter below must never drop it), a
-**phrase** card at least one and at most `Card::MAX_BASE_WORDS` (**5**), an **expression** card zero
-or more. Staging reads the same rule to decide which controls are live, so Approve and the last
-strike disable themselves rather than failing after the fact.
+constraint is never reached in practice). There is **no cardinality rule**: a card may link no
+base words at all, or many. An earlier minimum and maximum per card shape could leave a proposal
+permanently stuck in staging, with nothing the learner could do but discard it.
 
 The **already-present check** (`Proposal::presenceIndex()`): match `base_words` on
 `(user_id, language_id, lemma, part_of_speech)` — a matching lemma with a *different* part of
@@ -157,13 +115,8 @@ different places on purpose:
   (preposition, pronoun, conjunction, determiner) aren't worth an entry. The level is the learner's
   CEFR level *for the detected language*, so this cannot run before CALL 1 has returned — which is
   why it is a PHP filter after the call rather than an instruction inside it.
-  It is applied to the **set**, not word by word, and **stands down entirely rather than cutting
-  below what the shape needs**. A word or phrase card must keep at least one base word to be
-  approvable, and a candidate that was never written is not something striking can bring back — so
-  a word card's own Term survives it (its only candidate), and so does a phrase made of nothing but
-  function words (`out of`, `in spite of`), which would otherwise land in staging with an empty
-  tray and no way out but Discard. An expression may legitimately end with none, so there the
-  filter applies unconditionally.
+  It **always applies**, even when it leaves the tray empty (`in spite of` at C1): with no
+  cardinality rule, an empty tray is still approvable.
 - **Already present** — deliberately **not** a filter on the way in. The chip stays, carrying the
   notice above and expanding to the cards that word is already used in, and approval reuses the
   existing row via `BaseWord::resolve()`. Hiding it would lose exactly the fact the learner wants
@@ -219,8 +172,7 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `language_id` | nullable until CALL 1 resolves it — detection is CALL 1's job |
 | `raw_input` | the term as typed/pasted, known immediately |
 | `context` | nullable, the learner's own input |
-| `term`, `card_shape` | nullable until CALL 1 resolves |
-| `anchor` | nullable, editable, word-shape only — no `anchor_translation` here, since CALL 2 (post-approval) is what writes that |
+| `term` | nullable until CALL 1 resolves |
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
 
@@ -245,16 +197,15 @@ proposal exactly as it was in staging rather than a half-written card.
 | `GET /staging` | the feed: every proposal, newest first, across every language |
 | `GET /staging/list` | the same list as `{rows, count, pending}` JSON, rendered from `staging/_proposals.blade.php` |
 | `POST /staging/{proposal}/words/{word}/strike` | strike or un-strike one candidate |
-| `POST /staging/{proposal}/anchor` | save, clear (`anchor=''`) or re-propose (`regenerate=1`, via `AI::suggestAnchor`) the anchor phrase |
 | `POST /staging/{proposal}/language` | correct the detected language — see below |
-| `POST /staging/{proposal}/approve` | `409` with the existing card's id on a duplicate Term, `422` when the cardinality rule isn't met, else the new card's URL |
+| `POST /staging/{proposal}/approve` | `409` with the existing card's id on a duplicate Term, `422` when the proposal isn't approvable yet, else the new card's URL |
 | `DELETE /staging/{proposal}` | discard |
 
 Two deliberate shapes in the UI (`staging/index.blade.php`):
 
-- **Every action re-renders the whole list from `/staging/list`.** The cardinality rules that decide
-  which controls are live then exist only in PHP (`Proposal::isApprovable()`) and cannot drift out
-  of step with the markup. The cost is a re-render on each click, which is invisible next to the
+- **Every action re-renders the whole list from `/staging/list`.** The rules that decide which
+  controls are live then exist only in PHP (`Proposal::isApprovable()`) and cannot drift out of
+  step with the markup. The cost is a re-render on each click, which is invisible next to the
   AI calls this page is otherwise waiting on.
 - **The undo window is the toast's, client-side.** Discard hides the row and only fires the `DELETE`
   once the toast expires, so "undo" is cancelling a timer. There is no discard history and no
@@ -278,9 +229,8 @@ There are still **two** ways a card gets created — one AI-assisted, one manual
 
 - **AI-assisted (the primary path)**: `POST /capture` writes a `proposals` row (see "Staging"
   above) instead of a card and returns immediately. **`AnalyzeProposalJob`** resolves CALL 1
-  against it on the queue — language detection, `card_shape` and the canonical Term, the candidate
-  base words with their translations and, for a lone-word Term, a proposed anchor phrase. The
-  learner reviews and edits the result in staging; the card itself, its base-word links and (via
+  against it on the queue — language detection, the Term with its typos fixed, and the candidate
+  base words with their translations. The learner reviews and edits the result in staging; the card itself, its base-word links and (via
   CALL 2) its content are written only on **approve**. The browser extension writes into the same
   `proposals` table — see [browser-extension](browser-extension.md).
   **`<x-capture-form>`** is the whole capture UI, self-contained (it posts over AJAX, toasts, and
@@ -289,13 +239,12 @@ There are still **two** ways a card gets created — one AI-assisted, one manual
   [overview](overview.md) "Known rough edges", which already applies to gap-fill.
 - **Manual, no AI** (`GET /add` → `cards/add.blade.php` → `POST /cards/new` →
   `CardController::save()`, via `StoreCardRequest`): the user types every field themselves
-  (`term`, `definition`, optional `translation`/`example_sentence`/`note`/`theme_id`, plus
-  `anchor`/`anchor_translation` on a word-shape card) and sets `card_shape` directly. This path
+  (`term`, `definition`, optional `translation`/`example_sentence`/`note`/`theme_id`). This path
   never goes through staging — there's nothing to approve that the learner didn't already type.
   Still dispatches `GenerateEmbeddingJob` so the card participates in linking/search the same way.
   This entry point has no nav link (reach it directly at `/add`) but is a real, working path.
 
-`Card::generateContent()` is CALL 2 without a write (shape → generator, plus the native-language
+`Card::generateContent()` is CALL 2 without a write (`AI::generateCard`, plus the native-language
 and CEFR resolution), and `Card::persist()` maps its answer onto the columns and dispatches
 `GenerateEmbeddingJob` (see [search-and-linking](search-and-linking.md)), leaving `theme_id` null
 (the AI no longer assigns a theme at capture time — see
@@ -325,8 +274,8 @@ a regeneration keeps the sense the card was originally captured in. A `null` fro
 `false` and leaves the card exactly as it was; the embedding is re-dispatched, since the content it
 described has changed (see [search-and-linking](search-and-linking.md)).
 
-**It runs CALL 2 only.** The Term, the `card_shape` and the anchor phrase are already settled on
-the card, so CALL 1 has nothing left to decide — re-running it would pay for language detection and
+**It runs CALL 2 only.** The Term is already settled on the card, so CALL 1 has nothing left to
+decide — re-running it would pay for language detection and
 a whole word extraction whose answer is thrown away. This is also why the capture path no longer
 stashes call 1's answer in the session for a later regeneration to reuse: there is no second call
 to save.
@@ -356,24 +305,19 @@ The top row holds the **back** link on the left and **previous card** / **next c
 the right, same style as back. `show()` resolves the two neighbours as the user's adjacent cards
 **in this card's language**, ordered by descending id — ids are monotonic with insertion, so that
 is the order `/cards` lists them in, and "previous" is the row above there while "next" is the row
-below. The nav deliberately ignores the list's wordbox/type/search filters; it walks the language,
+below. The nav deliberately ignores the list's wordbox/search filters; it walks the language,
 not whatever view the learner arrived from. At either end the missing arrow is still rendered, just
 dimmed and non-clickable, so the row doesn't shift as the learner walks the list.
 
-Renders: the card's term type (`Card::termType()`) as small lowercase text left of the language
-flag; on a word-shape card the anchor phrase with its own translation below the Term (nothing for a
-phrase or expression card); the card's **base words** as chips, each in its display form with its
+Renders: the card's **base words** as chips, each in its display form with its
 part of speech, linking to `/base`; the bracketed `example_sentence` as plain text (bracket markers
 highlighted, no bullets); the `note` if present; and the "Linked cards" section (below). The term
 heading is `font-medium`, not `font-bold` — there is no focus word left to emphasize against it, so
-the Term itself is what's shown. The anchor is escaped and bracket-highlighted the same way
-`example_sentence` is (`$card->anchor_html`, built in `show()`), for the same reason: it is
-AI-generated text rendered with `{!! !!}`. Because an `expression`'s Term can be much longer than a single
+the Term itself is what's shown. Because a whole-sentence Term can be much longer than a single
 word, the heading wraps (`flex-wrap` + `break-words`), and every place that prints
 `example_sentence` keeps `whitespace-pre-line` so a line break in the AI's answer survives
 (`cards/show.blade.php` and the search-result `<x-card>` component). `cards/edit.blade.php` renders
-`example_sentence` as a `<x-forms.textarea>` rather than a single-line input for the same reason,
-and renders the anchor/anchor-translation inputs only when `card_shape` is `word`.
+`example_sentence` as a `<x-forms.textarea>` rather than a single-line input for the same reason.
 
 ## Manual card linking ("Linked cards")
 
@@ -410,16 +354,12 @@ Filters, all combinable and all preserved across pagination via `->appends($requ
 - `language_id` — defaults to `currentSaveLanguage()`. Falls back to that default if an invalid
   id is passed.
 - `wordbox` — `all` (default) \| `general` (no wordbox) \| a wordbox id.
-- `type` — one of `Card::TERM_TYPES`, applied through `Card::scopeOfTermType()` (the derived
-  predicate over `card_shape`, see above), or `both`
-  (default, no constraint). Rendered as a **3-option segmented control** (`#typeFilter`: Lexical |
-  Both | Expressions) at the **left** of the bulk-action bar row (which stays right-aligned). This
-  is a filter only — term type is **not** a table column, so `cards/_rows.blade.php` keeps a fixed
-  6 columns regardless (checkbox, Term, Translation, Definition, Wordbox, row menu — and its
-  `@empty` row's hardcoded `colspan="6"`, which has to be kept in step with them).
 - `term` — substring match (`LIKE %…%`) against `term`.
 - `definition` — substring match against `definition`.
 - Search inputs are debounced ~250ms client-side before firing the AJAX request.
+
+`cards/_rows.blade.php` has a fixed 6 columns (checkbox, Term, Translation, Definition, Wordbox,
+row menu), and its `@empty` row's hardcoded `colspan="6"` has to be kept in step with them.
 
 Legacy entry: the old dashboard theme card still links here as `GET /cards?theme=<name>`, which
 resolves that theme and pre-filters + scopes the picker to its language.

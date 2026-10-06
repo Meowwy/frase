@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One candidate in a proposal's strikeable chip tray: an extracted lexical word, already
+ * One candidate in a proposal's strikeable chip tray: an extracted word, already
  * reduced to its lemma and tagged, waiting to be carried onto `base_words` at approval.
  *
  * Nothing here is a vocabulary-base entry yet — striking it means it never becomes one.

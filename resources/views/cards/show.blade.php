@@ -49,8 +49,8 @@
 
         <!-- Main Term Section -->
         <div class="mb-6 flex items-baseline justify-between gap-3">
-            {{-- An expression phrase ("can you hand me the ...") is far longer than a
-                 lexical one, so the heading wraps instead of overflowing. --}}
+            {{-- A whole-sentence Term is far longer than a single word, so the heading
+                 wraps instead of overflowing. --}}
             <div class="min-w-0 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 {{-- font-medium, not font-bold: there is no focus word left to emphasize
                      against, so the Term itself is simply what's shown. --}}
@@ -58,7 +58,6 @@
                 <span class="ml-2 text-xl italic">{{$card->translation}}</span>
             </div>
             <div class="flex items-center gap-3 shrink-0">
-                <span class="text-xs uppercase tracking-wider text-white/50">{{$card->termType()}}</span>
                 @if($card->language)
                     <span class="text-xl leading-none">{{$card->language->flag}}</span>
                 @endif
@@ -71,15 +70,6 @@
                 </a>
             </div>
         </div>
-
-        <!-- The anchor phrase: word cards only, at most one, optional. The brackets mark
-             the Term's own occurrence inside it. -->
-        @if($card->card_shape === \App\Models\Card::SHAPE_WORD && filled($card->anchor))
-            <div class="mb-6">
-                <p class="text-lg">{!! $card->anchor_html !!}</p>
-                <p class="text-sm text-white/50 italic">{{ $card->anchor_translation }}</p>
-            </div>
-        @endif
 
         <!-- Which of the Term's words are in the vocabulary base. Not a review list: the
              base carries no schedule, only coverage. -->

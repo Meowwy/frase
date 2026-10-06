@@ -11,43 +11,6 @@ class Card extends Model
 {
     use HasFactory;
 
-    /** A Term that is a single naming-unit word. The only shape that may carry an anchor phrase. */
-    public const SHAPE_WORD = 'word';
-
-    /** A naming unit of several words. */
-    public const SHAPE_PHRASE = 'phrase';
-
-    /** A ready-made utterance or utterance frame performing a communicative function. */
-    public const SHAPE_EXPRESSION = 'expression';
-
-    public const SHAPES = [self::SHAPE_WORD, self::SHAPE_PHRASE, self::SHAPE_EXPRESSION];
-
-    /**
-     * How many base words a card may link. A word card links exactly one (its own lemma),
-     * a phrase card between one and this, an expression card zero or more. Enforced when a
-     * proposal is approved, not as a DB constraint — see Proposal::isApprovable().
-     */
-    public const MAX_BASE_WORDS = 5;
-
-    /**
-     * A naming unit — it has a meaning you can define ("X means ..."). Covers single
-     * words, collocations and idioms alike: cabinet, traffic jam, under the weather.
-     *
-     * An idiom belongs here only if one ordinary word could stand in its place ("under
-     * the weather" = ill). A fixed phrase anchored to the speaker — "not my cup of tea" —
-     * names nothing and is an expression, however idiomatic it looks.
-     */
-    public const TYPE_LEXICAL = 'lexical';
-
-    /**
-     * A ready-made utterance or utterance frame — it performs a communicative function
-     * ("you say X when you want to ..."): I'd rather not, can you hand me the ...,
-     * not my cup of tea. A fragment with no finite verb still qualifies.
-     */
-    public const TYPE_EXPRESSION = 'expression';
-
-    public const TERM_TYPES = [self::TYPE_LEXICAL, self::TYPE_EXPRESSION];
-
     protected $guarded = [];
 
     protected $casts = [
@@ -90,27 +53,6 @@ class Card extends Model
     }
 
     /**
-     * Lexical vs. expression is DERIVED from `card_shape`, not stored, so the two can
-     * never disagree — a manual Term or shape edit can't leave a stale binary behind.
-     */
-    public function termType(): string
-    {
-        return $this->card_shape === self::SHAPE_EXPRESSION ? self::TYPE_EXPRESSION : self::TYPE_LEXICAL;
-    }
-
-    /**
-     * Filter by the derived term type: lexical is the word/phrase shapes, expression its
-     * own. The one definition every consumer uses (the /cards filter, the lexical-only
-     * learning modes).
-     */
-    public function scopeOfTermType($query, string $termType)
-    {
-        return $termType === self::TYPE_EXPRESSION
-            ? $query->where('card_shape', self::SHAPE_EXPRESSION)
-            : $query->whereIn('card_shape', [self::SHAPE_WORD, self::SHAPE_PHRASE]);
-    }
-
-    /**
      * Does the learner already have a card for this Term? A case-insensitive match within
      * one language, against the Term alone.
      *
@@ -149,7 +91,7 @@ class Card extends Model
     }
 
     /**
-     * What this card teaches: its Term, always, whatever its shape. There is no focus
+     * What this card teaches: its Term, always. There is no focus
      * word and nothing inside a Term is privileged — every generated field is about the
      * whole Term, and so is every learning mode's answer. See docs/cards.md.
      */
@@ -159,24 +101,20 @@ class Card extends Model
     }
 
     /**
-     * CALL 2: write the fields for one card shape, without persisting anything. Shared by
-     * a proposal's approval (Proposal::approve) and regenerate(), so the shape → generator
-     * mapping lives in one place.
+     * CALL 2: write the card's fields, without persisting anything. Shared by a
+     * proposal's approval (Proposal::approve) and regenerate(), so the native-language and
+     * level resolution lives in one place.
      *
      * Returns null on a refusal, a failed request or an unparseable answer, so the caller
      * can show a plain retry message rather than a 500.
      */
-    public static function generateContent(User $user, Language $language, string $shape, string $term, ?string $anchor, ?string $context): ?array
+    public static function generateContent(User $user, Language $language, string $term, ?string $context): ?array
     {
         $nativeLanguage = self::nativeLanguageFor($user, $language);
         // A learner is not "learning" their own language, so no CEFR steering there.
         $level = is_null($nativeLanguage) ? null : $user->levelForLanguage($language);
 
-        return match ($shape) {
-            self::SHAPE_EXPRESSION => AI::generateExpressionCard($term, $language->name, $nativeLanguage, $context, $level),
-            self::SHAPE_PHRASE => AI::generatePhraseCard($term, $language->name, $nativeLanguage, $context, $level),
-            default => AI::generateWordCard($term, $anchor, $language->name, $nativeLanguage, $context, $level),
-        };
+        return AI::generateCard($term, $language->name, $nativeLanguage, $context, $level);
     }
 
     /**
@@ -185,8 +123,8 @@ class Card extends Model
      * every manual link — survives untouched, because contentColumns() covers only what
      * the AI writes.
      *
-     * Only CALL 2 runs: the Term, the shape and the anchor are already settled on the
-     * card, so there is nothing left for CALL 1 to decide. `$context` falls back to the
+     * Only CALL 2 runs: the Term is already settled on the card, so there is nothing left
+     * for CALL 1 to decide. `$context` falls back to the
      * card's own, so a regeneration keeps the sense it was captured in.
      *
      * Returns false if the call fails, leaving the card exactly as it was.
@@ -195,13 +133,13 @@ class Card extends Model
     {
         $context ??= $this->context;
 
-        $content = self::generateContent($this->user, $this->language, $this->card_shape, $this->term, $this->anchor, $context);
+        $content = self::generateContent($this->user, $this->language, $this->term, $context);
 
         if (is_null($content)) {
             return false;
         }
 
-        $this->update(self::contentColumns($this->term, $this->card_shape, $this->anchor, $context, $content));
+        $this->update(self::contentColumns($this->term, $context, $content));
 
         // The content it was built from has changed, so the old embedding no longer
         // describes this card — see docs/search-and-linking.md.
@@ -215,10 +153,10 @@ class Card extends Model
     /**
      * Write one generated card and queue its embedding.
      */
-    public static function persist(User $user, Language $language, string $term, string $shape, ?string $anchor, ?string $context, array $content): self
+    public static function persist(User $user, Language $language, string $term, ?string $context, array $content): self
     {
         $card = $user->cards()->create(
-            self::contentColumns($term, $shape, $anchor, $context, $content) + [
+            self::contentColumns($term, $context, $content) + [
                 'language_id' => $language->id,
                 'level' => 1,
                 'next_study_at' => now(),
@@ -237,16 +175,10 @@ class Card extends Model
      * writes — no `level`, `next_study_at` or `note` — so regenerate() can hand the
      * result straight to update() without touching the learner's own progress.
      */
-    private static function contentColumns(string $term, string $shape, ?string $anchor, ?string $context, array $content): array
+    private static function contentColumns(string $term, ?string $context, array $content): array
     {
         return [
             'term' => $term,
-            'card_shape' => $shape,
-            // Word-shape only, and only CALL 2 knows the translation for it.
-            'anchor' => $shape === self::SHAPE_WORD ? $anchor : null,
-            'anchor_translation' => $shape === self::SHAPE_WORD && filled($anchor)
-                ? ($content['anchor_translation'] ?? null)
-                : null,
             // '' for a native-language card, whose schema has no translation at all.
             'translation' => $content['translation'] ?? '',
             // These columns are NOT NULL, so coalesce to an empty string.

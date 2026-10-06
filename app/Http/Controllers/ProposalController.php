@@ -3,8 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeProposalJob;
-use App\Models\AI;
-use App\Models\Card;
 use App\Models\Proposal;
 use App\Models\ProposalBaseWord;
 use Illuminate\Http\Request;
@@ -15,8 +13,8 @@ use Illuminate\Support\Facades\Auth;
  *
  * Capture writes a proposal and returns immediately — no card, no language picker, no
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
- * with: striking a candidate word, editing the anchor phrase, correcting a wrong language
- * detection, and finally approving (which writes the card and runs CALL 2) or discarding.
+ * with: striking a candidate word, correcting a wrong language detection, and finally
+ * approving (which writes the card and runs CALL 2) or discarding.
  *
  * See docs/cards.md "Staging" and USERFLOW.md.
  */
@@ -29,8 +27,7 @@ class ProposalController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            // Long enough to accept a pasted sentence, which CALL 1 reduces to a reusable
-            // expression frame ("I would like to go ..." => "I would like to ...").
+            // Long enough to accept a pasted sentence, which is kept as typed.
             'capturedWord' => ['required', 'string', 'min:2', 'max:120'],
             'context' => ['nullable', 'string', 'min:2', 'max:250'],
         ]);
@@ -94,32 +91,7 @@ class ProposalController extends Controller
 
         $word->update(['struck' => $request->boolean('struck')]);
 
-        return response()->json($this->cardinality($proposal->refresh()));
-    }
-
-    /**
-     * Save, clear or re-propose a word card's anchor phrase. Clearing is reversible: the
-     * block stays as a "+ Add one" state rather than disappearing.
-     */
-    public function anchor(Request $request, Proposal $proposal)
-    {
-        $this->authorize('update', $proposal);
-        abort_unless($proposal->card_shape === Card::SHAPE_WORD, 422);
-
-        if ($request->boolean('regenerate')) {
-            $anchor = AI::suggestAnchor($proposal->term, $proposal->language->name, $proposal->context, $proposal->anchor);
-
-            if (is_null($anchor)) {
-                return response()->json(['message' => 'Could not come up with another phrase. Please try again.'], 500);
-            }
-        } else {
-            $data = $request->validate(['anchor' => ['nullable', 'string', 'max:120']]);
-            $anchor = $request->filled('anchor') ? trim($data['anchor']) : null;
-        }
-
-        $proposal->update(['anchor' => $anchor]);
-
-        return response()->json(['anchor' => $anchor]);
+        return response()->json(['approvable' => $proposal->refresh()->isApprovable()]);
     }
 
     /**
@@ -201,19 +173,6 @@ class ProposalController extends Controller
             // Resolved for the whole list in one query rather than per chip — see
             // Proposal::presenceIndex() for why that matters on a polled endpoint.
             'alreadyInBase' => Proposal::presenceIndex($proposals),
-        ];
-    }
-
-    /**
-     * How many base words the proposal keeps, and whether that satisfies its shape's rule
-     * — so the UI can disable Approve and the last strike rather than failing afterwards.
-     */
-    private function cardinality(Proposal $proposal): array
-    {
-        return [
-            'kept' => $proposal->keptBaseWords()->count(),
-            'max' => Card::MAX_BASE_WORDS,
-            'approvable' => $proposal->isApprovable(),
         ];
     }
 }

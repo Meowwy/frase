@@ -337,9 +337,8 @@
             }
         });
 
-        // An empty deck is reachable — Refresher over an empty vocabulary base, or a
-        // lexical-only mode over a selection of nothing but expressions — so don't try to
-        // deal a card that isn't there. The card's own "No cards loaded." default stands.
+        // An empty deck is reachable — Refresher over an empty vocabulary base, or Words
+        // mode over cards with no base words — so don't try to deal a card that isn't there. The card's own "No cards loaded." default stands.
         if (cards.length) {
             showCard();
         } else {

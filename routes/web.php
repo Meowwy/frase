@@ -178,7 +178,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/staging', [ProposalController::class, 'index'])->name('staging');
     Route::get('/staging/list', [ProposalController::class, 'list'])->name('staging.list');
     Route::post('/staging/{proposal}/words/{word}/strike', [ProposalController::class, 'strike']);
-    Route::post('/staging/{proposal}/anchor', [ProposalController::class, 'anchor']);
     Route::post('/staging/{proposal}/language', [ProposalController::class, 'language']);
     Route::post('/staging/{proposal}/approve', [ProposalController::class, 'approve']);
     Route::delete('/staging/{proposal}', [ProposalController::class, 'destroy']);

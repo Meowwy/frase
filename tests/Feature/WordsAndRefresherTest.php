@@ -99,7 +99,7 @@ class WordsAndRefresherTest extends TestCase
         foreach (range(1, 4) as $n) {
             $this->cardWithWords($user, $language, 'big'.$n, array_map(
                 fn ($i) => ['w'.$n.$i, 'noun', null],
-                range(1, Card::MAX_BASE_WORDS)
+                range(1, 5)
             ));
         }
 
@@ -111,7 +111,7 @@ class WordsAndRefresherTest extends TestCase
 
         $perCard = collect($deck)->flatMap(fn ($entry) => $entry['card_ids'])->countBy();
         $this->assertCount(3, $perCard);
-        $this->assertSame([Card::MAX_BASE_WORDS], $perCard->values()->unique()->all());
+        $this->assertSame([5], $perCard->values()->unique()->all());
     }
 
     /**
@@ -147,8 +147,8 @@ class WordsAndRefresherTest extends TestCase
     public function test_words_mode_skips_a_card_with_no_base_words(): void
     {
         [$user, $language] = $this->learner();
-        // An expression whose words were all filtered at capture can only clear elsewhere.
-        $this->cardWithWords($user, $language, 'I would rather not', [], ['card_shape' => Card::SHAPE_EXPRESSION]);
+        // A card whose words were all filtered at capture can only clear elsewhere.
+        $this->cardWithWords($user, $language, 'I would rather not', []);
         $this->cardWithWords($user, $language, 'hus', [['hus', 'noun', null]]);
 
         $deck = $this->deck($this->actingAs($user)
@@ -157,6 +157,24 @@ class WordsAndRefresherTest extends TestCase
 
         $this->assertCount(1, $deck);
         $this->assertSame('hus', $deck[0]['back']);
+    }
+
+    /**
+     * There is one kind of card, so every whole-Term mode serves every card — a whole
+     * utterance with no base words included.
+     */
+    public function test_definitions_mode_serves_a_whole_utterance_card(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->cardWithWords($user, $language, 'I would rather not', [], ['definition' => 'Said to politely refuse an offer.']);
+
+        $deck = $this->deck($this->actingAs($user)
+            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
+            ->get('/startLearningSet/definitions')->getContent());
+
+        $this->assertCount(1, $deck);
+        $this->assertSame('Said to politely refuse an offer.', $deck[0]['front']);
+        $this->assertSame('I would rather not', $deck[0]['back']);
     }
 
     /**

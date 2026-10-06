@@ -10,13 +10,6 @@ use Illuminate\Support\Str;
 class Learning extends Model
 {
     /**
-     * Modes whose front is built from a lexical term's own fields — the blanked example
-     * sentence and the dictionary definition. An expression is a whole utterance, so it
-     * is left out of these decks and practised in the other modes instead.
-     */
-    public const LEXICAL_ONLY_MODES = ['sentences', 'sentences_write', 'definitions'];
-
-    /**
      * Words mode deals individual base words, not cards, so its cap is counted in words.
      * A due card enters the pool only if ALL of its base words fit under this — no card
      * ever contributes a partial word set, or it could never clear. See
@@ -24,25 +17,21 @@ class Learning extends Model
      */
     public const WORDS_PER_SESSION = 15;
 
-    public static function getCardsForLearning($filter, ?string $mode = null)
+    public static function getCardsForLearning($filter)
     {
         if (is_array($filter)) {
-            return self::getCardsForSelection($filter, $mode);
+            return self::getCardsForSelection($filter);
         }
-
-        $lexicalOnly = self::modeTypeFilter($mode);
 
         if ($filter === 'due') {
             try {
                 $dueCardsCount = Auth::user()->cards()
-                    ->tap($lexicalOnly)
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->count();
 
                 if ($dueCardsCount > 20) {
                     $cards = Auth::user()->cards()
                         ->with(['wordbox:id,name', 'baseWords'])
-                        ->tap($lexicalOnly)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->limit(15)
                         ->get();
@@ -50,7 +39,6 @@ class Learning extends Model
                 } else {
                     $cards = Auth::user()->cards()
                         ->with(['wordbox:id,name', 'baseWords'])
-                        ->tap($lexicalOnly)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->get();
                     session(['more_cards_available' => false]);
@@ -66,7 +54,6 @@ class Learning extends Model
                     ->firstOrFail()
                     ->cards()
                     ->with(['wordbox:id,name', 'baseWords'])
-                    ->tap($lexicalOnly)
                     ->get();
             } catch (\Exception $exception) {
                 $cards = [];
@@ -75,7 +62,6 @@ class Learning extends Model
             try {
                 $theme = Theme::where('name', $filter)->first();
                 $dueCardsCount = Auth::user()->cards()
-                    ->tap($lexicalOnly)
                     ->where('theme_id', $theme->id)
                     ->whereDate('next_study_at', '<=', now()->toDateString())
                     ->count();
@@ -83,7 +69,6 @@ class Learning extends Model
                 if ($dueCardsCount > 20) {
                     $cards = Auth::user()->cards()
                         ->with(['wordbox:id,name', 'baseWords'])
-                        ->tap($lexicalOnly)
                         ->where('theme_id', $theme->id)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->limit(15)
@@ -92,7 +77,6 @@ class Learning extends Model
                 } else {
                     $cards = Auth::user()->cards()
                         ->with(['wordbox:id,name', 'baseWords'])
-                        ->tap($lexicalOnly)
                         ->where('theme_id', $theme->id)
                         ->whereDate('next_study_at', '<=', now()->toDateString())
                         ->get();
@@ -108,23 +92,10 @@ class Learning extends Model
     }
 
     /**
-     * Constrain a card query to the types the given mode can actually teach. Returned as
-     * a callable so every query in the selection paths can `tap()` it.
-     */
-    protected static function modeTypeFilter(?string $mode): \Closure
-    {
-        return function ($query) use ($mode) {
-            if (in_array($mode, self::LEXICAL_ONLY_MODES, true)) {
-                $query->ofTermType(Card::TYPE_LEXICAL);
-            }
-        };
-    }
-
-    /**
      * Split a bracketed example sentence around its blank: the text before and after the
-     * `[term]`, plus the exact form the brackets hide. The answer is that inflected form,
-     * never the card's base-form `term` — the brackets hold the Term in the
-     * form this sentence happens to use it in.
+     * `[term]`, plus the exact form the brackets hide. The answer is that form, never the
+     * card's `term` — the brackets hold the Term in the form this sentence happens to use
+     * it in.
      */
     protected static function sentenceParts(Card $card): array
     {
@@ -147,13 +118,13 @@ class Learning extends Model
      * Build a learning set from the card-set builder selection:
      * language + (all | general vocabulary | a wordbox) + (due | cram).
      */
-    protected static function getCardsForSelection(array $filter, ?string $mode = null)
+    protected static function getCardsForSelection(array $filter)
     {
         $languageId = $filter['language_id'] ?? null;
         $wordbox = $filter['wordbox'] ?? 'all';
         $scope = $filter['scope'] ?? 'due';
 
-        $query = Auth::user()->cards()->with(['wordbox:id,name', 'baseWords'])->tap(self::modeTypeFilter($mode));
+        $query = Auth::user()->cards()->with(['wordbox:id,name', 'baseWords']);
 
         if ($languageId) {
             $query->where('language_id', $languageId);
@@ -262,7 +233,7 @@ class Learning extends Model
             return self::startConversation();
         }
 
-        $cardsForLearning = self::getCardsForLearning(session('learning_filter'), $mode);
+        $cardsForLearning = self::getCardsForLearning(session('learning_filter'));
 
         // Words mode deals base words rather than cards, so it builds its own deck.
         $cards = $mode === 'words'

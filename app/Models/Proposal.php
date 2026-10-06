@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * One captured Term awaiting approval in staging, with everything CALL 1 proposes for it:
- * the card, its candidate base words, and for a lone word its anchor phrase.
+ * the Term the card will be built around and its candidate base words.
  *
  * A proposal is outside the vocabulary entirely. Approving it is the only way anything
  * enters, and it is the point CALL 2 finally runs — so no content is ever generated for
@@ -54,23 +54,13 @@ class Proposal extends Model
     }
 
     /**
-     * Whether Approve may fire. A word or phrase card must keep at least one base word,
-     * and a phrase card at most Card::MAX_BASE_WORDS — an expression may end with none.
-     * The control disables itself on this rather than failing after the fact.
+     * Whether Approve may fire: once CALL 1 has landed. How many base words are kept never
+     * matters — a card may link none of them, or many. The control disables itself on
+     * this rather than failing after the fact.
      */
     public function isApprovable(): bool
     {
-        if ($this->status !== self::STATUS_COMPLETED || ! $this->language_id) {
-            return false;
-        }
-
-        $kept = $this->keptBaseWords()->count();
-
-        return match ($this->card_shape) {
-            Card::SHAPE_EXPRESSION => true,
-            Card::SHAPE_WORD => $kept === 1,
-            default => $kept >= 1 && $kept <= Card::MAX_BASE_WORDS,
-        };
+        return $this->status === self::STATUS_COMPLETED && (bool) $this->language_id;
     }
 
     /**
@@ -144,14 +134,14 @@ class Proposal extends Model
         $language = $this->language;
         $user = $this->user;
 
-        $content = Card::generateContent($user, $language, $this->card_shape, $this->term, $this->anchor, $this->context);
+        $content = Card::generateContent($user, $language, $this->term, $this->context);
 
         if (is_null($content)) {
             return null;
         }
 
         $card = DB::transaction(function () use ($user, $language, $content) {
-            $card = Card::persist($user, $language, $this->term, $this->card_shape, $this->anchor, $this->context, $content);
+            $card = Card::persist($user, $language, $this->term, $this->context, $content);
 
             foreach ($this->keptBaseWords() as $candidate) {
                 $baseWord = BaseWord::resolve(

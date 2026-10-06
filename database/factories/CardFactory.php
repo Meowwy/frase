@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Card;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,7 +19,6 @@ class CardFactory extends Factory
         return [
             'user_id' => fake()->randomElement([1, 2]),
             'term' => fake()->word,
-            'card_shape' => Card::SHAPE_WORD,
             'translation' => fake()->word,
             'example_sentence' => fake()->sentence,
             'definition' => fake()->sentence,

@@ -15,13 +15,12 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   you get a toast and a count on the Staging nav link, and nothing else waits on the AI. You don't
   pick a language — the app works out which of your languages the term is in.
 - **Staging** is where a captured term waits for you, and nothing is in your vocabulary until you
-  approve it. Each proposal shows the term it settled on, what kind of card it needs (**word**,
-  **phrase** or **expression** — a whole thing you'd *say*), the detected language (changeable, if
-  it guessed wrong), and the individual words it wants to add to your vocabulary base as a tray of
+  approve it. Each proposal shows your term exactly as you typed it (only typos fixed — a lone
+  inflected word or a whole sentence is kept as it is), the detected language (changeable, if it
+  guessed wrong), and the individual words it wants to add to your vocabulary base as a tray of
   chips. **Strike** any chip and that word is left out — the card still teaches the whole term
-  either way. A chip for a word you already have says so, and opens up to show which of your cards
-  use it. A single-word term also gets a short **phrase to set it in**, which you can edit, swap for
-  another, or clear.
+  either way, and a card may keep any number of words, none included. A chip for a word you already
+  have says so, and opens up to show which of your cards use it.
 - **Approve** writes the card and its words — and only then is the definition, translation and
   example sentence generated, so nothing is spent on a term you throw away. **Discard** leaves
   nothing behind (with a few seconds to undo).
@@ -59,8 +58,7 @@ any one card. See [cards](cards.md) "The vocabulary base".
 ## Vocabulary list
 
 `/cards` — every saved term in one searchable, filterable table: filter by language, by wordbox
-(or "general vocabulary" = no wordbox), by term type (lexical/expression/both), and search by
-term or definition text as you type. Each row shows the term, its translation, its definition and
+(or "general vocabulary" = no wordbox), and search by term or definition text as you type. Each row shows the term, its translation, its definition and
 its wordbox. Select multiple cards to bulk-delete or bulk-move them into a wordbox. Opening a card
 gives you **previous/next** arrows to walk that language's terms in the same order the list shows
 them, without going back to the list each time. See [cards](cards.md).

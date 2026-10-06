@@ -51,52 +51,16 @@ _Avoid_: entry, item, vocab; **flashcard** (that is a card being *presented* for
 thing that is stored)
 
 **Term**:
-The thing on a card the learner is memorising — exactly what they gave at capture, in the card's
-own spelling. Every generated field on the card is about the Term, the Term is what reaches the
-vocabulary base, and every card has one whatever its shape.
-_Avoid_: target, answer, keyword, subject; phrase and word (those are card shapes)
-
-**Card shape**:
-Which of the three kinds a card is — **word**, **phrase** or **expression** — decided at capture.
-It governs which fields get written and how.
-_Avoid_: card type, card kind, format
-
-**Word**:
-A card shape: a Term that is a single naming unit word. Only word cards may carry an anchor phrase.
-_Avoid_: base word (that is a vocabulary-base entry, not a card shape)
-
-**Phrase**:
-A card shape: a naming unit of several words.
-_Avoid_: collocation, multi-word term, chunk; anchor phrase (that is a property of a word card)
-
-**Expression**:
-A card shape: a ready-made utterance or utterance frame performing a communicative function —
-answers "you say X when you want to…".
-_Avoid_: sentence, utterance, idiom, phrase
-
-**Naming unit**:
-Something that names a concept — the defining property of a lexical term. The axis between lexical
-and expression is naming unit vs. ready-made utterance, **never** word count.
-_Avoid_: noun phrase, single word
-
-**Term type**:
-The binary classification stored on every card: **lexical** or **expression**. Distinct from card
-shape — both word and phrase cards are lexical.
-_Avoid_: card type, category, class
-
-**Lexical**:
-A term type: the card is a naming unit, so it gets a dictionary definition and a translation.
-
-**Anchor phrase**:
-A short phrase that sets a word card's Term in a natural setting and carries its own translation —
-word cards only, at most one, and optional. Only the Term reaches the vocabulary base; the anchor
-phrase's other words never do.
-_Avoid_: phrase (that is a card shape), example, collocation, carrier phrase, context
+The thing on a card the learner is memorising — exactly what they gave at capture, with only typos
+fixed: a lone inflected word stays inflected, a sentence stays a sentence. Every card is the same
+kind whatever its Term, every generated field on the card is about the whole Term, and its words are
+what reach the vocabulary base.
+_Avoid_: target, answer, keyword, subject; card type, card shape (there is only one kind of card)
 
 **Context**:
 The learner's own sentence or situation, given at capture so the term is captured in the sense they
-met it in, and kept so the card can be regenerated in that same sense. It fixes the sense and may
-seed the anchor phrase; it never reaches the vocabulary base.
+met it in, and kept so the card can be regenerated in that same sense. It fixes the sense; it never
+reaches the vocabulary base.
 _Avoid_: source, example, usage (those are the card's generated content, not the learner's input)
 
 ### Languages
@@ -135,7 +99,7 @@ See [docs/cards.md](docs/cards.md), [docs/browser-extension.md](docs/browser-ext
 
 **Capture**:
 Turning a term the learner typed or pasted into a **proposal** in staging, with the AI detecting the
-language and settling the card shape. It returns immediately and creates no card.
+language and extracting the Term's words. It returns immediately and creates no card.
 _Avoid_: add, create, import, save (a card); and never let it imply a card now exists
 
 **Staging**:
@@ -145,7 +109,7 @@ _Avoid_: inbox, queue, drafts, pending, review (that belongs to LEARN)
 
 **Proposal**:
 One captured Term awaiting approval in staging, together with everything the AI proposes for it: the
-card, its base words, and for a lone word its anchor phrase.
+Term with its typos fixed, and its base words.
 _Avoid_: draft, candidate, suggestion, staged card (it is more than a card)
 
 **Approve**:
@@ -180,7 +144,7 @@ One entry in the vocabulary base: a lemma, its **part of speech**, its native tr
 recalled. Two base words may share a lemma when they differ in part of speech — *run* the verb and
 *run* the noun are different base words, not one. It carries no sense finer than part of speech, no
 schedule and no generated content — those live on cards.
-_Avoid_: focus word, headword, root, stem, vocabulary item; word (that is a card shape)
+_Avoid_: focus word, headword, root, stem, vocabulary item
 
 **Lemma**:
 The canonical spelling a base word is stored under, which is what makes deduplication work —
@@ -300,7 +264,7 @@ _Avoid_: exercise, game, activity, drill
 The learning mode that elicits the individual base words of due cards, shuffled. It is scheduled and
 lives inside a session, which is what separates it from Refresher — and clearing every one of a
 card's base words here clears the card itself, the one word-level path that does.
-_Avoid_: word mode, base practice; word (that is a card shape)
+_Avoid_: word mode, base practice
 
 **Refresher**:
 Free-form practice over the vocabulary base, ordered by staleness. It is **not** a learning mode: no
