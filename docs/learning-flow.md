@@ -52,7 +52,7 @@ more due" hint); otherwise all due cards are served. `cram` scope always returns
 uncapped. The returned collection is always `->shuffle()`d.
 
 Every mode serves every card. There is one kind of card (see [cards](cards.md)), so Sentences,
-Sentences-write and Definitions no longer skip cards that used to be classed as expressions: a
+Sentences-write and Definitions skip no Term, however long or idiomatic: a
 whole-sentence Term's example is a two-line exchange and its definition says when you'd say it, so
 both fronts still work. Only Words mode narrows the pool, to cards that have base words (below).
 

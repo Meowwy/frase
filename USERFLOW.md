@@ -1,48 +1,48 @@
 # USERFLOW
 
-The locked functional spec for Frase's vocabulary-base redesign: what the learner types, what it
-becomes, what is stored, and how it is practiced. Design is settled here — nothing in this file is
-still being decided, and implementation tickets can be cut straight from it. Terminology follows
-`CONTEXT.md`; schema, AI-call and endpoint detail live in the relevant `docs/*.md` file and aren't
-repeated here.
-
-This file describes the **redesign only**. Everything the redesign leaves untouched — the
-lexical/expression axis, the two-call pipeline, whole-sentence-to-reusable-frame normalisation,
-context-as-sense-fixer, CEFR-driven difficulty — already ships and is documented in
-`docs/ai-integration.md`; it is not re-litigated here.
+The functional spec for how vocabulary moves through Frase: what the learner types, what it
+becomes, what is stored, and how it is practiced. It describes the current design. Terminology
+follows `CONTEXT.md`; schema, AI-call and endpoint detail live in the relevant `docs/*.md` file
+and aren't repeated here.
 
 The app divides into three modules without residue: **CAPTURE**, **ORGANIZE**, **LEARN**.
 
 ## CAPTURE
 
-The learner types **Term** — the thing they want to learn — and, optionally, **Context** — the
-sentence or situation they met it in. Context fixes the sense and may seed the anchor phrase below,
-but never contributes a word to the vocabulary base: `collateral` captured with the context
-`collateral damage` must not add *damage* to the base.
+The learner types a **Term** — the thing they want to learn — and, optionally, a **Context** — the
+sentence or situation they met it in. The Term is kept **exactly as typed, with only typos fixed**:
+`kostade` stays `kostade` on the card, and a pasted sentence stays a sentence. Every Term becomes
+the same kind of card, however long or idiomatic it is. Context fixes the sense but never
+contributes anything to the vocabulary: `collateral` captured with the context `collateral damage`
+must not add *damage* to the base.
 
-Capture no longer produces a card. It produces a **proposal** in **staging**, and returns
+Capture does not produce a card. It produces a **proposal** in **staging**, and returns
 immediately.
 
-### What CALL 1 does now
+### What CALL 1 does
 
 At capture, CALL 1:
 
 - detects the **language**, from the learner's own target/native languages;
-- settles the **card shape** (word / phrase / expression) and the canonical form of the Term, as
-  today;
-- extracts the Term's **lexical words**, each reduced to its **lemma**, tagged with its **part of
-  speech**, together with a native translation for each and any **grammatical attributes** that
-  language and part of speech carry (see "Part of speech and grammatical attributes" below);
-- for a **lone-word Term**, proposes an **anchor phrase** — pulled from the Context when the
-  Context already contains the Term in a natural phrase, otherwise invented.
+- fixes the Term's typos, and nothing else;
+- extracts the Term's **base words**, each reduced to its **lemma**, tagged with its **part of
+  speech**, with a native translation and any **grammatical attributes** that language and part
+  of speech carry (see "Part of speech and grammatical attributes" below). Articles are never
+  extracted, nor is a word that occurs in the Term only inside one of its fixed expressions —
+  *tycka om* is learnt as a whole, not as *tycka* + *om*;
+- extracts up to three **fixed expressions** from the Term — multi-word units in which no word can
+  be swapped without breaking it or changing its meaning: a frame with a gap (*inte bara … utan
+  också*), a fixed unit (*på grund av*) or a non-literal particle verb (*tycka om*). Ordinary
+  combinations (*make a decision*, *heavy rain*) are not fixed expressions. Each comes in its
+  canonical form, `…` marking a gap. A Term that is itself a fixed expression is returned as one;
+- for a single-word Term captured **without a Context** that has two or more common senses
+  (*run* the verb or noun, *bank* money or riverside), offers up to four **senses**, each with its
+  part of speech, a short gloss and a translation.
 
-Two filters narrow which extracted words are actually suggested as base words:
+Words and fixed expressions come from the Term only, never from the Context.
 
-- **Proficiency** — at B1 and above, prepositions, pronouns and other very basic function words
-  are not suggested (it never drops a word card's own Term).
-- **Already present** — a lemma the learner already has **in the same part of speech**, or an
-  expression already held, is not suggested again, but the learner is told it is already there.
-  *Run* the verb and *run* the noun are different vocabulary items, not duplicates of each other.
+At B1 and above, prepositions, pronouns, conjunctions and determiners are not worth a base word
+and are dropped from the proposal, even if that leaves no word at all. An A1–A2 learner keeps them.
 
 CALL 2 does not run yet. It runs only once the proposal is **approved**, so no content is ever
 generated for something the learner discards.
@@ -50,59 +50,121 @@ generated for something the learner discards.
 ### Staging
 
 Staging holds every proposal — asynchronous, cross-language, outside the vocabulary until the
-learner acts on it. Because staging exists, there is no longer a language switcher / save-
-destination picker on the dashboard: the language is detected, not chosen up front, and staging is
-where a wrong detection gets corrected. The browser extension writes into staging the same way the
-web form does.
-
-A proposal shows:
-
-- the proposed card — the Term, in its own block, visually separate from anything strikeable, plus
-  its shape tag and the detected (editable) language;
-- the proposed base words as a tray of chips, one per extracted lemma, each labeled with its
-  **part of speech** and, where the language defines one, its **display form** — a Swedish chip
-  reads *"ett hus"*, not bare *"hus"*, and *"komm|a -er"*, not bare *"komma"*;
-- for a lone word, the proposed anchor phrase, editable, with **Replace** (regenerate) and
-  **Clear** — clearing is reversible, leaving a "+ Add one" state rather than deleting the block
-  outright.
-
-**Striking** removes one chip so that word never becomes a base word. It is the only per-word
-control, and it **never rewrites the Term** — `hur mycket kostar det` with `hur` struck is still a
-card for the whole phrase, just linked to three base words instead of four. A word or phrase card
-must keep at least one base word, so the control disables itself the moment striking would leave
-zero (an expression may end with none); it never fails after the fact. Word and phrase cards are
-also capped at **5** base words — a Term whose lexical words exceed that must be struck down before
-it can be approved.
-
-A chip for a word already in the base carries an **already-present** notice; tapping it expands
-which phrases/expressions the word is already used in. Owning the base word never blocks capturing
-this new card — the learner decides for themselves whether a card of its own is worth it.
-
-**Approve** writes the card and its base-word links — disabled until the min-base-word rule above
-is satisfied — and is the point CALL 2 finally runs. **Discard** removes the proposal immediately,
-with an undo toast for a few seconds; once it expires nothing is kept — no discard history, no
-draft state.
+learner acts on it. Nothing picks a language up front: it is detected, and staging is where a wrong
+detection gets corrected. The browser extension writes into staging the same way the web form does.
 
 **The fast path** is one feed, not a separate queue: capture shows an instant toast and bumps a
-persistent count badge, and a skeleton card appears at the top of the staging list, resolving into
+persistent count badge, and a skeleton row appears at the top of the staging list, resolving into
 the real proposal once CALL 1 returns.
 
+A proposal shows the Term, in its own block, with the detected (editable) language and the Context,
+which can be added, edited or cleared on any proposal. Changing the language or the Context
+**re-runs CALL 1**, since the words were extracted, translated and tagged for the old language and
+sense.
+
+#### Words
+
+Each extracted word is a chip labelled with its **part of speech** and, where the language defines
+one, its **display form** — a Swedish chip reads *"ett hus"*, not bare *"hus"*, and *"komm|a -er"*,
+not bare *"komma"*. Every chip falls into exactly one of three groups:
+
+- **Already present** — the learner already has this lemma **in the same part of speech** in their
+  vocabulary base. Shown aside with no strike control, since there is nothing to decide; tapping
+  it expands to the cards the word is already used in. Linked to the new card on approval. *Run*
+  the verb and *run* the noun are different base words, not duplicates of each other.
+- **Known** — the learner struck this word before. Shown aside, labelled *known*, never linked.
+  Tapping it **un-knows** it and it becomes a new chip again.
+- **New** — strikeable. Created and linked on approval unless struck.
+
+**Striking** a new chip records it as a **known word**, remembered per language by lemma and part
+of speech, so that word — in any inflected form, since the match is on the lemma — is never
+proposed again. Striking **never rewrites the Term**: `hur mycket kostar det` with `hur` struck is
+still a card for the whole phrase, just linked to fewer base words.
+
+There is no rule on how many base words a card may have. A card can link none or many, so no
+proposal can get stuck in staging.
+
+#### Fixed expressions
+
+Fixed expressions are chips of their own, in their canonical form. One already in the learner's
+**expression base** is shown aside, not strikeable, and linked on approval. A new one can be
+struck; unlike a word, a struck fixed expression is not remembered — the strike holds for this
+proposal only.
+
+#### Senses
+
+When CALL 1 offered senses, staging shows them as a **sense picker** and Approve is disabled until
+one is picked. Picking a sense writes it into the proposal's Context and re-runs CALL 1, which now
+has a Context and extracts everything in the chosen sense. The sense is kept as the card's Context,
+so regenerating the card later stays in it.
+
+#### Related cards and Merge
+
+Each proposal shows its **related cards**: the learner's existing cards that share at least one of
+its base words, most shared words first, at most five so a common word can't flood the panel. A
+single-word card whose word appears in the new Term is flagged *made redundant by this card* and
+listed first — it is the one the learner most likely wants to replace.
+
+Any related card can be marked to **merge**. Nothing happens to it until approval; then it is
+removed, its wordbox memberships move to the new card, and its review progress and note are
+dropped — the new card starts fresh, so the learner actually reviews the longer Term they just
+saved. **Discarding the proposal removes nothing.**
+
+#### An identical Term
+
+A proposal whose Term matches an existing card is flagged as such and is not approvable as it
+stands. The learner can **regenerate** that card, **discard** the proposal, or **merge** the old
+card into the new one. Two ways make it approvable:
+
+- giving the proposal a **Context** of its own — the way to hold *run* (verb) and *run* (noun) as
+  separate cards;
+- marking every identical card for merge — the way to replace a card.
+
+Owning a base word of a Term never counts as already having that Term — the base and the card list
+are different questions, and the already-present group answers the base one.
+
+#### Approve and Discard
+
+**Approve** writes the card, links its base words and fixed expressions, merges away the marked
+cards, and is the point CALL 2 finally runs. It is disabled until the proposal is analysed, a
+sense is picked if senses were offered, and the identical-Term rule is satisfied — never by how
+many words it has. **Discard** removes the proposal immediately, with an undo toast for a few
+seconds; once it expires nothing is kept — no discard history, no draft state.
+
 ## ORGANIZE
+
+### Cards
+
+A card is about its **whole Term**; nothing inside it is privileged. CALL 2 writes three fields for
+it, all about the Term as typed:
+
+- a **translation** — a natural equivalent of the Term, inflection included, never word by word
+  (left out for a native-language card);
+- a **definition** — what the Term means or, for a whole utterance, when you would say it;
+- an **example sentence** with the Term in it — for a Term that is itself a sentence, a short
+  two-line exchange with the Term as one line.
+
+The card detail page shows the card's base words and fixed expressions beside its content.
 
 ### The vocabulary base
 
 One entry per **lemma and part of speech** per language — the **base word**: the lemma, its part
 of speech, its native translation (set once, at proposal time, never revised), any grammatical
-attributes that part of speech carries, and its **last recall**. The base carries no sense finer
-than part of speech, no schedule and no generated content; sense lives on cards. Its jobs are
-deduplication and coverage — telling the learner what they've already met, and which words appear
-across many phrases without being owned by any single card's review.
+attributes that part of speech carries, and its **last recall**. It holds only words the learner
+is learning — new or wanted ones, never known ones. The base carries no sense finer than part of
+speech, no schedule and no generated content; sense lives on cards. Its jobs are deduplication and
+coverage — telling the learner what they've already met, and which words appear across many cards
+without being owned by any single card's review.
 
 **Part of speech is part of a base word's identity, not a revisable fact about it.** *Run* the verb
 and *run* the noun are two different base words, not one row that gets overwritten — they mean
 completely different things, so treating them as duplicates would lose one of them. Everything
-else CALL 1 fixes at proposal time (translation, attributes) follows the same never-revised rule
-translation already had.
+else CALL 1 fixes at proposal time (translation, attributes) is never revised either.
+
+One Term always yields exactly one card: a sentence is not split into several cards.
+`hur mycket kostar det` yields one card plus base words for its words (`kosta`, not `kostar`; at
+B1 and above the pronoun `det` is dropped); `It is not my cup of tea` yields one card and the fixed
+expression *not my cup of tea*, and no base word for *cup* or *tea*, which occur only inside it.
 
 ### Part of speech and grammatical attributes
 
@@ -132,95 +194,59 @@ language's own guideline, not something hardcoded per feature:
 Adding a third language means adding its own guideline, not changing this file or the schema —
 see `docs/ai-integration.md` "Language guidelines" for where that lives and what it can define.
 
-A card's Term reaches the base by way of its lexical words; its **anchor phrase** never does — only
-the Term does. One Term always yields exactly one card, plus base entries for its lexical words: a
-sentence is not split into several cards. `hur mycket kostar det` yields one phrase card plus base
-words for `hur`/`mycket`/`kosta`/`det`; `It is not my cup of tea` yields one expression card
-(`not my cup of tea`) plus base words `cup`/`tea` — the words inside an expression do enter the
-base, subject to the same two filters CALL 1 applies at capture.
+### The expression base
 
-A card is about its **whole Term**; nothing inside it is privileged. There is no focus word and no
-focus/non-focus split — a word of the Term is either linked as a base word or it isn't, and
-striking at staging time is the only thing that decides which.
+The learner's fixed expressions, per language, beside the vocabulary base: the canonical form, a
+translation (set once, never revised), its last recall, and the cards whose Terms contain it. It
+has a tab of its own on the vocabulary base page. Fixed expressions are stored and shown only —
+they have no practice surface of their own.
 
-How many base words a card may link:
+### Where translations come from
 
-- **word** — exactly one, its own lemma;
-- **phrase** — at least one, capped at **5**;
-- **expression** — zero or more.
-
-### The anchor phrase
-
-A lone word is not replaced by a phrase card built around it — it keeps its own card and gains a
-phrase as a **property**: word cards only, nullable, the Term's occurrence marked in `[brackets]`
-inside it, carrying its own translation. Its other words never enter the base. Re-suggesting one
-later is a regenerate.
-
-### The duplicate check
-
-Narrows to the card's own Term alone. Owning a base word of a Term never counts as already having
-that Term as a card — the base and the card list are two different questions, and staging answers
-the base one explicitly with the already-present notice above.
-
-### Where the base word's translation comes from
-
-CALL 1 returns each extracted word's translation directly, in lemma form. Whether that is served
-by the model itself, a dictionary lookup, or an API behind the same seam is an implementation
-choice, not part of this spec.
+CALL 1 returns each extracted word's and fixed expression's translation directly. Whether that is
+served by the model itself, a dictionary lookup, or an API behind the same seam is an
+implementation choice, not part of this spec.
 
 ## LEARN
 
 **SRS lives on cards only.** A card is cleared when its **Term** is produced — as a whole, or,
-uniquely in Words mode, one base word at a time. Every other word-level answer only ever stamps a
-base word's **last recall**, and only on a correct answer; it never touches a card's schedule.
+uniquely in Words mode, one base word at a time. Clearing a card stamps **last recall** on every
+base word and fixed expression linked to it. Every other word-level answer only ever stamps a base
+word's last recall, and only on a correct answer; it never touches a card's schedule.
 
-- **Sentences / Sentences-write / Definitions / Conversation** — unchanged mechanically, except
-  that the target they elicit is now always the whole Term (there is no more focus word to bracket
-  or ask for separately). A correct answer clears the card and stamps last-recall on every base
-  word linked to it.
-- **Words** — pulls the **individual base words** of due cards (not the cards themselves) into one
-  shuffled, per-word session capped at **15 words**; a due card enters only if all of its base
-  words fit under that cap. Front is the base word's own translation, back is its **lemma** in its
-  **display form** (never the inflected surface form — Words always tests the lemma; for a Swedish
-  noun the back is *"ett hus"*, not *"hus"*, and for a Swedish verb *"komm|a -er"*), hint is the
-  parent card's context. **Part of speech is
-  shown alongside the word on both front and back**, since two base words can share a lemma and
-  differ only by part of speech. A card clears once every one of its base words has been answered
-  correctly within the session; each correct word also stamps that word's own last recall
-  independently of whether the card clears. Cards with zero base words (an expression whose words
-  were all filtered out) don't enter the Words-mode due pool — they can only clear through the
-  other modes.
+Every learning mode serves every card, except that Words mode skips cards with no base words.
+
+- **Translation** — the first mode the builder offers, and the classic Anki-style review. Front is
+  the card's translation (its definition, for a native-language card, which has no translation),
+  back is the Term, hint is the example sentence with the Term blanked out. The learner flips the
+  card and grades themselves Wrong or Correct.
+- **Sentences / Sentences-write / Definitions / Conversation** — the target they elicit is always
+  the whole Term.
+- **Words** — pulls the **individual base words** of due cards (not the cards themselves),
+  already-present ones included, into one shuffled, per-word session capped at **15 words**; a due
+  card enters only if all of its base words fit under that cap. Front is the base word's own
+  translation, back is its **lemma** in its **display form** (never the inflected surface form —
+  for a Swedish noun the back is *"ett hus"*, not *"hus"*, and for a Swedish verb *"komm|a -er"*),
+  hint is the parent card's context. **Part of speech is shown alongside the word on both front
+  and back**, since two base words can share a lemma and differ only by part of speech. A card
+  clears once every one of its base words has been answered correctly within the session; each
+  correct word also stamps that word's own last recall independently of whether the card clears.
 - **Refresher** — free-form, unscheduled practice over the whole vocabulary base, ordered by
   **staleness** (how long since last recall). Front/back/part-of-speech are the same as Words; a
   correct answer stamps that word's last recall and nothing else — no schedule, and it never clears
   a card. It is not a learning mode: no session scope.
-- **Anchor phrase** is never shown during review, for now — a staging/card-detail artifact only.
-
-## Consequences for screens this redesign touches but does not itself design
-
-These were left open here and settled in implementation; the detail lives in the `docs/*.md` file
-for each area, not in this spec.
-
-- **The save-destination picker and its capture-target session state are retired** — staging
-  detects the language, so nothing picks a language or wordbox for a new capture. What replaced it:
-  a two-field `<x-capture-form>` that posts and returns immediately, on the dashboard, `/staging`
-  and a wordbox page. See `docs/multi-language.md` "Which language a screen opens on".
-- **The vocabulary base has a page of its own**, `/base`, with Refresher launched from it. See
-  `docs/cards.md` and `docs/learning-flow.md`.
-- **The nav is grouped by module**, with a persistent count badge on Staging.
-- **The card detail and edit pages** lost the three example fragments and
-  `<x-phrase-suggestions>`, and gained the anchor phrase plus the card's base words. Schema side:
-  see `docs/cards.md`.
 
 ## Out of scope
 
-- **Migrating existing production cards.** Existing data is expendable; a fresh start on deploy is
+- **Migrating existing cards.** Existing data is expendable; a fresh start on deploy is
   acceptable.
-- **The hide-a-word review mode** (a base word of a phrase Term hidden mid-sentence). The
+- **Practice built on fixed expressions** — no mode, no Refresher, no Gap-fill use.
+- **Remembering struck fixed expressions** as known.
+- **The hide-a-word review mode** (a base word of a multi-word Term hidden mid-sentence). The
   card/base-word link's surface form is built to support it, but the mode's own design is a future
   effort.
-- **Which tool supplies lemmatization, part-of-speech tagging and translation** — the AI, a
-  dictionary API, or a bundled wordlist. CALL 1 covers every supported language either way;
-  swapping in something cheaper for specific languages is an optimisation behind the same seam.
-- **Visual design.** This spec settles interaction and data shape only; a separate design project
-  supplies the eventual look. Implementation ships against the current app's existing visual style.
+- **Downloaded dictionaries for languages other than Swedish.** The plan is one per supported
+  language with the AI as fallback; only Swedish has one today. Which tool supplies
+  lemmatization, part-of-speech tagging and translation is an optimisation behind the same seam.
+- **Visual design.** This spec settles interaction and data shape only; implementation ships in
+  the current app's existing visual style.

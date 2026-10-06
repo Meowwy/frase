@@ -24,15 +24,15 @@ Base columns from the original migration plus everything added since:
 
 Dropped by the vocabulary-base redesign (migration
 `2026_09_27_000001_redesign_cards_for_vocabulary_base`, which also renamed `phrase` → `term`):
-`word` (there is no focus word — see "What a card is built around" below), `example_1`,
-`example_2`, `example_3` and `term_type`. `question` had already gone earlier
+`word` (there is no focus word — see "What a card is built around" below) and the three
+`example_*` fields. `question` had already gone earlier
 (`2026_08_04_000001_add_examples_and_note_drop_question_from_cards`).
 
-Dropped by `2026_10_06_000001_drop_card_shape_and_anchor`: `card_shape`, `anchor` and
-`anchor_translation`. **There is one kind of card.** Every Term used to be classified as a word,
-phrase or expression, which drove three generators, per-shape base-word limits, an anchor phrase
-for word cards only and learning modes that silently skipped expressions — distinctions that
-didn't help anyone learn. Existing data was expendable, so nothing was backfilled.
+**There is one kind of card.** Every Term used to be classified into one of three kinds, which
+drove three generators, per-kind base-word limits, an extra phrase property on lone-word cards and
+learning modes that silently skipped one kind — distinctions that didn't help anyone learn.
+`2026_10_06_000001` dropped those columns; existing data was expendable, so nothing was
+backfilled.
 
 ## Model (`app/Models/Card.php`)
 
@@ -93,7 +93,7 @@ together); a correct word-level answer stamps that one word.
 Unique on `(card_id, base_word_id)` — one link per base entry per card, even when the Term repeats
 a word (`AnalyzeProposalJob` also drops a repeated lemma+part-of-speech from the chip tray, so the
 constraint is never reached in practice). There is **no cardinality rule**: a card may link no
-base words at all, or many. An earlier minimum and maximum per card shape could leave a proposal
+base words at all, or many. An earlier per-card minimum and maximum could leave a proposal
 permanently stuck in staging, with nothing the learner could do but discard it.
 
 Each candidate falls into exactly one **group** (`Proposal::groupOf()`), checked in this order:

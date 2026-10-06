@@ -1,8 +1,8 @@
 # Frase
 
 A language-learning app: learners save words and phrases as **cards** and get AI-generated content
-for them, while every word inside those cards also lands in their **vocabulary base**, the
-inventory of what they have met. Cards are reviewed on a spaced-repetition schedule, across up to
+for them, while the new words inside those cards land in their **vocabulary base**, the
+inventory of the words they are learning. Cards are reviewed on a spaced-repetition schedule, across up to
 five target languages plus optionally their own native one.
 
 This file is the project's **glossary only** — the canonical word for each concept, and the words
@@ -55,7 +55,7 @@ The thing on a card the learner is memorising — exactly what they gave at capt
 fixed: a lone inflected word stays inflected, a sentence stays a sentence. Every card is the same
 kind whatever its Term, every generated field on the card is about the whole Term, and its words are
 what reach the vocabulary base.
-_Avoid_: target, answer, keyword, subject; card type, card shape (there is only one kind of card)
+_Avoid_: target, answer, keyword, subject
 
 **Context**:
 The learner's own sentence or situation, given at capture so the term is captured in the sense they
@@ -121,13 +121,15 @@ the proposal can't be approved.
 _Avoid_: meaning picker, disambiguation, definition
 
 **Approve**:
-The learner's act of accepting a proposal, which writes the card and its base words. It is the only
+The learner's act of accepting a proposal, which writes the card, links its base words and fixed
+expressions, and removes any card marked to merge. It is the only
 way anything enters the vocabulary; **discard** is the other branch and leaves nothing behind.
 _Avoid_: accept, confirm, publish, commit; decline and reject (the word is discard)
 
 **Strike**:
-Marking a proposed new word as a known word, so it never becomes a base word. It governs base
-membership only — it never rewrites the Term.
+Marking a proposed new word as a known word, so it never becomes a base word, or a proposed fixed
+expression so this proposal doesn't save it. It governs what enters the vocabulary and expression
+bases only — it never rewrites the Term.
 _Avoid_: exclude, skip, drop, delete, unlink
 
 **Known word**:
@@ -158,8 +160,8 @@ See [docs/cards.md](docs/cards.md).
 
 **Vocabulary base**:
 The learner's inventory of the words they are learning in one language — new or wanted words, never
-known ones — one entry per lemma **and part of speech**, independent of any card. Its jobs are deduplication and coverage — never
-shortened to *vocabulary*, which means their cards.
+known ones — one entry per lemma **and part of speech**, independent of any card. Its jobs are
+deduplication and coverage. Never shortened to *vocabulary*, which means their cards.
 _Avoid_: wordlist, lexicon, word bank, dictionary, vocabulary (bare) — *lexicon* is the
 downloaded reference dictionary below, which belongs to no learner
 
@@ -174,7 +176,8 @@ _Avoid_: focus word, headword, root, stem, vocabulary item
 **Lemma**:
 The canonical spelling a base word is stored under, which is what makes deduplication work —
 *obfuscate* and *obfuscated* are one base word (of the same part of speech).
-_Avoid_: base form, dictionary form, canonical form, root, stem
+_Avoid_: base form, canonical form, root, stem; dictionary form (that is how a base word is
+written — below)
 
 **Part of speech**:
 A base word's grammatical category (noun, verb, adjective, …), fixed at the point CALL 1 extracts
@@ -194,7 +197,8 @@ A base word written the way that language's dictionaries write it, for the parts
 language has such a convention — a Swedish verb is *komm|a -er*, not bare *komma*. Unlike a
 grammatical attribute it cannot be derived from the lemma, so the whole string is stored on the
 base word — taken from the lexicon where it knows the verb, from CALL 1 otherwise; it is set once
-and never revised, and it is not part of the dedup key. Which parts of speech have one is declared per language guideline (below).
+and never revised, and it is not part of the dedup key. Which parts of speech have one is declared
+per language guideline (below).
 _Avoid_: conjugation, inflection, suffix, stem
 
 **Language guideline**:
@@ -228,7 +232,7 @@ A multi-word unit learnt as a whole because no word in it can be swapped without
 changing its meaning — a frame with a gap (*inte bara … utan också*), a fixed unit (*på grund av*)
 or a non-literal particle verb (*tycka om*). Stored in its canonical form, `…` marking a gap.
 Ordinary combinations (*make a decision*, *heavy rain*) are not fixed expressions.
-_Avoid_: idiom, collocation, phrase, expression card (there is only one kind of card)
+_Avoid_: idiom, collocation, phrase
 
 **Expression base**:
 The learner's inventory of fixed expressions in one language, alongside the vocabulary base. Like
@@ -237,8 +241,8 @@ on its own always means this, never a kind of card.
 _Avoid_: phrasebook, idiom list
 
 **Last recall**:
-The datetime a base word or fixed expression was last produced correctly. It is set only on a correct answer, and it
-schedules nothing.
+The datetime a base word or fixed expression was last produced correctly. It is set only on a
+correct answer, and it schedules nothing.
 _Avoid_: last studied, last seen, reviewed at, due date
 
 **Staleness**:
@@ -288,8 +292,8 @@ _Avoid_: practice, review all, free review
 
 **Cleared**:
 What a card becomes once its Term has been produced — as a whole (Translation, Sentences,
-Sentences-write, Definitions, Conversation), or in Words mode once every one of the card's base words has been
-answered correctly. Either path advances the card's level. Every other word-level answer (Refresher)
+Sentences-write, Definitions, Conversation), or in Words mode once every one of the card's base
+words has been answered correctly. Either path advances the card's level. Every other word-level answer (Refresher)
 stamps a base word's last recall and never clears a card.
 _Avoid_: passed, completed, answered, correct
 
@@ -327,12 +331,12 @@ variant.
 _Avoid_: chat, roleplay, conversation practice (bare)
 
 **Conversation mode**:
-The learning mode in which due cards are reviewed through a live chat — a word used correctly in
+The learning mode in which due cards are reviewed through a live chat — a Term used correctly in
 conversation counts as a correct review. Distinct from Conversation Challenge, which reviews
 nothing.
 _Avoid_: SRS chat, vocabulary chat
 
 **Gap-fill**:
-A short generated story for one wordbox that works in that wordbox's own terms, each replaced by a
+A short generated story for one wordbox that works in that wordbox's own Terms, each replaced by a
 blank to fill. See [docs/gap-fill.md](docs/gap-fill.md).
 _Avoid_: cloze, exercise, quiz, fill in the blanks

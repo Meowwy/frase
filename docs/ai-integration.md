@@ -67,10 +67,9 @@ this at all.
 The other payoff is prompt rule #1 above: `term` is an **input** to the content call, so "never
 swap the learner's term" is guaranteed by construction rather than by instruction.
 
-Every Term used to be classified as a word, phrase or expression (`card_kind`), with idiom
-substitution tests, speaker anchoring, sentence-to-frame normalisation and a tie-break in the
-prompt, and three generators with different schemas. All of it is gone: there is one kind of card
-(see [cards](cards.md)).
+Every Term used to be classified into one of three kinds (`card_kind`), with substitution
+tests, sentence-to-frame normalisation and a tie-break in the prompt, and three generators with
+different schemas. All of it is gone: there is one kind of card (see [cards](cards.md)).
 
 The cost is one extra round trip. It is kept small: `analyzeTerm` uses a tiny schema and
 `reasoning_effort: 'low'` (the precedent set by the chat-turn methods), and its whole answer is a
@@ -133,8 +132,7 @@ The two filters that narrow this list run in PHP, after the call, not as instruc
 see [cards](cards.md) "Two filters" for why.
 
 Retired: **`word`** (no focus word to spell), **`submitted_form`** (its only consumer, the
-`examples` suggestions, is gone), and **`card_kind`** and **`anchor`** (one card type, no anchor
-phrase).
+`examples` suggestions, is gone), and **`card_kind`** (one card type).
 
 ### Language guidelines
 
