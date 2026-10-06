@@ -316,6 +316,7 @@ class WordsAndRefresherTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('ett hus');
-        $response->assertSee('never');
+        // Coverage: the row carries its cards' Terms for the side panel.
+        $response->assertSee('ett stort hus');
     }
 }

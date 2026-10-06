@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Auth;
  *
  * The base is one entry per lemma and part of speech in one language. It carries no
  * schedule and no generated content — its jobs are deduplication and coverage, so the page
- * is about what the learner has met and how long ago, not about what is due.
+ * is about what the learner has met and where, not about what is due.
  */
 class BaseWordController extends Controller
 {
@@ -24,9 +24,9 @@ class BaseWordController extends Controller
     private const REFRESHER_BATCH = 30;
 
     /**
-     * The vocabulary base, one language at a time, with each entry's coverage — how many
-     * cards use the word — and when it was last recalled. Its second tab is the expression
-     * base: each fixed expression with the cards using it.
+     * The vocabulary base, one language at a time, with each entry's coverage — the cards
+     * using the word, counted in the table and listed in the side panel. Its second tab is
+     * the expression base, laid out the same way.
      */
     public function index(Request $request)
     {
@@ -49,8 +49,7 @@ class BaseWordController extends Controller
         }
 
         $baseWords = $user->baseWords()
-            ->with('language')
-            ->withCount('cards')
+            ->with(['language', 'cards:id,term'])
             ->when($languageId, fn ($q) => $q->where('language_id', $languageId))
             ->orderBy('lemma')
             ->paginate(50)

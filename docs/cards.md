@@ -152,7 +152,18 @@ unique on `(card_id, fixed_expression_id)`.
 
 There is no practice surface for fixed expressions: they don't enter Words mode, Refresher or
 Gap-fill. They are shown on the card detail page and on the **Expressions** tab of `/base`
-(`/base?tab=expressions`: form, translation, last recall, and the cards using each one).
+(`/base?tab=expressions`).
+
+## The `/base` page (`BaseWordController@index`)
+
+Two tabs, words and expressions, laid out alike: a table (display form or form, part of speech
+for words, translation, card count) and a **side panel** on the right, empty until a row is
+clicked, then listing the Terms of the cards that word or expression is part of — coverage is
+half of why the base exists, and the panel shows it without making every row as tall as its card
+list. Each row's cards are eager-loaded (`cards:id,term`) and carried in a `<template>` inside
+the row (`base/_row-cards`), so a click is a client-side swap with no request
+(`base/_panel`). Last recall is not shown on the page; it is still stamped, and Refresher still
+orders by it.
 
 ## The lexicon
 
