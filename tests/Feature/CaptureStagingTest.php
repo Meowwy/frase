@@ -6,6 +6,7 @@ use App\Jobs\AnalyzeProposalJob;
 use App\Models\BaseWord;
 use App\Models\Card;
 use App\Models\Language;
+use App\Models\LexiconEntry;
 use App\Models\Proposal;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -377,8 +378,8 @@ class CaptureStagingTest extends TestCase
 
     /**
      * Swedish verbs are learned in dictionary style, and unlike a noun's gender that string
-     * cannot be derived from the lemma — so CALL 1 supplies it and it is stored. The chip
-     * and every later screen read "komm|a -er", not bare "komma".
+     * cannot be derived from the lemma — so it is stored. With an empty lexicon (as here)
+     * CALL 1 supplies it. The chip and every later screen read "komm|a -er", not bare "komma".
      */
     public function test_a_swedish_verb_is_staged_and_stored_in_dictionary_style(): void
     {
@@ -402,6 +403,89 @@ class CaptureStagingTest extends TestCase
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
 
         $this->assertSame('komm|a -er', BaseWord::sole()->displayForm());
+    }
+
+    private function lexicon(string $lemma, string $partOfSpeech, ?string $gender = null, ?string $dictionaryForm = null): void
+    {
+        LexiconEntry::create([
+            'language_code' => 'sv', 'lemma' => $lemma, 'part_of_speech' => $partOfSpeech,
+            'gender' => $gender, 'dictionary_form' => $dictionaryForm, 'paradigm' => 'test',
+        ]);
+    }
+
+    private function captureWord(User $user, array $baseWord): Proposal
+    {
+        $this->fakeOpenAi($this->analysis([
+            'card_kind' => Card::SHAPE_WORD,
+            'term' => $baseWord['lemma'],
+            'base_words' => [array_replace(['surface_form' => $baseWord['lemma'], 'translation' => 'x', 'gender' => '', 'dictionary_form' => ''], $baseWord)],
+        ]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => $baseWord['lemma']]);
+
+        return $user->proposals()->sole();
+    }
+
+    /**
+     * Where the lexicon knows the word, its gender wins over a wrong CALL 1 answer.
+     */
+    public function test_the_lexicon_overrides_a_wrong_swedish_noun_gender(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('hus', 'noun', gender: 'neuter');
+
+        $word = $this->captureWord($user, ['lemma' => 'hus', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+
+        $this->assertSame(['gender' => 'neuter'], $word->grammar_attributes);
+        $this->assertSame('ett hus', $word->displayForm());
+    }
+
+    /**
+     * Homographs ("ett plan" / "en plan") leave the sense to CALL 1, but only among the
+     * values the dictionary allows — an answer outside them falls back to the first.
+     */
+    public function test_a_homograph_keeps_the_ai_choice_among_the_lexicon_options(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('plan', 'noun', gender: 'neuter');
+        $this->lexicon('plan', 'noun', gender: 'common');
+
+        $noun = $this->captureWord($user, ['lemma' => 'plan', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+
+        $this->assertSame(['gender' => 'common'], $noun->grammar_attributes);
+    }
+
+    public function test_a_verb_form_outside_the_lexicon_options_falls_back_to_the_lexicon(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('komma', 'verb', dictionaryForm: 'komm|a -er');
+
+        $verb = $this->captureWord($user, ['lemma' => 'komma', 'part_of_speech' => 'verb', 'dictionary_form' => 'kom|ma -er'])->baseWords->sole();
+
+        $this->assertSame('komm|a -er', $verb->dictionary_form);
+    }
+
+    /**
+     * A compound the lexicon doesn't list takes its last element's gender.
+     */
+    public function test_an_unlisted_compound_takes_its_last_elements_gender(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('hus', 'noun', gender: 'neuter');
+
+        $compound = $this->captureWord($user, ['lemma' => 'sommarhus', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+
+        $this->assertSame(['gender' => 'neuter'], $compound->grammar_attributes);
+    }
+
+    public function test_a_word_the_lexicon_does_not_know_keeps_the_ai_answer(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('hus', 'noun', gender: 'neuter');
+
+        $unknown = $this->captureWord($user, ['lemma' => 'bil', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+
+        $this->assertSame(['gender' => 'common'], $unknown->grammar_attributes);
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\Card;
 use App\Models\Language;
 use App\Models\Proposal;
 use App\Support\LanguageGuideline;
+use App\Support\Lexicon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -101,23 +102,29 @@ class AnalyzeProposalJob implements ShouldQueue
     private function storeCandidates(array $candidates, Language $language, string $shape, ?string $level): void
     {
         $guideline = LanguageGuideline::for($language->code);
+
+        $candidates = array_filter($candidates, fn ($candidate) => trim((string) ($candidate['lemma'] ?? '')) !== ''
+            && in_array($candidate['part_of_speech'] ?? '', LanguageGuideline::PARTS_OF_SPEECH, true));
+
+        $lexicon = Lexicon::lookup($language->code, array_map(fn ($candidate) => [
+            'lemma' => trim((string) $candidate['lemma']),
+            'part_of_speech' => $candidate['part_of_speech'],
+        ], $candidates));
+
         $clean = [];
 
         foreach ($candidates as $candidate) {
-            $lemma = trim((string) ($candidate['lemma'] ?? ''));
-            $partOfSpeech = (string) ($candidate['part_of_speech'] ?? '');
-
-            if ($lemma === '' || ! in_array($partOfSpeech, LanguageGuideline::PARTS_OF_SPEECH, true)) {
-                continue;
-            }
+            $lemma = trim((string) $candidate['lemma']);
+            $partOfSpeech = $candidate['part_of_speech'];
+            $key = mb_strtolower($lemma).'|'.$partOfSpeech;
 
             // One chip per lemma + part of speech: the card/base-word link is unique per
             // pair, so a Term that repeats a word must not propose it twice.
-            $clean[mb_strtolower($lemma).'|'.$partOfSpeech] ??= [
+            $clean[$key] ??= [
                 'lemma' => $lemma,
                 'part_of_speech' => $partOfSpeech,
-                'grammar_attributes' => $this->grammarAttributes($guideline, $partOfSpeech, $candidate),
-                'dictionary_form' => $this->dictionaryForm($guideline, $partOfSpeech, $candidate),
+                'grammar_attributes' => $this->grammarAttributes($guideline, $partOfSpeech, $candidate, $lexicon[$key] ?? []),
+                'dictionary_form' => $this->dictionaryForm($guideline, $partOfSpeech, $candidate, $lexicon[$key] ?? []),
                 'surface_form' => trim((string) ($candidate['surface_form'] ?? '')) ?: $lemma,
                 'translation' => trim((string) ($candidate['translation'] ?? '')),
             ];
@@ -163,13 +170,28 @@ class AnalyzeProposalJob implements ShouldQueue
      * Swedish verb's "komm|a -er" can come back on an English verb — dropping it here is
      * what keeps a language without the convention showing plain lemmas.
      */
-    private function dictionaryForm(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate): ?string
+    private function dictionaryForm(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate, array $lexicon): ?string
     {
         if (! $guideline?->wantsDictionaryForm($partOfSpeech)) {
             return null;
         }
 
-        return trim((string) ($candidate['dictionary_form'] ?? '')) ?: null;
+        return $this->preferLexicon(trim((string) ($candidate['dictionary_form'] ?? '')), $lexicon['dictionary_form'] ?? []) ?: null;
+    }
+
+    /**
+     * The lexicon's value wherever it knows the word; CALL 1's answer only as a fallback
+     * for a word it doesn't, or as the tie-break between homographs ("ett plan" the plane,
+     * "en plan" the plan) — the model knows which sense the Term means, but may only pick
+     * one of the values the dictionary allows. See docs/cards.md "The lexicon".
+     */
+    private function preferLexicon(string $answer, array $options): string
+    {
+        if ($options === [] || in_array($answer, $options, true)) {
+            return $answer;
+        }
+
+        return $options[0];
     }
 
     /**
@@ -178,7 +200,7 @@ class AnalyzeProposalJob implements ShouldQueue
      * the language in the same answer), so a Swedish `gender` can come back on an English
      * noun — discarding it here is what keeps the stored attributes truthful.
      */
-    private function grammarAttributes(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate): ?array
+    private function grammarAttributes(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate, array $lexicon): ?array
     {
         if (! $guideline) {
             return null;
@@ -187,7 +209,7 @@ class AnalyzeProposalJob implements ShouldQueue
         $attributes = [];
 
         foreach ($guideline->attributesFor($partOfSpeech) as $name => $definition) {
-            $value = (string) ($candidate[$name] ?? '');
+            $value = $this->preferLexicon((string) ($candidate[$name] ?? ''), $lexicon[$name] ?? []);
 
             if (in_array($value, $definition['values'], true)) {
                 $attributes[$name] = $value;

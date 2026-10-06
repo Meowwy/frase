@@ -213,7 +213,8 @@ Each file declares, for the language it covers:
   is a separate declaration from an attribute precisely because it is *not* computable: *en*/*ett*
   follows from `{gender, lemma}` by a fixed mapping, whereas where a verb's stem ends and which
   present-tense ending it takes vary per verb. So CALL 1 is asked for the whole string, its format
-  is pinned down by that language's prose note, and the answer is stored;
+  is pinned down by that language's prose note, and the answer is stored — unless the lexicon
+  knows the verb (below);
 - a short prose note interpolated into CALL 1's prompt so the model applies that language's own
   rule correctly (e.g. "Every Swedish noun is either a common-gender or a neuter word...").
 
@@ -240,6 +241,13 @@ across the learner's languages** — the call decides the language in the same a
 cannot be narrowed to one guideline up front. A Swedish verb's dictionary form can therefore come
 back on an English verb, which is why `AnalyzeProposalJob` discards any value the *detected*
 language's guideline does not ask for.
+
+**For Swedish, CALL 1's attribute and dictionary-form answers are only a fallback.** Where the
+lexicon (a downloaded dictionary — see [cards](cards.md) "The lexicon") knows the word, its value
+wins; the model's answer survives only for a word the lexicon lacks, or as the tie-break between
+homographs, where it may pick only among the values the lexicon allows. The prompt and schema are
+unchanged — the model still has to answer, because it is that fallback and that tie-break. A
+language with no lexicon rows keeps the AI-only path as it was.
 
 ### Call 2 — three generators
 

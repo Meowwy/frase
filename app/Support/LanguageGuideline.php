@@ -101,8 +101,9 @@ class LanguageGuideline
      *
      * This is separate from an attribute because it is not computable: "ett hus" follows
      * from {gender, lemma} by a fixed mapping, but a Swedish verb's "komm|a -er" depends
-     * on where that individual verb's stem ends and which present ending it takes. The
-     * model supplies the whole string and it is stored (see docs/cards.md `base_words`).
+     * on where that individual verb's stem ends and which present ending it takes. The whole
+     * string is stored — from the lexicon where it knows the verb, the model otherwise (see
+     * docs/cards.md "The lexicon").
      */
     public function wantsDictionaryForm(string $partOfSpeech): bool
     {

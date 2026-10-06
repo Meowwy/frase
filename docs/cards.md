@@ -104,7 +104,7 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `user_id`, `language_id` | owner + language |
 | `lemma` | canonical spelling |
 | `part_of_speech` | enum (`noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `determiner`, `numeral`, `interjection`), not nullable — part of the dedup key, not a revisable property. *run* the verb and *run* the noun are two rows |
-| `dictionary_form` | nullable string — the lemma as that language's dictionaries write it, for the parts of speech whose guideline asks for one (Swedish `verb` → `komm|a -er`); null everywhere else, which is most words. Stored rather than computed, because where a verb's stem ends and which present-tense ending it takes are facts about that one verb — unlike a noun's *en*/*ett*, which follows from `grammar_attributes`. **Not** part of the dedup key: `komma` is one entry |
+| `dictionary_form` | nullable string — the lemma as that language's dictionaries write it, for the parts of speech whose guideline asks for one (Swedish `verb` → `komm|a -er`); null everywhere else, which is most words. Stored rather than computed from the lemma, because where a verb's stem ends and which present-tense ending it takes are facts about that one verb — unlike a noun's *en*/*ett*, which follows from `grammar_attributes`. Taken from the lexicon where it knows the verb (see "The lexicon" below). **Not** part of the dedup key: `komma` is one entry |
 | `grammar_attributes` | nullable JSON (`array` cast) — the extra grammatical facts this language's guideline defines for this part of speech (e.g. Swedish noun `{"gender": "neuter"}`); null for a part-of-speech/language pair with nothing to say. See [ai-integration](ai-integration.md) "Language guidelines". **Not** named plain `attributes`: that collides with Eloquent's own internal attribute bag, which would make the column unreadable as `$this->attributes` from inside the model |
 | `translation` | set once at creation from CALL 1, never revised — sense lives on cards, not here |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
@@ -168,6 +168,43 @@ different places on purpose:
   notice above and expanding to the cards that word is already used in, and approval reuses the
   existing row via `BaseWord::resolve()`. Hiding it would lose exactly the fact the learner wants
   to see; linking the existing entry to the new card is also what makes coverage work.
+
+## The lexicon
+
+`lexicon_entries` — a downloaded reference dictionary, global (no `user_id`): `language_code`,
+`lemma`, `part_of_speech`, `gender`, `dictionary_form`, `paradigm` (the source's own inflection
+code, kept for debugging). Indexed but **not unique** on `(language_code, lemma, part_of_speech)`,
+because homographs are separate rows.
+
+**Why it exists:** a Swedish noun's *en*/*ett* and a verb's *komm|a -er* are fixed facts about the
+word, not something to tailor — so they should come out the same every time, not be the model's
+guess. `AnalyzeProposalJob` looks every candidate up (**`App\Support\Lexicon::lookup()`**, one
+query per proposal) after CALL 1 returns, and where the lexicon knows the word its value wins:
+
+- **Homographs** (*ett plan* the plane, *en plan* the plan): the lexicon can't tell senses apart,
+  CALL 1 can — so CALL 1's answer is kept **only if it is one of the lexicon's values**, else the
+  first one is used. The model picks the sense; it can never invent a value.
+- **Compounds** the lexicon doesn't list fall back to their longest known last element (*sommarhus*
+  → *hus* → *ett*): a Swedish compound always takes its last element's gender.
+- **A word it doesn't know at all**, a noun SALDO allows either article for, and every language
+  with no rows keep CALL 1's answer exactly as before.
+
+**Source — Swedish only, from SALDO's morphology** (Språkbanken, University of Gothenburg,
+[CC BY 4.0](https://sprakbanken.se/en/resources/saldom)). Download `saldom.xml` (~250 MB, never
+committed) from `https://svn.spraakbanken.gu.se/sb-arkiv/pub/lmf/saldom/saldom.xml` and run
+`php artisan lexicon:import-saldo <path>` (~20 s; re-running replaces the Swedish rows). It keeps
+~83k nouns and ~8k verbs; multiword entries (*komma ihåg*) are skipped for now.
+
+- **Gender** is the last letter of SALDO's inflection class: `nn_6n_hus` → `neuter`,
+  `nn_2u_bil` → `common`; `v` (either article) and `p` (plural only) stay null.
+- **Dictionary form** is built by `Lexicon::swedishDictionaryForm()` from the infinitive and SALDO's
+  first active present form — the same rule `sv.php` states for CALL 1: `-ar`/`-er` after a bar
+  (*tal|a -ar*, *komm|a -er*), `-r` after the whole infinitive (*bo -r*, and *ha -r*, whose would-be
+  stem *h* has no vowel), and an irregular present written out (*var|a är*). s-verbs (*hoppas*)
+  have no active present and stay null.
+
+Folkets lexikon (what the `swe` CLI uses) was considered and rejected as the source: it has no
+gender field, and about 45% of its nouns carry no inflections to infer one from.
 
 ## Staging
 

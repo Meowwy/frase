@@ -119,7 +119,12 @@ language's own guideline, not something hardcoded per feature:
   infinitive with a bar marking off the ending inflection replaces, then the present-tense ending
   (*"komm|a -er"*, *"tal|a -ar"*, *"bo -r"*, irregulars written out — *"var|a är"*). Unlike the
   noun article this cannot be computed from the lemma and an attribute value — it differs per verb
-  — so it is asked for once, when the word is proposed, and stored alongside the lemma.
+  — so it is settled once, when the word is proposed, and stored alongside the lemma.
+
+  Both the gender and the dictionary form come from a downloaded dictionary (the **lexicon**)
+  wherever it knows the word, so they are deterministic rather than the model's guess; the model
+  only fills in words the dictionary lacks, and picks the sense when the dictionary lists the same
+  word twice (*ett plan* / *en plan*).
 
   A dictionary form is never part of a base word's identity: *komma* is one entry whether or not
   one was stored for it, and like the translation it is written once and never revised.

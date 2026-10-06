@@ -49,8 +49,10 @@ return [
     // Swedish verbs are shown in dictionary style rather than as a bare
     // infinitive. Unlike the noun gender above this cannot be computed from
     // {attribute, lemma}: where the stem ends and which present-tense ending
-    // the verb takes are facts about the individual verb, so CALL 1 is asked
-    // for the whole string and it is stored on the base word.
+    // the verb takes are facts about the individual verb, so the whole string
+    // is stored on the base word. The lexicon (SALDO) supplies it — and the
+    // noun gender — wherever it knows the word; CALL 1's answer, asked for by
+    // the notes below, is the fallback (docs/cards.md "The lexicon").
     'dictionary_form' => [
         'parts_of_speech' => ['verb'],
 

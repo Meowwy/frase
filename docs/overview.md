@@ -206,6 +206,11 @@ question: **does it depend only on source code, or on the environment it runs in
 
 ## Known rough edges (don't be surprised by these)
 
+- **The Swedish lexicon has to be imported by hand, and production has none yet.** `lexicon_entries`
+  is filled by `php artisan lexicon:import-saldo <path-to-saldom.xml>` (see
+  [cards](cards.md) "The lexicon"); a fresh database — and the Fly machine — has it empty. Nothing
+  breaks: Swedish then simply falls back to CALL 1's answers for gender and verb forms.
+
 - **Queued jobs don't run in production yet, and capture now depends on one.**
   `AnalyzeProposalJob`, `GenerateGapFillJob` and `GenerateEmbeddingJob` are dispatched onto
   `QUEUE_CONNECTION=database` (confirmed in `fly.toml` and `.env`), but there is **no

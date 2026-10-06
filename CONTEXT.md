@@ -171,7 +171,8 @@ See [docs/cards.md](docs/cards.md).
 The learner's inventory of every word they have met in one language, one entry per lemma **and
 part of speech**, independent of any card. Its jobs are deduplication and coverage — never
 shortened to *vocabulary*, which means their cards.
-_Avoid_: wordlist, lexicon, word bank, dictionary, vocabulary (bare)
+_Avoid_: wordlist, lexicon, word bank, dictionary, vocabulary (bare) — *lexicon* is the
+downloaded reference dictionary below, which belongs to no learner
 
 **Base word**:
 One entry in the vocabulary base: a lemma, its **part of speech**, its native translation, its
@@ -202,9 +203,9 @@ _Avoid_: properties, metadata, attributes (bare — too generic outside this con
 **Dictionary form**:
 A base word written the way that language's dictionaries write it, for the parts of speech whose
 language has such a convention — a Swedish verb is *komm|a -er*, not bare *komma*. Unlike a
-grammatical attribute it cannot be derived from the lemma, so CALL 1 supplies the whole string and
-it is stored on the base word; it is set once and never revised, and it is not part of the dedup
-key. Which parts of speech have one is declared per language guideline (below).
+grammatical attribute it cannot be derived from the lemma, so the whole string is stored on the
+base word — taken from the lexicon where it knows the verb, from CALL 1 otherwise; it is set once
+and never revised, and it is not part of the dedup key. Which parts of speech have one is declared per language guideline (below).
 _Avoid_: conjugation, inflection, suffix, stem
 
 **Language guideline**:
@@ -214,6 +215,12 @@ how to display them (e.g. Swedish `gender` → *en*/*ett*), and which parts of s
 dictionary form. One file per supported language; absent for a language, CALL 1 still tags part of
 speech but proposes no attributes and no dictionary form.
 _Avoid_: language config, grammar rules (bare)
+
+**Lexicon**:
+A downloaded reference dictionary (`lexicon_entries`; Swedish only, imported from SALDO) whose
+grammatical attributes and dictionary forms win over CALL 1's answer wherever it knows the word.
+Shared by every learner — it is not anyone's vocabulary base.
+_Avoid_: dictionary (bare), word list
 
 **Surface form**:
 The spelling one particular Term uses for one of its base words, carried on the link between them —
