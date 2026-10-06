@@ -144,6 +144,9 @@
             $list.on('click', '.js-approve', function () {
                 const id = proposalId(this);
                 const term = $(this).closest('.js-proposal').find('.js-term').text();
+                // Sent before the row collapses: collapsing removes this button, and post()
+                // reads the proposal id from it.
+                const request = post(this, '/approve');
 
                 approving.add(id);
                 settled.set(id, line(
@@ -152,7 +155,7 @@
                 placeSettled();
                 $('.js-staged-count').text(function (i, text) { return Math.max(0, (+text || 0) - 1); });
 
-                post(this, '/approve').done(function (data) {
+                request.done(function (data) {
                     approving.delete(id);
                     settled.set(id, line(
                         '<div class="flex items-center gap-3"><span class="text-green-400">✓</span>' +
