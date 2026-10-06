@@ -107,7 +107,7 @@ the Term is producing all of its words. Conversation mode's clearing/stamping is
 `words` no longer builds one entry per card. It pulls the **individual base words** of due cards
 into one shuffled, per-word session capped at **15 words**: a due card enters the pool only if
 *all* of its base words fit under that cap — no card contributes a partial word set, so a card
-with more than 15 base words would never enter the pool (no real Term has that many). Cards with **zero** base words (every word struck or filtered at capture — see
+with more than 15 base words would never enter the pool (no real Term has that many). Cards with **zero** base words (every word known or filtered at capture — see
 [cards](cards.md) "The vocabulary base") are excluded from this pool entirely; they can only clear
 through the other modes.
 

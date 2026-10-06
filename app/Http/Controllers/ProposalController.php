@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeProposalJob;
+use App\Models\KnownWord;
 use App\Models\Proposal;
 use App\Models\ProposalBaseWord;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Auth;
  *
  * Capture writes a proposal and returns immediately — no card, no language picker, no
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
- * with: striking a candidate word, correcting a wrong language detection, and finally
+ * with: striking a candidate word as known, correcting a wrong language detection, and finally
  * approving (which writes the card and runs CALL 2) or discarding.
  *
  * See docs/cards.md "Staging" and USERFLOW.md.
@@ -80,18 +81,28 @@ class ProposalController extends Controller
     }
 
     /**
-     * Strike (or un-strike) one candidate word, so it never becomes a base word. It is the
-     * only per-word control and it never rewrites the Term — the card still teaches the
-     * whole phrase, just linked to fewer words.
+     * Strike a new candidate word as known, or tap a known one to un-know it. A known word
+     * is remembered across captures (on lemma + part of speech, so every inflected form is
+     * covered) and never becomes a base word. It never rewrites the Term — the card still
+     * teaches the whole phrase, just linked to fewer words.
      */
-    public function strike(Request $request, Proposal $proposal, ProposalBaseWord $word)
+    public function known(Request $request, Proposal $proposal, ProposalBaseWord $word)
     {
         $this->authorize('update', $proposal);
         abort_unless($word->proposal_id === $proposal->id, 404);
 
-        $word->update(['struck' => $request->boolean('struck')]);
+        $attributes = [
+            'user_id' => $proposal->user_id,
+            'language_id' => $proposal->language_id,
+            'lemma' => $word->lemma,
+            'part_of_speech' => $word->part_of_speech,
+        ];
 
-        return response()->json(['approvable' => $proposal->refresh()->isApprovable()]);
+        $request->boolean('known')
+            ? KnownWord::firstOrCreate($attributes)
+            : KnownWord::where($attributes)->delete();
+
+        return response()->noContent();
     }
 
     /**
@@ -170,9 +181,10 @@ class ProposalController extends Controller
         return [
             'proposals' => $proposals,
             'targetLanguages' => $user->languages()->orderBy('name')->get(),
-            // Resolved for the whole list in one query rather than per chip — see
+            // Resolved for the whole list in one query per store rather than per chip — see
             // Proposal::presenceIndex() for why that matters on a polled endpoint.
             'alreadyInBase' => Proposal::presenceIndex($proposals),
+            'knownWords' => Proposal::knownIndex($proposals),
         ];
     }
 }

@@ -18,9 +18,11 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   approve it. Each proposal shows your term exactly as you typed it (only typos fixed — a lone
   inflected word or a whole sentence is kept as it is), the detected language (changeable, if it
   guessed wrong), and the individual words it wants to add to your vocabulary base as a tray of
-  chips. **Strike** any chip and that word is left out — the card still teaches the whole term
-  either way, and a card may keep any number of words, none included. A chip for a word you already
-  have says so, and opens up to show which of your cards use it.
+  chips. **Strike** a chip and that word is remembered as **known**: it is left out now and never
+  proposed again, in any form — the card still teaches the whole term either way, and a card may
+  keep any number of words, none included. Known words and words you already have are shown aside:
+  tap a known one to un-know it, or an already-present one to see which of your cards use it (it is
+  linked to the new card automatically).
 - **Approve** writes the card and its words — and only then is the definition, translation and
   example sentence generated, so nothing is spent on a term you throw away. **Discard** leaves
   nothing behind (with a few seconds to undo).

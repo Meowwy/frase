@@ -85,10 +85,11 @@ class AnalyzeProposalJob implements ShouldQueue
     /**
      * Write the chip tray, applying the proficiency filter on the way in.
      *
-     * The already-present filter is deliberately NOT applied here: it is computed live at
-     * render time (Proposal::presenceIndex) so a word the learner acquires between capture
-     * and approval is still recognised, and so the chip can say so rather than vanishing.
-     * Approval reuses the existing row either way.
+     * The already-present and known groups are deliberately NOT applied here: they are
+     * computed live at render time (Proposal::groupOf) so a word the learner acquires or
+     * strikes between capture and approval is still recognised, and so the chip can say so
+     * rather than vanishing. Every candidate stays on the proposal, which is what lets
+     * un-knowing a word bring its chip back.
      */
     private function storeCandidates(array $candidates, Language $language, ?string $level): void
     {

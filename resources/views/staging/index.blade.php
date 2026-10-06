@@ -67,9 +67,9 @@
                     });
             }
 
-            $list.on('click', '.js-strike', function () {
-                const struck = $(this).data('struck') ? 0 : 1;
-                post(this, '/words/' + $(this).data('word-id') + '/strike', { struck: struck })
+            // Strike a new word as known, or tap a known one to un-know it.
+            $list.on('click', '.js-known', function () {
+                post(this, '/words/' + $(this).data('word-id') + '/known', { known: $(this).data('known') })
                     .done(window.stagingRefresh);
             });
 

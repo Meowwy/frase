@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One candidate in a proposal's strikeable chip tray: an extracted word, already
- * reduced to its lemma and tagged, waiting to be carried onto `base_words` at approval.
+ * One candidate in a proposal's chip tray: an extracted word, already reduced to its
+ * lemma and tagged, waiting to be carried onto `base_words` at approval.
  *
- * Nothing here is a vocabulary-base entry yet — striking it means it never becomes one.
+ * Nothing here is a vocabulary-base entry yet. Whether it would become one is derived
+ * live (Proposal::groupOf), so striking it never touches this row — it records a
+ * KnownWord instead, and un-knowing brings the chip straight back.
  */
 class ProposalBaseWord extends Model
 {
@@ -20,7 +22,6 @@ class ProposalBaseWord extends Model
 
     protected $casts = [
         'grammar_attributes' => 'array',
-        'struck' => 'boolean',
     ];
 
     public function proposal(): BelongsTo

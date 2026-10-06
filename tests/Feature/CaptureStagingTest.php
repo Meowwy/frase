@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\AnalyzeProposalJob;
 use App\Models\BaseWord;
 use App\Models\Card;
+use App\Models\KnownWord;
 use App\Models\Language;
 use App\Models\LexiconEntry;
 use App\Models\Proposal;
@@ -220,9 +221,10 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
-     * Striking governs base membership only — the Term is untouched.
+     * Striking records the word as known and governs base membership only — the Term is
+     * untouched.
      */
-    public function test_striking_a_word_keeps_it_out_of_the_base_without_rewriting_the_term(): void
+    public function test_striking_a_word_records_it_as_known_without_rewriting_the_term(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
@@ -230,9 +232,12 @@ class CaptureStagingTest extends TestCase
         $struck = $proposal->baseWords->firstWhere('lemma', 'hur');
 
         $this->actingAs($user)
-            ->postJson("/staging/{$proposal->id}/words/{$struck->id}/strike", ['struck' => true])
-            ->assertStatus(200)
-            ->assertJson(['approvable' => true]);
+            ->postJson("/staging/{$proposal->id}/words/{$struck->id}/known", ['known' => 1])
+            ->assertNoContent();
+
+        $this->assertDatabaseHas('known_words', [
+            'user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'hur', 'part_of_speech' => 'adverb',
+        ]);
 
         $this->fakeOpenAi($this->cardContent());
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
@@ -240,17 +245,66 @@ class CaptureStagingTest extends TestCase
         $card = Card::sole();
         $this->assertSame('hur mycket kostar det', $card->term);
         $this->assertSame(['kosta', 'mycket'], $card->baseWords->pluck('lemma')->sort()->values()->all());
+        $this->assertSame(0, BaseWord::where('lemma', 'hur')->count());
+    }
+
+    /**
+     * A known word is matched on lemma + part of speech, so a later capture of any inflected
+     * form shows it aside as known, and approving doesn't link it.
+     */
+    public function test_a_known_word_is_shown_as_known_in_a_later_proposal_and_not_linked(): void
+    {
+        [$user, $language] = $this->learner();
+        KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'kosta', 'part_of_speech' => 'verb']);
+        $this->fakeOpenAi($this->analysis([
+            'term' => 'kostade',
+            'base_words' => [
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostade', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+            ],
+        ]), $this->cardContent());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'kostade']);
+        $word = $user->proposals()->sole()->baseWords->sole();
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('data-word-id="'.$word->id.'" data-known="0"', $rows);
+        $this->assertStringNotContainsString('data-known="1"', $rows);
+
+        $this->actingAs($user)->postJson("/staging/{$word->proposal_id}/approve")->assertStatus(200);
+
+        $this->assertCount(0, Card::sole()->baseWords);
+        $this->assertSame(0, BaseWord::count());
+    }
+
+    public function test_un_knowing_a_word_brings_its_chip_back_as_new(): void
+    {
+        [$user, $language] = $this->learner();
+        Queue::fake();
+        KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'hur', 'part_of_speech' => 'adverb']);
+        $proposal = $this->completedProposal($user, $language);
+        $word = $proposal->baseWords->firstWhere('lemma', 'hur');
+
+        $this->actingAs($user)
+            ->postJson("/staging/{$proposal->id}/words/{$word->id}/known", ['known' => 0])
+            ->assertNoContent();
+
+        $this->assertSame(0, KnownWord::count());
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('data-word-id="'.$word->id.'" data-known="1"', $rows);
     }
 
     /**
      * Approval is never gated on how many base words a card has: none, or more than five.
      */
-    public function test_a_proposal_with_every_word_struck_still_approves(): void
+    public function test_a_proposal_with_every_word_known_still_approves(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
         $proposal = $this->completedProposal($user, $language);
-        $proposal->baseWords()->update(['struck' => true]);
+
+        foreach ($proposal->baseWords as $word) {
+            KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => $word->lemma, 'part_of_speech' => $word->part_of_speech]);
+        }
 
         $this->fakeOpenAi($this->cardContent());
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
@@ -329,23 +383,28 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
-     * Owning a base word of a Term is a different fact from owning a card for it, and never
-     * blocks the capture.
+     * Owning a base word of a Term is a different fact from owning a card for it: the word
+     * is shown aside with no strike control, never blocks the capture, and is linked.
      */
-    public function test_owning_a_base_word_of_the_term_does_not_block_approval(): void
+    public function test_an_already_present_word_is_shown_aside_and_linked_on_approval(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
-        BaseWord::create([
+        $existing = BaseWord::create([
             'user_id' => $user->id, 'language_id' => $language->id,
             'lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost',
         ]);
         $proposal = $this->completedProposal($user, $language);
+        $word = $proposal->baseWords->firstWhere('lemma', 'kosta');
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('already in base', $rows);
+        $this->assertStringNotContainsString('data-word-id="'.$word->id.'"', $rows);
 
         $this->fakeOpenAi($this->cardContent());
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
 
-        $this->assertSame(1, Card::count());
+        $this->assertTrue(Card::sole()->baseWords->contains($existing));
     }
 
     public function test_discarding_leaves_nothing_behind(): void

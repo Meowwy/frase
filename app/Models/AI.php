@@ -232,7 +232,7 @@ class AI extends Model
                 ],
                 'base_words' => [
                     'type' => 'array',
-                    'description' => 'The Term\'s own words, one entry each, in the order the Term spells them. Take words ONLY from the term field above — never from the context. Skip a word that repeats one already listed.',
+                    'description' => 'The Term\'s own words, one entry each, in the order the Term spells them. Take words ONLY from the term field above — never from the context. Skip a word that repeats one already listed. Never list an article (definite or indefinite, e.g. "the", "a", "an", "en", "ett", "der", "le").',
                     'items' => [
                         'type' => 'object',
                         'properties' => $baseWordProperties,

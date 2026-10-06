@@ -118,9 +118,15 @@ way anything enters the vocabulary; **discard** is the other branch and leaves n
 _Avoid_: accept, confirm, publish, commit; decline and reject (the word is discard)
 
 **Strike**:
-Removing a word from a proposal so it never becomes a base word. It governs base membership only —
-it never rewrites the Term.
+Marking a proposed new word as a known word, so it never becomes a base word. It governs base
+membership only — it never rewrites the Term.
 _Avoid_: exclude, skip, drop, delete, unlink
+
+**Known word**:
+A word the learner struck, remembered per language by lemma and part of speech so that no inflected
+form of it is ever proposed again. Staging shows it aside, labelled *known*; tapping it **un-knows**
+it and the chip becomes proposable again.
+_Avoid_: ignored word, blacklist, excluded word, struck word
 
 **Regenerate**:
 Replacing an existing card's generated content while its review progress, note and links stay as
@@ -132,8 +138,8 @@ _Avoid_: refresh, re-create, update
 See [docs/cards.md](docs/cards.md).
 
 **Vocabulary base**:
-The learner's inventory of every word they have met in one language, one entry per lemma **and
-part of speech**, independent of any card. Its jobs are deduplication and coverage — never
+The learner's inventory of the words they are learning in one language — new or wanted words, never
+known ones — one entry per lemma **and part of speech**, independent of any card. Its jobs are deduplication and coverage — never
 shortened to *vocabulary*, which means their cards.
 _Avoid_: wordlist, lexicon, word bank, dictionary, vocabulary (bare) — *lexicon* is the
 downloaded reference dictionary below, which belongs to no learner

@@ -49,51 +49,56 @@
                 </p>
             @endif
 
-            {{-- The chip tray: one per extracted lemma. The ✕ strikes it so it never
-                 becomes a base word; a chip already in the base expands to show which
-                 cards use it. --}}
+            {{-- The chip tray. New words are strikeable: ✕ records the word as known, so it
+                 is never proposed again. Words already in the base and known words sit aside
+                 with nothing to decide — an already-present one expands to the cards using
+                 it, a known one is tapped to un-know it. --}}
+            @php
+                $groups = $proposal->baseWords->groupBy(fn ($word) => $proposal->groupOf($word, $alreadyInBase, $knownWords));
+            @endphp
             <div class="mt-3 flex flex-wrap gap-2">
-                @forelse($proposal->baseWords as $word)
-                    @php $present = $alreadyInBase->get($proposal->presenceKeyFor($word)); @endphp
-                    <div class="js-chip-wrap">
-                        <span @class([
-                            'inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm',
-                            'border-white/10 bg-white/5' => ! $word->struck,
-                            'border-white/5 bg-transparent text-white/30 line-through' => $word->struck,
-                        ])>
-                            {{-- A chip already in the base is a button: tapping it expands
-                                 which cards use that word. One that isn't is a plain label,
-                                 since there is nothing to expand. --}}
-                            @if($present)
-                                <button type="button" class="js-chip-body text-left">
-                                    {{ $word->displayForm() }}
-                                    <span class="text-xs text-white/40">{{ $word->part_of_speech }}</span>
-                                    <span class="text-xs text-orange-400">already in base</span>
-                                </button>
-                            @else
-                                <span>
-                                    {{ $word->displayForm() }}
-                                    <span class="text-xs text-white/40">{{ $word->part_of_speech }}</span>
-                                </span>
-                            @endif
-                            <button type="button" class="js-strike text-white/50 hover:text-white"
-                                    data-word-id="{{ $word->id }}" data-struck="{{ $word->struck ? 1 : 0 }}">{{ $word->struck ? '＋' : '✕' }}</button>
+                @forelse($groups->get(\App\Models\Proposal::GROUP_NEW, []) as $word)
+                    <span class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm">
+                        <span>
+                            {{ $word->displayForm() }}
+                            <span class="text-xs text-white/40">{{ $word->part_of_speech }}</span>
                         </span>
+                        <button type="button" class="js-known text-white/50 hover:text-white"
+                                data-word-id="{{ $word->id }}" data-known="1" title="I know this word">✕</button>
+                    </span>
+                @empty
+                    <p class="text-sm text-white/40">No new words for the vocabulary base.</p>
+                @endforelse
+            </div>
 
-                        @if($present)
-                            <div class="js-chip-detail hidden mt-1 pl-3 text-xs text-white/50">
+            @if($groups->has(\App\Models\Proposal::GROUP_PRESENT) || $groups->has(\App\Models\Proposal::GROUP_KNOWN))
+                <div class="mt-2 flex flex-wrap gap-2 text-xs text-white/50">
+                    @foreach($groups->get(\App\Models\Proposal::GROUP_PRESENT, []) as $word)
+                        @php $present = $alreadyInBase->get($proposal->presenceKeyFor($word)); @endphp
+                        <div class="js-chip-wrap">
+                            <button type="button" class="js-chip-body rounded-lg border border-white/5 px-2 py-0.5 text-left">
+                                {{ $word->displayForm() }}
+                                <span class="text-orange-400">already in base</span>
+                            </button>
+                            <div class="js-chip-detail hidden mt-1 pl-2">
                                 @forelse($present->cards as $used)
                                     <a href="/cards/{{ $used->id }}" class="block hover:text-white">{{ $used->term }}</a>
                                 @empty
                                     <span>in the base, not used by any card yet</span>
                                 @endforelse
                             </div>
-                        @endif
-                    </div>
-                @empty
-                    <p class="text-sm text-white/40">No words proposed for the vocabulary base.</p>
-                @endforelse
-            </div>
+                        </div>
+                    @endforeach
+
+                    @foreach($groups->get(\App\Models\Proposal::GROUP_KNOWN, []) as $word)
+                        <button type="button" class="js-known rounded-lg border border-white/5 px-2 py-0.5 hover:text-white"
+                                data-word-id="{{ $word->id }}" data-known="0" title="Tap to un-know">
+                            {{ $word->displayForm() }}
+                            <span class="text-white/30">known</span>
+                        </button>
+                    @endforeach
+                </div>
+            @endif
 
             <div class="mt-4 flex items-center gap-2">
                 @if($duplicate)

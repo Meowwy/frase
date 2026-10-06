@@ -95,32 +95,38 @@ constraint is never reached in practice). There is **no cardinality rule**: a ca
 base words at all, or many. An earlier minimum and maximum per card shape could leave a proposal
 permanently stuck in staging, with nothing the learner could do but discard it.
 
-The **already-present check** (`Proposal::presenceIndex()`): match `base_words` on
-`(user_id, language_id, lemma, part_of_speech)` — a matching lemma with a *different* part of
-speech is a different vocabulary item, not a duplicate. It is **never stored**, always computed at
-staging render time, which is why a word the learner acquires between capture and approval is still
-recognised.
+Each candidate falls into exactly one **group** (`Proposal::groupOf()`), checked in this order:
 
-It resolves a whole list in **one** query, keyed by `Proposal::presenceKeyFor()`, rather than one
-query per chip. That is not premature: `/staging/list` re-renders the entire tray every 2 seconds
+1. **Already present** (`Proposal::presenceIndex()`): matches `base_words` on
+   `(user_id, language_id, lemma, part_of_speech)` — a matching lemma with a *different* part of
+   speech is a different vocabulary item. Shown aside with no strike control, expanding to the cards
+   that word is already used in, and linked to the new card on approval (`BaseWord::resolve()`
+   reuses the row). Linking it is what makes coverage work, and hiding it would lose the fact the
+   learner wants to see.
+2. **Known** (`Proposal::knownIndex()`): matches `known_words` on the same key, so striking *hus*
+   once covers *huset* and *husen*. Shown aside, labelled *known*; tapping it un-knows it. Never
+   linked or created.
+3. **New**: strikeable; created and linked on approval.
+
+Already present wins if both ever apply (only a new chip can be struck, so in practice they don't).
+The groups are **never stored**, always computed at staging render time and again at approval, which
+is why a word the learner acquires or strikes between capture and approval is still recognised, and
+why every candidate stays on the proposal — un-knowing a word brings its chip straight back.
+
+Each store is resolved for a whole list in **one** query, keyed by `Proposal::presenceKeyFor()`,
+rather than one query per chip. That is not premature: `/staging/list` re-renders the entire tray every 2 seconds
 for as long as anything is still `pending`, and with no queue worker running (see
 [overview](overview.md) "Known rough edges") that poll never stops — a per-chip query there is a
 query storm that never ends.
 
-**Two filters** narrow which of CALL 1's extracted words become base words, and they run in
-different places on purpose:
-
-- **Proficiency** — `AnalyzeProposalJob::applyProficiencyFilter()`, applied as the chip tray is
+**Proficiency filter** — the one filter applied on the way in:
+ — `AnalyzeProposalJob::applyProficiencyFilter()`, applied as the chip tray is
   written: from B1 up, the parts of speech in `LanguageGuideline::FUNCTION_WORD_PARTS`
   (preposition, pronoun, conjunction, determiner) aren't worth an entry. The level is the learner's
   CEFR level *for the detected language*, so this cannot run before CALL 1 has returned — which is
   why it is a PHP filter after the call rather than an instruction inside it.
   It **always applies**, even when it leaves the tray empty (`in spite of` at C1): with no
   cardinality rule, an empty tray is still approvable.
-- **Already present** — deliberately **not** a filter on the way in. The chip stays, carrying the
-  notice above and expanding to the cards that word is already used in, and approval reuses the
-  existing row via `BaseWord::resolve()`. Hiding it would lose exactly the fact the learner wants
-  to see; linking the existing entry to the new card is also what makes coverage work.
 
 ## The lexicon
 
@@ -176,16 +182,20 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
 
-`proposal_base_words` — the strikeable candidate tray, one row per extracted lemma:
+`proposal_base_words` — the candidate tray, one row per extracted lemma. It holds no strike state:
+each row's group is derived live (above).
 
 | Column | Notes |
 |---|---|
 | `proposal_id` | |
 | `lemma`, `part_of_speech`, `dictionary_form`, `grammar_attributes`, `surface_form`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
-| `struck` | boolean, default false |
 
-**`Proposal::approve()`** resolves the `base_words` rows for every non-struck candidate (reusing
-an existing one per the check above), writes the card and its `card_base_word` links, deletes the
+`known_words` — what the learner has struck, per learner and language: `user_id`, `language_id`,
+`lemma`, `part_of_speech`, unique on all four. Striking a new chip inserts a row; un-knowing deletes
+it.
+
+**`Proposal::approve()`** resolves the `base_words` rows for every candidate that isn't known
+(reusing an existing one per the check above), writes the card and its `card_base_word` links, deletes the
 proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
 proposal exactly as it was in staging rather than a half-written card.
 
@@ -196,7 +206,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /capture` (name `capture`) | validates `capturedWord`/`context`, writes the `proposals` row, dispatches `AnalyzeProposalJob`, answers JSON with the new staged count. Shared with the extension — see [browser-extension](browser-extension.md) |
 | `GET /staging` | the feed: every proposal, newest first, across every language |
 | `GET /staging/list` | the same list as `{rows, count, pending}` JSON, rendered from `staging/_proposals.blade.php` |
-| `POST /staging/{proposal}/words/{word}/strike` | strike or un-strike one candidate |
+| `POST /staging/{proposal}/words/{word}/known` | `known=1` strikes a new chip (inserts its `known_words` row), `known=0` un-knows it |
 | `POST /staging/{proposal}/language` | correct the detected language — see below |
 | `POST /staging/{proposal}/approve` | `409` with the existing card's id on a duplicate Term, `422` when the proposal isn't approvable yet, else the new card's URL |
 | `DELETE /staging/{proposal}` | discard |

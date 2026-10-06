@@ -101,7 +101,10 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   the Term actually spells it in and a native translation — the translation is decided here, not
   deferred to CALL 2 (see [cards](cards.md) "The vocabulary base"). The prompt is explicit that
   words come from the `term` field **only**, never from the Context, which is what keeps
-  `collateral damage` from putting *damage* in the base.
+  `collateral damage` from putting *damage* in the base, and that an **article** is never listed,
+  at any level (an article is never worth a vocabulary entry, so there is nothing for PHP to
+  decide). Everything level- or learner-dependent — the B1+ function-word filter, known words,
+  already-present words — is deterministic PHP after the call instead (see [cards](cards.md)).
 
 Where the **grammatical attributes** go in the schema is the one awkward part, and it is forced:
 strict structured outputs need the schema up front, but *which* language the Term is in is
