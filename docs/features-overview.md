@@ -65,7 +65,7 @@ way you are meant to learn it — a Swedish noun with its article, *"ett hus"*, 
 a Swedish verb in dictionary form, *"komm|a -er"* —
 its part of speech, its translation and how many of your cards use it. Search by word or
 translation as you type, or filter by part of speech. Click a row and the panel on the right lists
-those cards' terms.
+those cards' terms; clicking a word on a card's page brings you here with that word already picked.
 
 An **Expressions** tab lists your **fixed expressions** — multi-word units you learn as a whole,
 like *tycka om* or *either … or …* — the same way: translation, card count, search, and the

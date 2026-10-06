@@ -171,6 +171,11 @@ words tab a part-of-speech select offering only the parts of speech that languag
 AJAX request to `/base` returns just the rows (`base/_word-rows`, `base/_expression-rows`) and the
 pagination, which the panel script swaps in.
 
+`?selected=<id>` (on either tab) opens with that row picked and its cards in the panel. The base
+runs to many pages, so the controller works out which page the row is on — by counting the rows
+that sort before it (`lemma`/`form`, then `id`) — rather than leaving it to whatever page was
+open. The card detail page's word and expression chips link here this way.
+
 ## The lexicon
 
 `lexicon_entries` — a downloaded reference dictionary, global (no `user_id`): `language_code`,
@@ -428,7 +433,8 @@ not whatever view the learner arrived from. At either end the missing arrow is s
 dimmed and non-clickable, so the row doesn't shift as the learner walks the list.
 
 Renders: the card's **base words** as chips, each in its display form with its
-part of speech, linking to `/base`; the bracketed `example_sentence` as plain text (bracket markers
+part of speech, linking to `/base` with that word selected (fixed expressions the same, to the
+Expressions tab); the bracketed `example_sentence` as plain text (bracket markers
 highlighted, no bullets); the `note` if present; and the "Linked cards" section (below). The term
 heading is `font-medium`, not `font-bold` — there is no focus word left to emphasize against it, so
 the Term itself is what's shown. Because a whole-sentence Term can be much longer than a single

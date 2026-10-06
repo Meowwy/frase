@@ -1,6 +1,6 @@
 {{-- The Words tab's rows, rendered with the page and again for each live search. --}}
 @forelse($baseWords as $baseWord)
-    <tr class="js-base-row cursor-pointer hover:bg-white/10">
+    <tr @class(['js-base-row cursor-pointer hover:bg-white/10', 'js-selected' => $selectedId === $baseWord->id])>
         {{-- The display form, not the bare lemma: a Swedish noun's article and a
              Swedish verb's dictionary suffix are part of what the learner is
              expected to learn. --}}

@@ -17,6 +17,10 @@
             $('#basePanel').html($(this).find('.js-row-cards').html());
         });
 
+        // Arrived from a card's word or expression chip: that row is already picked.
+        const $selected = $('.js-base-row.js-selected').trigger('click');
+        if ($selected.length) { $selected[0].scrollIntoView({ block: 'center' }); }
+
         // Pass a url to follow a pagination link (it already carries the filters);
         // otherwise build the query from the header inputs.
         function fetchRows(url) {

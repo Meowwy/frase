@@ -343,4 +343,25 @@ class WordsAndRefresherTest extends TestCase
             ->assertSee('<option value="adjective"', false)
             ->assertDontSee('<option value="verb"', false);
     }
+
+    /**
+     * A card's word chip links to /base with that word selected: the page opens on whichever
+     * page of the table the word falls on, with its row picked.
+     */
+    public function test_the_vocabulary_base_opens_on_the_page_of_the_selected_word(): void
+    {
+        [$user, $language] = $this->learner();
+        foreach (range(1, 55) as $i) {
+            $last = BaseWord::create([
+                'user_id' => $user->id, 'language_id' => $language->id,
+                'lemma' => sprintf('ord%02d', $i), 'part_of_speech' => 'noun', 'translation' => 'word '.$i,
+            ]);
+        }
+
+        $response = $this->actingAs($user)->get('/base?selected='.$last->id);
+
+        $response->assertSee('ord55');
+        $response->assertDontSee('ord01');
+        $this->assertSame(1, substr_count($response->getContent(), 'js-selected"'));
+    }
 }

@@ -1,6 +1,6 @@
 {{-- The Expressions tab's rows, rendered with the page and again for each live search. --}}
 @forelse($expressions as $expression)
-    <tr class="js-base-row cursor-pointer hover:bg-white/10">
+    <tr @class(['js-base-row cursor-pointer hover:bg-white/10', 'js-selected' => $selectedId === $expression->id])>
         <td class="px-6 py-2 text-sm text-white">
             {{ $expression->form }}
             @include('base._row-cards', ['title' => $expression->form, 'cards' => $expression->cards])
