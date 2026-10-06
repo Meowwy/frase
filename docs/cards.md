@@ -199,7 +199,8 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | Column | Notes |
 |---|---|
 | `user_id` | |
-| `language_id` | nullable until CALL 1 resolves it — detection is CALL 1's job |
+| `language_id` | nullable until CALL 1 resolves it — detection is CALL 1's job — and while the language picker is waiting on the learner |
+| `language_options` | nullable JSON (`array` cast) — the language picker's options, as language ids with CALL 1's own pick first. Set only when CALL 1 found the Term at home in more than one of the learner's languages; nothing else (words, fixed expressions, senses) is stored alongside it |
 | `raw_input` | the term as typed/pasted, known immediately |
 | `context` | nullable, the learner's own input — editable in staging (see below) |
 | `term` | nullable until CALL 1 resolves |
@@ -242,7 +243,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `GET /staging/list` | the same list as `{rows, count, pending}` JSON, rendered from `staging/_proposals.blade.php` |
 | `POST /staging/{proposal}/words/{word}/known` | `known=1` strikes a new chip (inserts its `known_words` row), `known=0` un-knows it |
 | `POST /staging/{proposal}/expressions/{expression}/strike` | `struck=1` / `struck=0` on one fixed-expression chip |
-| `POST /staging/{proposal}/language` | correct the detected language — see below |
+| `POST /staging/{proposal}/language` | correct the detected language, or answer the language picker — see below |
 | `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
 | `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
 | `POST /staging/{proposal}/merge/{card}` | `merge=1` / `merge=0` marks or unmarks one card for merge. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
@@ -277,10 +278,21 @@ Deliberate shapes in the UI (`staging/index.blade.php`):
 **Correcting the language or editing the Context re-runs CALL 1** (`Proposal::reanalyze()`) rather
 than patching the row: the candidate words were extracted, translated and tagged for the old
 language and sense, so they cannot be carried over. It deletes the word and fixed-expression chips,
-clears `senses`, writes the
+clears `language_options` and `senses`, writes the
 new value, flips the status back to `pending` and re-dispatches. `AnalyzeProposalJob` reads a
 pre-set `language_id` as "pinned" and offers the model only that one language, so the re-run can't
 drift back to its original guess.
+
+**The language picker.** A Term can be a real word in more than one of the learner's languages
+(*bad* in English and Swedish), and which one they are learning it in decides everything CALL 1
+extracts. So when an unpinned CALL 1 lists other candidate languages, `AnalyzeProposalJob` stores
+only the Term and `language_options` and leaves `language_id` null, which keeps the proposal
+unapprovable; staging shows the options as radio buttons. Picking one posts to the **language
+endpoint** — the same call as correcting a detection — so the re-run is pinned to it, is offered no
+other language and has nothing left to ask. Pinning, rather than writing the language into the
+Context the way a sense is, keeps the learner's Context their own: it is stored on the card and
+reaches CALL 2. The language comes first because senses depend on it; a sense picker can follow on
+the re-run.
 
 **The sense picker.** When `senses` is non-empty, staging shows them as radio options and
 `isApprovable()` is false, so an ambiguous lone word (*run*, *bank*) can't be saved in whatever sense

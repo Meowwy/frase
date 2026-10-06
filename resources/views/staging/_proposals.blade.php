@@ -26,6 +26,28 @@
                 <x-forms.button-small class="js-retry ml-auto">Try again</x-forms.button-small>
                 <button type="button" class="js-discard text-white/50 hover:text-white" title="Delete">🗑</button>
             </div>
+        @elseif($proposal->language_options)
+            {{-- The language picker: the Term is a real word in more than one of the
+                 learner's languages, so CALL 1 asks before extracting anything. Picking one
+                 pins it and re-runs CALL 1 (the same call as correcting the language). --}}
+            <div class="border-b border-white/10 pb-3">
+                <span class="js-term text-2xl font-medium break-words">{{ $proposal->term }}</span>
+            </div>
+            <div class="mt-3 space-y-1 text-sm">
+                <p class="text-white/60">Which language is this?</p>
+                @foreach($proposal->language_options as $languageId)
+                    @php $language = $targetLanguages->firstWhere('id', $languageId); @endphp
+                    @if($language)
+                        <label class="flex items-baseline gap-2 cursor-pointer">
+                            <input type="radio" name="language-{{ $proposal->id }}" class="js-language-option" value="{{ $language->id }}">
+                            <span>{{ $language->flag }} {{ $language->name }}</span>
+                        </label>
+                    @endif
+                @endforeach
+            </div>
+            <div class="mt-4 flex items-center gap-2">
+                <x-forms.button-small class="js-discard">Discard</x-forms.button-small>
+            </div>
         @else
             {{-- The Term sits in a block of its own: nothing here is strikeable, and
                  striking never rewrites it. --}}

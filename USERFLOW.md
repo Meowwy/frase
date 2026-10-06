@@ -23,7 +23,9 @@ immediately.
 
 At capture, CALL 1:
 
-- detects the **language**, from the learner's own target/native languages;
+- detects the **language**, from the learner's own target/native languages — and, when the Term
+  is a real word in more than one of them (*bad* in English and Swedish), says which others it
+  could be, so staging can ask first;
 - fixes the Term's typos, and nothing else;
 - extracts the Term's **base words**, each reduced to its **lemma**, tagged with its **part of
   speech**, with a native translation and any **grammatical attributes** that language and part
@@ -93,6 +95,14 @@ Fixed expressions are chips of their own, in their canonical form. One already i
 struck; unlike a word, a struck fixed expression is not remembered — the strike holds for this
 proposal only.
 
+#### Language
+
+When CALL 1 found the Term at home in more than one of the learner's languages, staging asks
+**which language is this?** before anything else, and the proposal shows no words, fixed
+expressions or senses yet — all of them depend on the language. Picking one pins it, exactly as
+correcting a wrong detection does, and re-runs CALL 1 in that language alone; only then may senses
+follow.
+
 #### Senses
 
 When CALL 1 offered senses, staging shows them as a **sense picker** and Approve is disabled until
@@ -130,7 +140,7 @@ are different questions, and the already-present group answers the base one.
 **Approve** writes the card, links its base words and fixed expressions, merges away the marked
 cards, and is the point CALL 2 finally runs. The learner stays on staging: the proposal collapses
 to one line at once and, when the card is written, becomes a link to it. It is disabled until the proposal is analysed, a
-sense is picked if senses were offered, and the identical-Term rule is satisfied — never by how
+language is picked if the language picker was offered, a sense is picked if senses were offered, and the identical-Term rule is satisfied — never by how
 many words it has. **Discard** removes the proposal immediately, with an undo toast for a few
 seconds; once it expires nothing is kept — no discard history, no draft state.
 

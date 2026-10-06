@@ -110,8 +110,16 @@ _Avoid_: inbox, queue, drafts, pending, review (that belongs to LEARN)
 **Proposal**:
 One captured Term awaiting approval in staging, together with everything the AI proposes for it: the
 Term with its typos fixed, its base words, its fixed expressions and, for an ambiguous lone word,
-its senses.
+its senses — or, for a Term at home in several of the learner's languages, only the languages to
+pick from.
 _Avoid_: draft, candidate, suggestion, staged card (it is more than a card)
+
+**Language picker**:
+The choice staging asks for when a captured Term is a real word or phrase in more than one of the
+learner's languages (*bad* in English and Swedish). It comes before anything else: the picked
+language is pinned and CALL 1 reads the Term again in it, so senses, words and fixed expressions all
+follow. Until one is picked the proposal can't be approved.
+_Avoid_: language detection (that is CALL 1's own guess), language question
 
 **Sense picker**:
 The choice staging asks for when a lone word was captured without a Context and has several common

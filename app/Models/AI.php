@@ -175,7 +175,8 @@ class AI extends Model
      * from every language there is, and each one's guideline file steers the extraction
      * for its own language (see App\Support\LanguageGuideline).
      *
-     * Returns ['language' => string, 'term' => string, 'senses' => [['part_of_speech',
+     * Returns ['language' => string, 'other_languages' => [string, ...] (only offered with
+     * two or more candidate languages), 'term' => string, 'senses' => [['part_of_speech',
      * 'gloss', 'translation'], ...], 'fixed_expressions' => [['form', 'surface_form',
      * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech',
      * 'surface_form', 'translation', <attributes>], ...]] or null on failure.
@@ -215,18 +216,31 @@ class AI extends Model
             $user .= " Context: \"{$context}\".";
         }
 
+        $properties = [
+            'language' => [
+                'type' => 'string',
+                'enum' => $names,
+                'description' => 'Which of the learner\'s own languages the Term is written in. Pick the one the Term really belongs to even if it is spelled the same in another; if it is genuinely ambiguous, pick the first listed one.',
+            ],
+        ];
+
+        // Only worth asking when there is more than one language to choose between — a
+        // re-run pinned to the learner's pick offers just that one.
+        if (count($names) > 1) {
+            $properties['other_languages'] = [
+                'type' => 'array',
+                'items' => ['type' => 'string', 'enum' => $names],
+                'description' => 'Leave this EMPTY unless the Term, exactly as written, is also a real, common word or phrase in another of the learner\'s languages, so the learner could be learning it in either (e.g. "bad" in English and Swedish, "kind" in English and German). Then list those OTHER languages, never the one picked for language. A Term that merely looks similar to a word elsewhere, or whose context makes the language clear, leaves this empty.',
+            ];
+        }
+
         return self::requestCardJson(
             [
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
             ],
             'analyze_term',
-            [
-                'language' => [
-                    'type' => 'string',
-                    'enum' => $names,
-                    'description' => 'Which of the learner\'s own languages the Term is written in. Pick the one the Term really belongs to even if it is spelled the same in another; if it is genuinely ambiguous, pick the first listed one.',
-                ],
+            $properties + [
                 'term' => [
                     'type' => 'string',
                     'description' => 'The learner\'s Term exactly as they typed it, with spelling mistakes fixed and NOTHING else changed: keep every word, its inflection and the word order, and keep a whole sentence a whole sentence. Never reduce a word to its base form — "kostade" stays "kostade", "mice" stays "mice", even when the Term is a single word — never expand it, never shorten it and never replace any part of it with a placeholder.',

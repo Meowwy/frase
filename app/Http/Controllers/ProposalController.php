@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\Auth;
  * Capture writes a proposal and returns immediately — no card, no language picker, no
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
  * with: striking a candidate word as known or a fixed expression, correcting a wrong language detection, editing
- * the Context (or picking a sense, which is the same thing), marking existing cards to merge
+ * the Context (or picking a sense, which is the same thing), picking the language of a Term
+ * at home in several, marking existing cards to merge
  * away, and finally
  * approving (which writes the card and runs CALL 2) or discarding.
  *
@@ -122,10 +123,10 @@ class ProposalController extends Controller
     }
 
     /**
-     * Correct a wrong language detection. The candidate words were extracted (and
-     * translated, and tagged) for the language CALL 1 guessed, so they can't simply be
-     * re-pointed: the proposal goes back through CALL 1, this time pinned to the language
-     * the learner chose rather than detecting one.
+     * Correct a wrong language detection, or answer the language picker. The candidate
+     * words were extracted (and translated, and tagged) for the language CALL 1 guessed, so
+     * they can't simply be re-pointed: the proposal goes back through CALL 1, this time
+     * pinned to the language the learner chose rather than detecting one.
      */
     public function language(Request $request, Proposal $proposal)
     {

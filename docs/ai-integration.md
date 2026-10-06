@@ -86,6 +86,7 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
 ```
 {
   language,                                  // one of the candidate language NAMES
+  other_languages: [name, ...],              // only in the schema with 2+ candidate languages
   term,
   senses: [{part_of_speech, gloss, translation}, ...],
   fixed_expressions: [{form, surface_form, translation}, ...],
@@ -96,6 +97,11 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
 - **`language` is first**: strict structured outputs emit keys in schema order, so the model
   commits to it before writing anything whose rules depend on it. It is an `enum` over the
   candidate names, so an unknown language can't come back at all.
+- **`other_languages`** is empty unless the Term, exactly as written, is also a real, common word
+  in another of the learner's languages (*bad* in English and Swedish) and no Context settles it.
+  It feeds staging's **language picker** (see [cards](cards.md) "Staging"), which pins the picked
+  language and re-runs this call — so the property is only in the schema when there are two or more
+  candidate languages, and a pinned re-run can't ask again.
 - **`term`** carries prompt rule #1: typos fixed, nothing else changed.
 - **`senses`** is empty unless the Term is a single word, no Context was given, and it has two or
   more common senses (*run* the verb or noun, *bank* money or riverside): then at most 4, gloss and

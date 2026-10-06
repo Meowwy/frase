@@ -504,6 +504,52 @@ class CaptureStagingTest extends TestCase
         $this->assertNull($user->proposals()->sole()->senses);
     }
 
+    public function test_a_term_at_home_in_two_languages_asks_for_the_language_first(): void
+    {
+        [$user, $swedish] = $this->learner();
+        $german = Language::firstOrCreate(['code' => 'de'], ['name' => 'German', 'native_name' => 'Deutsch', 'flag' => '🇩🇪']);
+        $user->languages()->attach($german->id, ['users_level' => 'B1']);
+        $this->fakeOpenAi($this->analysis(['term' => 'bad', 'other_languages' => ['German']]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'bad']);
+        $proposal = $user->proposals()->sole();
+
+        $this->assertSame([$swedish->id, $german->id], $proposal->language_options);
+        $this->assertNull($proposal->language_id);
+        $this->assertCount(0, $proposal->baseWords);
+        $this->assertFalse($proposal->isApprovable());
+        $this->assertStringContainsString('Which language is this?', $this->actingAs($user)->getJson('/staging/list')->json('rows'));
+    }
+
+    /**
+     * Picking the language pins it, exactly like correcting a wrong detection: CALL 1 runs
+     * again offered only that language, so it has nothing left to ask.
+     */
+    public function test_picking_the_language_pins_it_and_re_runs_call_one(): void
+    {
+        [$user] = $this->learner();
+        $german = Language::firstOrCreate(['code' => 'de'], ['name' => 'German', 'native_name' => 'Deutsch', 'flag' => '🇩🇪']);
+        $user->languages()->attach($german->id, ['users_level' => 'B1']);
+        $this->fakeOpenAi(
+            $this->analysis(['term' => 'bad', 'other_languages' => ['German']]),
+            $this->analysis(['language' => 'German', 'term' => 'bad', 'base_words' => [
+                ['lemma' => 'Bad', 'part_of_speech' => 'noun', 'surface_form' => 'bad', 'translation' => 'bath', 'gender' => '', 'dictionary_form' => ''],
+            ]]),
+        );
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'bad']);
+        $proposal = $user->proposals()->sole();
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/language", ['language_id' => $german->id])->assertStatus(200);
+
+        $proposal->refresh();
+        $this->assertSame($german->id, $proposal->language_id);
+        $this->assertNull($proposal->language_options);
+        $this->assertSame(['Bad'], $proposal->baseWords->pluck('lemma')->all());
+        $this->assertTrue($proposal->isApprovable());
+        Http::assertSent(fn ($request) => ! str_contains($request->body(), 'other_languages') && str_contains($request->body(), '"enum":["German"]'));
+    }
+
     public function test_fixed_expressions_are_staged_and_linked_on_approval(): void
     {
         [$user] = $this->learner();

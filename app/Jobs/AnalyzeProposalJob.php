@@ -8,13 +8,15 @@ use App\Models\Proposal;
 use App\Support\LanguageGuideline;
 use App\Support\Lexicon;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Resolves CALL 1 against a freshly captured proposal: language detection, the Term with
  * its typos fixed, the candidate base words and fixed expressions and, for an ambiguous lone
- * word, its senses.
+ * word, its senses — or, for a Term that is a real word in more than one of the learner's
+ * languages, only the languages to pick from.
  *
  * Capture writes the proposal row and returns immediately, so this runs on the queue and
  * the staging list resolves its skeleton row once the status flips to `completed` (the
@@ -66,6 +68,19 @@ class AnalyzeProposalJob implements ShouldQueue
                 return;
             }
 
+            // A Term that is at home in several of the learner's languages asks which one
+            // first. Nothing else is stored: words, expressions and senses all depend on the
+            // language, and picking one re-runs this job pinned to it.
+            if ($options = $this->languageOptions((array) ($analysis['other_languages'] ?? []), $language, $languages)) {
+                $this->proposal->update([
+                    'term' => $term,
+                    'language_options' => $options,
+                    'status' => Proposal::STATUS_COMPLETED,
+                ]);
+
+                return;
+            }
+
             $this->proposal->update([
                 'language_id' => $language->id,
                 'term' => $term,
@@ -83,6 +98,18 @@ class AnalyzeProposalJob implements ShouldQueue
             Log::error('Proposal analysis failed for proposal '.$this->proposal->id.': '.$e->getMessage());
             $this->proposal->update(['status' => Proposal::STATUS_FAILED]);
         }
+    }
+
+    /**
+     * The language picker's options, as language ids with CALL 1's own pick first — or null
+     * when the Term belongs to just the one language. Only an unpinned run is offered more
+     * than one language, so a re-run after the learner picked never asks again.
+     */
+    private function languageOptions(array $others, Language $language, Collection $languages): ?array
+    {
+        $ids = $languages->whereIn('name', $others)->where('id', '!=', $language->id)->modelKeys();
+
+        return $ids ? [$language->id, ...$ids] : null;
     }
 
     /**

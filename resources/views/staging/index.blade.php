@@ -121,7 +121,9 @@
                 $(this).closest('.js-chip-wrap').find('.js-chip-detail').toggleClass('hidden');
             });
 
-            $list.on('change', '.js-language', function () {
+            // Correcting the detected language and answering the language picker are the
+            // same call: the language is pinned and CALL 1 runs again.
+            $list.on('change', '.js-language, .js-language-option', function () {
                 post(this, '/language', { language_id: $(this).val() }).done(window.stagingRefresh);
             });
 
