@@ -17,7 +17,9 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 - **Staging** is where a captured term waits for you, and nothing is in your vocabulary until you
   approve it. Each proposal shows your term exactly as you typed it (only typos fixed — a lone
   inflected word or a whole sentence is kept as it is), the detected language (changeable, if it
-  guessed wrong), and the individual words it wants to add to your vocabulary base as a tray of
+  guessed wrong), its context (add or edit it any time and the proposal is re-read in that sense —
+  a lone word with several meanings, like *run* or *bank*, asks you to pick one before it can be
+  approved), and the individual words it wants to add to your vocabulary base as a tray of
   chips. **Strike** a chip and that word is remembered as **known**: it is left out now and never
   proposed again, in any form — the card still teaches the whole term either way, and a card may
   keep any number of words, none included. Known words and words you already have are shown aside:

@@ -175,9 +175,9 @@ class AI extends Model
      * from every language there is, and each one's guideline file steers the extraction
      * for its own language (see App\Support\LanguageGuideline).
      *
-     * Returns ['language' => string, 'term' => string, 'base_words' => [['lemma',
-     * 'part_of_speech', 'surface_form', 'translation', <attributes>], ...]] or null on
-     * failure.
+     * Returns ['language' => string, 'term' => string, 'senses' => [['part_of_speech',
+     * 'gloss', 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech',
+     * 'surface_form', 'translation', <attributes>], ...]] or null on failure.
      *
      * @param  array<int, array{code:string, name:string}>  $candidateLanguages
      */
@@ -229,6 +229,20 @@ class AI extends Model
                 'term' => [
                     'type' => 'string',
                     'description' => 'The learner\'s Term exactly as they typed it, with spelling mistakes fixed and NOTHING else changed: keep every word, its inflection and the word order, and keep a whole sentence a whole sentence. Never reduce a word to its base form — "kostade" stays "kostade", "mice" stays "mice", even when the Term is a single word — never expand it, never shorten it and never replace any part of it with a placeholder.',
+                ],
+                'senses' => [
+                    'type' => 'array',
+                    'description' => 'Leave this EMPTY unless the Term is a single word, no context was given, and the word has two or more common senses that would need different flashcards (e.g. "run" the verb vs. the noun, "bank" for money vs. a riverside). Then list those senses, at most 4, most common first, and extract base_words for the most common one.',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'part_of_speech' => ['type' => 'string', 'enum' => LanguageGuideline::PARTS_OF_SPEECH],
+                            'gloss' => ['type' => 'string', 'description' => 'A few words in the native language telling this sense apart from the others.'],
+                            'translation' => ['type' => 'string', 'description' => 'The word\'s translation into the native language in this sense.'],
+                        ],
+                        'required' => ['part_of_speech', 'gloss', 'translation'],
+                        'additionalProperties' => false,
+                    ],
                 ],
                 'base_words' => [
                     'type' => 'array',

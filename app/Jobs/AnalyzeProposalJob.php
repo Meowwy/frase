@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Resolves CALL 1 against a freshly captured proposal: language detection, the Term with
- * its typos fixed, and the candidate base words.
+ * its typos fixed, the candidate base words and, for an ambiguous lone word, its senses.
  *
  * Capture writes the proposal row and returns immediately, so this runs on the queue and
  * the staging list resolves its skeleton row once the status flips to `completed` (the
@@ -68,6 +68,7 @@ class AnalyzeProposalJob implements ShouldQueue
             $this->proposal->update([
                 'language_id' => $language->id,
                 'term' => $term,
+                'senses' => $this->senses((array) ($analysis['senses'] ?? []), $term),
                 'status' => Proposal::STATUS_COMPLETED,
             ]);
 
@@ -80,6 +81,27 @@ class AnalyzeProposalJob implements ShouldQueue
             Log::error('Proposal analysis failed for proposal '.$this->proposal->id.': '.$e->getMessage());
             $this->proposal->update(['status' => Proposal::STATUS_FAILED]);
         }
+    }
+
+    /**
+     * The senses for the sense picker, kept only where one can apply: a single-word Term
+     * captured without a Context, with at least two senses to choose between. The prompt
+     * asks for exactly that, but a stray answer would block approval, so it is enforced
+     * here too.
+     */
+    private function senses(array $senses, string $term): ?array
+    {
+        $senses = array_values(array_filter($senses, fn ($sense) => trim((string) ($sense['gloss'] ?? '')) !== ''));
+
+        if (! is_null($this->proposal->context) || str_contains($term, ' ') || count($senses) < 2) {
+            return null;
+        }
+
+        return array_map(fn ($sense) => [
+            'part_of_speech' => (string) ($sense['part_of_speech'] ?? ''),
+            'gloss' => trim((string) $sense['gloss']),
+            'translation' => trim((string) ($sense['translation'] ?? '')),
+        ], array_slice($senses, 0, 4));
     }
 
     /**

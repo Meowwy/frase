@@ -59,8 +59,8 @@ _Avoid_: target, answer, keyword, subject; card type, card shape (there is only 
 
 **Context**:
 The learner's own sentence or situation, given at capture so the term is captured in the sense they
-met it in, and kept so the card can be regenerated in that same sense. It fixes the sense; it never
-reaches the vocabulary base.
+met it in, and kept so the card can be regenerated in that same sense. It can be added or edited in
+staging, which re-reads the proposal. It fixes the sense; it never reaches the vocabulary base.
 _Avoid_: source, example, usage (those are the card's generated content, not the learner's input)
 
 ### Languages
@@ -109,8 +109,15 @@ _Avoid_: inbox, queue, drafts, pending, review (that belongs to LEARN)
 
 **Proposal**:
 One captured Term awaiting approval in staging, together with everything the AI proposes for it: the
-Term with its typos fixed, and its base words.
+Term with its typos fixed, its base words and, for an ambiguous lone word, its senses.
 _Avoid_: draft, candidate, suggestion, staged card (it is more than a card)
+
+**Sense picker**:
+The choice staging asks for when a lone word was captured without a Context and has several common
+senses (*run* the verb or noun, *bank* money or riverside). Each **sense** shows its part of speech,
+a short gloss and a translation; the picked one becomes the proposal's Context. Until one is picked
+the proposal can't be approved.
+_Avoid_: meaning picker, disambiguation, definition
 
 **Approve**:
 The learner's act of accepting a proposal, which writes the card and its base words. It is the only

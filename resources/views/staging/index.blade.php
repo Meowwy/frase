@@ -82,6 +82,15 @@
                 post(this, '/language', { language_id: $(this).val() }).done(window.stagingRefresh);
             });
 
+            // Saving the Context, or picking a sense (written out as the Context), re-runs CALL 1.
+            $list.on('change', '.js-context', function () {
+                post(this, '/context', { context: $(this).val() }).done(window.stagingRefresh);
+            });
+
+            $list.on('change', '.js-sense', function () {
+                post(this, '/context', { context: $(this).data('context') }).done(window.stagingRefresh);
+            });
+
             $list.on('click', '.js-approve', function () {
                 const $btn = $(this).prop('disabled', true).text('Approving…');
                 post(this, '/approve').done(function (data) {

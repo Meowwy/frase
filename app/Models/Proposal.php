@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\AnalyzeProposalJob;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * One captured Term awaiting approval in staging, with everything CALL 1 proposes for it:
- * the Term the card will be built around and its candidate base words.
+ * the Term the card will be built around, its candidate base words and, for an ambiguous
+ * lone word captured without a Context, the senses to pick from.
  *
  * A proposal is outside the vocabulary entirely. Approving it is the only way anything
  * enters, and it is the point CALL 2 finally runs — so no content is ever generated for
@@ -36,6 +38,10 @@ class Proposal extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'senses' => 'array',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -52,13 +58,27 @@ class Proposal extends Model
     }
 
     /**
-     * Whether Approve may fire: once CALL 1 has landed. How many base words are linked never
-     * matters — a card may link none of them, or many. The control disables itself on
-     * this rather than failing after the fact.
+     * Whether Approve may fire: once CALL 1 has landed and, if it offered senses, one has
+     * been picked. How many base words are linked never matters — a card may link none of
+     * them, or many. The control disables itself on this rather than failing after the fact.
      */
     public function isApprovable(): bool
     {
-        return $this->status === self::STATUS_COMPLETED && (bool) $this->language_id;
+        return $this->status === self::STATUS_COMPLETED && (bool) $this->language_id && empty($this->senses);
+    }
+
+    /**
+     * Send the proposal back through CALL 1, after the learner corrected its language or
+     * its Context. Everything CALL 1 produced was extracted for the old input, so it is
+     * thrown away rather than patched. A language already set stays pinned (see
+     * AnalyzeProposalJob).
+     */
+    public function reanalyze(array $attributes = []): void
+    {
+        $this->baseWords()->delete();
+        $this->update([...$attributes, 'senses' => null, 'status' => self::STATUS_PENDING]);
+
+        AnalyzeProposalJob::dispatch($this);
     }
 
     /**

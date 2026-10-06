@@ -88,6 +88,7 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
 {
   language,                                  // one of the candidate language NAMES
   term,
+  senses: [{part_of_speech, gloss, translation}, ...],
   base_words: [{lemma, part_of_speech, surface_form, translation, <attributes…>}, ...],
 }
 ```
@@ -96,6 +97,10 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   commits to it before writing anything whose rules depend on it. It is an `enum` over the
   candidate names, so an unknown language can't come back at all.
 - **`term`** carries prompt rule #1: typos fixed, nothing else changed.
+- **`senses`** is empty unless the Term is a single word, no Context was given, and it has two or
+  more common senses (*run* the verb or noun, *bank* money or riverside): then at most 4, gloss and
+  translation in the native language. They feed staging's sense picker (see [cards](cards.md)
+  "Staging"); it sits before `base_words` so the model has settled the ambiguity before extracting.
 - **`base_words`** are the Term's words, each reduced to its **lemma**, tagged with its
   **part of speech** (an `enum` over `LanguageGuideline::PARTS_OF_SPEECH`), with the surface form
   the Term actually spells it in and a native translation — the translation is decided here, not

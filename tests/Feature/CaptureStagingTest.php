@@ -407,6 +407,96 @@ class CaptureStagingTest extends TestCase
         $this->assertTrue(Card::sole()->baseWords->contains($existing));
     }
 
+    private function ambiguousAnalysis(): array
+    {
+        return $this->analysis([
+            'term' => 'lag',
+            'senses' => [
+                ['part_of_speech' => 'noun', 'gloss' => 'a team', 'translation' => 'team'],
+                ['part_of_speech' => 'noun', 'gloss' => 'a rule passed by parliament', 'translation' => 'law'],
+            ],
+            'base_words' => [
+                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'surface_form' => 'lag', 'translation' => 'team', 'gender' => 'neuter', 'dictionary_form' => ''],
+            ],
+        ]);
+    }
+
+    public function test_an_ambiguous_lone_word_offers_senses_that_block_approval(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->ambiguousAnalysis());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'lag']);
+        $proposal = $user->proposals()->sole();
+
+        $this->assertCount(2, $proposal->senses);
+        $this->assertFalse($proposal->isApprovable());
+        $this->assertStringContainsString('data-context="lag (noun): a team"', $this->actingAs($user)->getJson('/staging/list')->json('rows'));
+
+        // The fake has no answer left, so a CALL 2 here would fail the test loudly.
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(422);
+        $this->assertSame(0, Card::count());
+    }
+
+    /**
+     * Picking a sense is just saving it as the Context: CALL 1 runs again, offers no senses,
+     * and its words replace the old ones.
+     */
+    public function test_picking_a_sense_sets_the_context_and_re_runs_call_one(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->ambiguousAnalysis(), $this->analysis([
+            'term' => 'lag',
+            'senses' => [],
+            'base_words' => [
+                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'surface_form' => 'lag', 'translation' => 'law', 'gender' => 'common', 'dictionary_form' => ''],
+            ],
+        ]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'lag']);
+        $proposal = $user->proposals()->sole();
+
+        $this->actingAs($user)
+            ->postJson("/staging/{$proposal->id}/context", ['context' => 'lag (noun): a rule passed by parliament'])
+            ->assertStatus(200);
+
+        $proposal->refresh();
+        $this->assertSame('lag (noun): a rule passed by parliament', $proposal->context);
+        $this->assertNull($proposal->senses);
+        $this->assertSame('law', $proposal->baseWords->sole()->translation);
+        $this->assertTrue($proposal->isApprovable());
+    }
+
+    public function test_editing_the_context_of_any_proposal_re_runs_call_one(): void
+    {
+        [$user, $language] = $this->learner();
+        $proposal = $this->completedProposal($user, $language);
+        $this->fakeOpenAi($this->analysis([
+            'base_words' => [
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'surface_form' => 'kostar', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+            ],
+        ]));
+
+        $this->actingAs($user)
+            ->postJson("/staging/{$proposal->id}/context", ['context' => 'in a shop'])
+            ->assertStatus(200);
+
+        $proposal->refresh();
+        $this->assertSame('in a shop', $proposal->context);
+        $this->assertSame(Proposal::STATUS_COMPLETED, $proposal->status);
+        $this->assertSame(['kosta'], $proposal->baseWords->pluck('lemma')->all());
+    }
+
+    public function test_senses_are_ignored_when_a_context_was_given(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->ambiguousAnalysis());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'lag', 'context' => 'fotboll']);
+
+        $this->assertNull($user->proposals()->sole()->senses);
+    }
+
     public function test_discarding_leaves_nothing_behind(): void
     {
         [$user, $language] = $this->learner();
@@ -426,6 +516,7 @@ class CaptureStagingTest extends TestCase
         $proposal = $this->completedProposal($owner, $language);
 
         $this->actingAs($other)->postJson("/staging/{$proposal->id}/approve")->assertStatus(403);
+        $this->actingAs($other)->postJson("/staging/{$proposal->id}/context", ['context' => 'stolen'])->assertStatus(403);
         $this->actingAs($other)->deleteJson("/staging/{$proposal->id}")->assertStatus(403);
     }
 

@@ -179,6 +179,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/staging/list', [ProposalController::class, 'list'])->name('staging.list');
     Route::post('/staging/{proposal}/words/{word}/known', [ProposalController::class, 'known']);
     Route::post('/staging/{proposal}/language', [ProposalController::class, 'language']);
+    Route::post('/staging/{proposal}/context', [ProposalController::class, 'context']);
     Route::post('/staging/{proposal}/approve', [ProposalController::class, 'approve']);
     Route::delete('/staging/{proposal}', [ProposalController::class, 'destroy']);
 

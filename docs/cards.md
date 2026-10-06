@@ -177,8 +177,9 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `user_id` | |
 | `language_id` | nullable until CALL 1 resolves it — detection is CALL 1's job |
 | `raw_input` | the term as typed/pasted, known immediately |
-| `context` | nullable, the learner's own input |
+| `context` | nullable, the learner's own input — editable in staging (see below) |
 | `term` | nullable until CALL 1 resolves |
+| `senses` | nullable JSON (`array` cast) — the sense picker's options, `[{part_of_speech, gloss, translation}, …]`, up to 4. Only ever set for a single-word Term captured without a Context with two or more common senses; `AnalyzeProposalJob::senses()` enforces that in PHP too, since a stray answer would block approval |
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
 
@@ -208,6 +209,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `GET /staging/list` | the same list as `{rows, count, pending}` JSON, rendered from `staging/_proposals.blade.php` |
 | `POST /staging/{proposal}/words/{word}/known` | `known=1` strikes a new chip (inserts its `known_words` row), `known=0` un-knows it |
 | `POST /staging/{proposal}/language` | correct the detected language — see below |
+| `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
 | `POST /staging/{proposal}/approve` | `409` with the existing card's id on a duplicate Term, `422` when the proposal isn't approvable yet, else the new card's URL |
 | `DELETE /staging/{proposal}` | discard |
 
@@ -227,11 +229,19 @@ Two deliberate shapes in the UI (`staging/index.blade.php`):
   Navigating away inside the window leaves the proposal in staging — there is nowhere durable to
   record the intent, and keeping it is the harmless direction to fail in.
 
-**Correcting the language re-runs CALL 1** rather than just re-pointing the row: the candidate words
-were extracted, translated and tagged for the language the model guessed, so they cannot be carried
-over. The handler deletes the chips, sets `language_id`, flips the status back to `pending` and
-re-dispatches. `AnalyzeProposalJob` reads a pre-set `language_id` as "pinned" and offers the model
-only that one language, so the re-run can't drift back to its original guess.
+**Correcting the language or editing the Context re-runs CALL 1** (`Proposal::reanalyze()`) rather
+than patching the row: the candidate words were extracted, translated and tagged for the old
+language and sense, so they cannot be carried over. It deletes the chips, clears `senses`, writes the
+new value, flips the status back to `pending` and re-dispatches. `AnalyzeProposalJob` reads a
+pre-set `language_id` as "pinned" and offers the model only that one language, so the re-run can't
+drift back to its original guess.
+
+**The sense picker.** When `senses` is non-empty, staging shows them as radio options and
+`isApprovable()` is false, so an ambiguous lone word (*run*, *bank*) can't be saved in whatever sense
+the AI guessed. Picking one writes `"<term> (<part of speech>): <gloss>"` as the Context through the
+same Context endpoint. The re-run has a Context, so it returns no senses and extracts everything in
+the chosen sense, lexicon attributes included — there is no separate code path applying a sense to
+the chips, and the sense is kept as the card's Context so Regenerate stays in it.
 
 ## Capture flow (creating a card)
 

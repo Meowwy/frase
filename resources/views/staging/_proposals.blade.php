@@ -41,6 +41,30 @@
                 </select>
             </div>
 
+            {{-- The Context is editable on every proposal: saving it re-runs CALL 1, so the
+                 words and their translations follow the sense it names. --}}
+            <input type="text" class="js-context mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-1 text-sm"
+                   value="{{ $proposal->context }}" placeholder="Add context (where you met it, or which sense you mean)" maxlength="250">
+
+            {{-- The sense picker: an ambiguous lone word captured without a Context. Picking a
+                 sense writes it as the Context, which re-runs CALL 1 in that sense. --}}
+            @if($proposal->senses)
+                <div class="mt-3 space-y-1 text-sm">
+                    <p class="text-white/60">Which sense do you mean?</p>
+                    @foreach($proposal->senses as $sense)
+                        <label class="flex items-baseline gap-2 cursor-pointer">
+                            <input type="radio" name="sense-{{ $proposal->id }}" class="js-sense"
+                                   data-context="{{ $proposal->term }} ({{ $sense['part_of_speech'] }}): {{ $sense['gloss'] }}">
+                            <span>
+                                <span class="text-xs text-white/40">{{ $sense['part_of_speech'] }}</span>
+                                {{ $sense['gloss'] }}
+                                <span class="text-white/50">— {{ $sense['translation'] }}</span>
+                            </span>
+                        </label>
+                    @endforeach
+                </div>
+            @endif
+
             @if($duplicate)
                 <p class="mt-3 text-sm text-white/60">
                     You already have

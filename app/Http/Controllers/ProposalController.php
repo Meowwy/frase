@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Auth;
  *
  * Capture writes a proposal and returns immediately — no card, no language picker, no
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
- * with: striking a candidate word as known, correcting a wrong language detection, and finally
+ * with: striking a candidate word as known, correcting a wrong language detection, editing
+ * the Context (or picking a sense, which is the same thing), and finally
  * approving (which writes the card and runs CALL 2) or discarding.
  *
  * See docs/cards.md "Staging" and USERFLOW.md.
@@ -119,13 +120,24 @@ class ProposalController extends Controller
 
         abort_unless(Auth::user()->languages()->whereKey($data['language_id'])->exists(), 422);
 
-        $proposal->baseWords()->delete();
-        $proposal->update([
-            'language_id' => $data['language_id'],
-            'status' => Proposal::STATUS_PENDING,
-        ]);
+        $proposal->reanalyze(['language_id' => $data['language_id']]);
 
-        AnalyzeProposalJob::dispatch($proposal);
+        return response()->json(['reanalyzing' => true]);
+    }
+
+    /**
+     * Add, edit or clear a proposal's Context. The Context decides which sense the Term is
+     * read in, so the proposal goes back through CALL 1 just as for a language correction.
+     * Picking a sense from the sense picker is this same call, with the sense written out
+     * as the Context — so the re-run offers no senses and extracts in the chosen one.
+     */
+    public function context(Request $request, Proposal $proposal)
+    {
+        $this->authorize('update', $proposal);
+
+        $data = $request->validate(['context' => ['nullable', 'string', 'min:2', 'max:250']]);
+
+        $proposal->reanalyze(['context' => $request->filled('context') ? trim($data['context']) : null]);
 
         return response()->json(['reanalyzing' => true]);
     }
