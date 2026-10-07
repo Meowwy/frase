@@ -94,18 +94,13 @@
         @endif
 
         <!-- Definition Section -->
-        <div class="mb-4">
+        <div class="mb-6">
             @if(!is_null($wordbox))
                 <a href="{{ route('wordbox.show', $wordbox->id) }}"
                    class="capitalize text-sm mr-1 font-bold bg-orange-700 hover:bg-orange-600 text-white rounded-full px-3 py-1">{{$wordbox->name}}</a>
             @endif
             <span class="">{{$card->definition}}</span>
         </div>
-
-        <!-- Example Sentence (keep any line breaks) -->
-        @if(!empty($card->example_sentence))
-            <p class="mb-6 text-gray-400 font-medium whitespace-pre-line leading-relaxed">{!! $card->example_sentence !!}</p>
-        @endif
 
         <!-- Linked cards -->
         <div class="mb-8" id="linkedCards">

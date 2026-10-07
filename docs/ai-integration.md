@@ -35,24 +35,12 @@ fixed.
    `[something]` slots. The card then shows exactly the form the learner met. Every *field* must
    describe that exact Term. This is not only a prompt rule — `term` is produced by call 1 and
    passed *into* call 2 as an input, so the content call has no opportunity to drift.
-2. **The example `sentence` bracket rule.** It must contain the term wrapped in square brackets
-   **exactly once**, in whatever inflected form it takes there (`[term]`), because the learning
-   UI's blanking regex is `/\[.*?\]/` (see [learning-flow](learning-flow.md) and [cards](cards.md)) — this is what turns
-   the sentence into a flashcard front and what the "Sentences — writing" mode checks the typed
-   answer against. Punctuation must stay outside the brackets.
-3. **The `sentence` must be rich enough to guess the term from.** There is an explicit floor:
-   "at least 6 words besides the term, naming a concrete situation, actor or result, so a
-   learner who does not know the term could work out its meaning from the surrounding words
-   alone," with a worked negative in the schema (`"It is [nice]."` is explicitly called invalid).
-   Without a numeric floor, the model wrote near-empty frames, especially at low CEFR levels,
-   because "illustrative" alone wasn't a strong enough constraint.
-4. **CEFR level caps difficulty, never length.** `AI::levelInstruction()` and the
+2. **CEFR level caps difficulty, never length.** `AI::levelInstruction()` and the
    `config/proficiency.php` descriptions describe which words/structures are allowed at a level,
    and end with an explicit sentence saying so ("This caps difficulty, not length — never write
    less than a field asks for"). The level descriptions deliberately contain **no length
    wording** — an earlier version of the A1/A2 descriptions said "very short sentences", and the
-   model responded with two- and three-word example sentences that gave no context to guess the
-   term from. Where a prompt genuinely wants brevity (chat turns, recap bullets), it says so
+   model responded with two- and three-word stubs. Where a prompt genuinely wants brevity (chat turns, recap bullets), it says so
    itself, separately from the level instruction.
 
 ## Why two calls
@@ -207,7 +195,6 @@ schema for every Term:
 
 | Field | Rule |
 |---|---|
-| `sentence` | the whole Term bracketed once, in the form it takes there. If the Term is itself a whole sentence, a short two-line exchange with the Term bracketed as the reply |
 | `translation` | a natural equivalent of the Term **as typed**, inflection included (a past-tense Term gets a past-tense translation — Translation mode asks for exactly that form), never word-by-word, ≤2 variants separated by `; ` |
 | `definition` | what the Term means or, for a whole utterance, when you'd say it ("used to politely refuse something you have been offered") |
 

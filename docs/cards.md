@@ -14,7 +14,6 @@ Base columns from the original migration plus everything added since:
 | `theme_id` | nullable, `onDelete('set null')` — see [wordboxes-themes-tags](wordboxes-themes-tags.md) |
 | `term` | the Term itself, exactly as the learner gave it with only typos fixed — renamed from `phrase` (see [ai-integration](ai-integration.md)) |
 | `translation` | native-language equivalent; `''` for a native-language card (column is `NOT NULL`) |
-| `example_sentence` | one sentence with the whole **Term** wrapped in `[brackets]` once (a two-line exchange when the Term is itself a sentence) — powers the Sentences learning modes |
 | `definition` | what the Term means or, for a whole utterance, when you'd say it |
 | `note` | nullable free-text, user-editable, not AI-generated |
 | `context` | nullable — the learner's own context input, kept so a card can be regenerated in the sense it was captured in |
@@ -26,7 +25,9 @@ Dropped by the vocabulary-base redesign (migration
 `2026_09_27_000001_redesign_cards_for_vocabulary_base`, which also renamed `phrase` → `term`):
 `word` (there is no focus word — see "What a card is built around" below) and the three
 `example_*` fields. `question` had already gone earlier
-(`2026_08_04_000001_add_examples_and_note_drop_question_from_cards`).
+(`2026_08_04_000001_add_examples_and_note_drop_question_from_cards`). `example_sentence` went last
+(`2026_10_07_000002`), together with the Sentences and Sentences-writing learning modes it powered
+and the hints it supplied to Translation, Words and Refresher.
 
 **There is one kind of card.** Every Term used to be classified into one of three kinds, which
 drove three generators, per-kind base-word limits, an extra phrase property on lone-word cards and
@@ -41,8 +42,7 @@ backfilled.
 Every card has exactly one thing it is about: its **Term**, always — kept exactly as the learner
 typed it, with only typos fixed. A lone inflected word stays inflected (`kostade`) and a pasted
 sentence stays a sentence; only the card's base words carry lemmas. There is no focus word and no
-word/phrase split inside a Term — `translation`, `definition` and the `example_sentence` brackets
-are always about the whole Term, in whatever form it takes. `Card::target()` is the Term.
+word/phrase split inside a Term — `translation` and `definition` are always about the whole Term, in whatever form it takes. `Card::target()` is the Term.
 
 ### Helpers on the model
 
@@ -269,6 +269,9 @@ proposal exactly as it was in staging rather than a half-written card.
 
 Deliberate shapes in the UI (`staging/index.blade.php`):
 
+- **Approve is always shown, and disabled whenever staging is asking something** — the language
+  picker, the sense picker or a blocking duplicate. A disabled `<x-forms.button>` is dimmed with a
+  not-allowed cursor, so it reads as inactive rather than just ignoring the click.
 - **Every action re-renders the whole list from `/staging/list`.** The rules that decide which
   controls are live then exist only in PHP (`Proposal::isApprovable()`) and cannot drift out of
   step with the markup. The cost is a re-render on each click, which is invisible next to the
@@ -326,6 +329,15 @@ Cards with the identical Term are left out; the duplicate notice shows those. Co
 without a query of its own: the presence index's base words already carry their cards, and the
 2-second poll is why that matters.
 
+**Probably not needed** (`Proposal::coveringCards()`) is the reverse direction: when **every** base
+word the proposal would link is already present *and* on one and the same existing card (*book*
+beside "She is reading a book"), the card would add nothing to the vocabulary base, so staging
+names that card and suggests discarding. It is a suggestion only — the proposal stays approvable,
+because the learner may still want the Term as a card of its own. Known words don't count (they are
+never linked); a proposal with a new word, or with no linkable words at all, is never covered.
+Fixed expressions are not considered. Same live, query-free computation as related cards, and
+identical-Term cards are again left to the duplicate notice.
+
 **Merge.** Any related or identical card can be marked with its *merge into this card* switch (a
 switch, not a button, since marking runs nothing); the mark lives in `merge_card_ids` until
 approval and does nothing before it, so **discard removes nothing**. On approve, inside the
@@ -351,7 +363,7 @@ There are still **two** ways a card gets created — one AI-assisted, one manual
   [overview](overview.md) "Known rough edges", which already applies to gap-fill.
 - **Manual, no AI** (`GET /add` → `cards/add.blade.php` → `POST /cards/new` →
   `CardController::save()`, via `StoreCardRequest`): the user types every field themselves
-  (`term`, `definition`, optional `translation`/`example_sentence`/`note`/`theme_id`). This path
+  (`term`, `definition`, optional `translation`/`note`/`theme_id`). This path
   never goes through staging — there's nothing to approve that the learner didn't already type.
   Still dispatches `GenerateEmbeddingJob` so the card participates in linking/search the same way.
   This entry point has no nav link (reach it directly at `/add`) but is a real, working path.
@@ -411,12 +423,6 @@ the proposal. See "The duplicate check" above.
 `CardPolicy` (see [overview](overview.md) "Authorization") before doing anything else — a card
 belongs to exactly one user and no one else can view, edit, or update it.
 
-`show()` also escapes `example_sentence` (`e($card->example_sentence)`) **before** splicing in the
-`[term]` → `<span>` highlight markup, since the view renders the result with `{!! !!}` — the
-sentence itself is AI-generated (ultimately from user input, see [ai-integration](ai-integration.md)) and must
-never be trusted as pre-sanitized HTML. `SeachController::index`/`searchWordbox` do the same for
-their own copies of this highlight logic.
-
 The top row holds the **back** link on the left and **previous card** / **next card** arrows on
 the right, same style as back. `show()` resolves the two neighbours as the user's adjacent cards
 **in this card's language**, ordered by descending id — ids are monotonic with insertion, so that
@@ -427,14 +433,10 @@ dimmed and non-clickable, so the row doesn't shift as the learner walks the list
 
 Renders: the card's **base words** as chips, each in its display form with its
 part of speech, linking to `/base` with that word selected (fixed expressions the same, to the
-Expressions tab); the bracketed `example_sentence` as plain text (bracket markers
-highlighted, no bullets); the `note` if present; and the "Linked cards" section (below). The term
+Expressions tab); the `note` if present; and the "Linked cards" section (below). The term
 heading is `font-medium`, not `font-bold` — there is no focus word left to emphasize against it, so
 the Term itself is what's shown. Because a whole-sentence Term can be much longer than a single
-word, the heading wraps (`flex-wrap` + `break-words`), and every place that prints
-`example_sentence` keeps `whitespace-pre-line` so a line break in the AI's answer survives
-(`cards/show.blade.php` and the search-result `<x-card>` component). `cards/edit.blade.php` renders
-`example_sentence` as a `<x-forms.textarea>` rather than a single-line input for the same reason.
+word, the heading wraps (`flex-wrap` + `break-words`).
 
 ## Manual card linking ("Linked cards")
 

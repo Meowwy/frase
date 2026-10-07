@@ -22,11 +22,13 @@ covers the patterns shared across all of them.
 
 - Heavy use of **anonymous** Blade components in `resources/views/components` (and
   `components/forms` for the form-input family) — no class-backed components in this app.
-- `<x-html-layout>` — the base page wrapper: doctype, nav, CDN includes (jQuery, Toastr, Google
+- `<x-html-layout>` — the base page wrapper: doctype, the nav (sticky at the top, so anything
+  else sticky must sit below it — `/base`'s side panel uses `lg:top-24`), CDN includes (jQuery, Toastr, Google
   Fonts), `@vite(...)` for `app.css`/`app.js`, and the `{{ $slot }}` for page content.
 - `<x-forms.*>` — `input`, `input-search`, `textarea`, `select`, `checkbox`, `button`,
   `button-small`, `button-confirm`, `button-delete`, `label`, `field`, `error`, `divider`, `form`,
   `option` — the whole form-control vocabulary. Reach for these before writing a raw `<input>`.
+  `<x-forms.button disabled="true">` renders dimmed with a not-allowed cursor.
 - Reusable UI: `<x-panel>`, `<x-card>` / `<x-card-small>` / `<x-card-text>` / `<x-card-wordbox>`
   (different card-rendering contexts — list row, small preview, plain text, wordbox-page tile),
   `<x-section-heading>`, `<x-page-heading>`, `<x-modal>`, `<x-tag>`, `<x-theme-card>`,

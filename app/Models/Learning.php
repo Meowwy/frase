@@ -92,29 +92,6 @@ class Learning extends Model
     }
 
     /**
-     * Split a bracketed example sentence around its blank: the text before and after the
-     * `[term]`, plus the exact form the brackets hide. The answer is that form, never the
-     * card's `term` — the brackets hold the Term in the form this sentence happens to use
-     * it in.
-     */
-    protected static function sentenceParts(Card $card): array
-    {
-        $sentence = (string) $card->example_sentence;
-
-        if (! preg_match('/\[(.*?)\]/', $sentence, $matches, PREG_OFFSET_CAPTURE)) {
-            return ['before' => $sentence, 'answer' => $card->target(), 'after' => ''];
-        }
-
-        [$blank, $offset] = $matches[0];
-
-        return [
-            'before' => substr($sentence, 0, $offset),
-            'answer' => $matches[1][0],
-            'after' => substr($sentence, $offset + strlen($blank)),
-        ];
-    }
-
-    /**
      * Build a learning set from the card-set builder selection:
      * language + (all | general vocabulary | a wordbox) + (due | cram).
      */
@@ -265,18 +242,10 @@ class Learning extends Model
         $entries = [];
 
         foreach ($cards as $card) {
-            $blankedSentence = preg_replace('/\[.*?\]/', '...', $card->example_sentence);
-
             $entry = match ($mode) {
                 // A native-language card has no translation, so its definition stands in.
-                'translation' => ['front' => $card->translation ?: $card->definition, 'back' => $card->target(), 'hint' => $blankedSentence],
-                // The back is the form the brackets actually hide, not the stored Term: the
-                // gap is the question, and the sentence inflects the Term as it needs to.
-                'sentences' => ['front' => $blankedSentence, 'back' => self::sentenceParts($card)['answer'], 'hint' => $card->translation],
-                // Writing variant of Sentences: the front is the sentence split around the
-                // blank so the view can render an inline input between the two halves. Its
-                // answer comes out of that same split, so there is no separate back.
-                'sentences_write' => ['hint' => $card->translation] + self::sentenceParts($card),
+                // No hint: it was the example sentence, which cards no longer have.
+                'translation' => ['front' => $card->translation ?: $card->definition, 'back' => $card->target(), 'hint' => ''],
                 'definitions' => ['front' => $card->definition, 'back' => $card->target(), 'hint' => $card->translation],
                 default => abort(404),
             };
@@ -297,8 +266,7 @@ class Learning extends Model
      * linked to several cards — that is what the base is for. Asking for it once and
      * crediting the answer to every card that uses it is both less tedious and the right
      * arithmetic; `card_ids` is what carries that, and a word already dealt for an earlier
-     * card costs a later one nothing against the cap. The hint is the first such card's
-     * sentence.
+     * card costs a later one nothing against the cap.
      */
     protected static function wordEntries($cards): array
     {
@@ -314,11 +282,10 @@ class Learning extends Model
             }
 
             $budget -= $unseen->count();
-            $hint = preg_replace('/\[.*?\]/', '...', $card->example_sentence);
             $wordbox = $card->wordbox->first()?->name ?? '';
 
             foreach ($baseWords as $baseWord) {
-                $entries[$baseWord->id] ??= self::wordEntry($baseWord, $hint) + ['wordbox' => $wordbox];
+                $entries[$baseWord->id] ??= self::wordEntry($baseWord) + ['wordbox' => $wordbox];
                 $entries[$baseWord->id]['card_ids'][] = $card->id;
             }
         }
@@ -333,16 +300,17 @@ class Learning extends Model
      * One base word as a flashcard. The back is always the LEMMA in its display form —
      * "ett hus", never bare "hus" and never the inflected form the parent card's
      * Term happens to use. Part of speech travels with it because two base words can share
-     * a lemma and differ only by it.
+     * a lemma and differ only by it. No hint: it was the parent card's example sentence,
+     * which cards no longer have.
      */
-    public static function wordEntry(BaseWord $baseWord, string $hint): array
+    public static function wordEntry(BaseWord $baseWord): array
     {
         return [
             'id' => $baseWord->id,
             'front' => $baseWord->translation,
             'back' => $baseWord->displayForm(),
             'part_of_speech' => $baseWord->part_of_speech,
-            'hint' => $hint,
+            'hint' => '',
             // Which cards this answer counts towards. Empty for Refresher, which clears
             // nothing — see BaseWordController::refresher().
             'card_ids' => [],

@@ -280,6 +280,34 @@ class Proposal extends Model
     }
 
     /**
+     * The existing cards that already carry **every** base word this proposal would link —
+     * capturing *book* beside "She is reading a book". Such a proposal adds nothing to the
+     * vocabulary base, so staging suggests discarding it; it stays approvable. Known words
+     * don't count (they are never linked), and a proposal with a new word or no words at
+     * all is never covered. Cards with the identical Term are left out: the duplicate
+     * notice shows those.
+     *
+     * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
+     * @param  \Illuminate\Support\Collection<string, KnownWord>  $known  see knownIndex()
+     * @return \Illuminate\Support\Collection<int, Card>
+     */
+    public function coveringCards(SupportCollection $present, SupportCollection $known): SupportCollection
+    {
+        $words = $this->baseWords->reject(fn (ProposalBaseWord $word) => $this->groupOf($word, $present, $known) === self::GROUP_KNOWN);
+
+        if ($words->isEmpty() || $words->contains(fn (ProposalBaseWord $word) => ! $present->has($this->presenceKeyFor($word)))) {
+            return collect();
+        }
+
+        $cardSets = $words->map(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards);
+
+        return $cardSets->first()
+            ->filter(fn (Card $card) => $cardSets->every(fn (Collection $cards) => $cards->contains('id', $card->id)))
+            ->reject(fn (Card $card) => mb_strtolower($card->term) === mb_strtolower((string) $this->term))
+            ->values();
+    }
+
+    /**
      * The cards the learner already has for this exact Term. The duplicate check narrows to
      * the Term alone: owning a base word of a Term is a different fact, and the chip tray's
      * already-present notice is what surfaces that one.

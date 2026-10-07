@@ -47,7 +47,9 @@
                     @endif
                 @endforeach
             </div>
+            {{-- Shown but inactive: nothing can be approved until a language is picked. --}}
             <div class="mt-4 flex items-center gap-2">
+                <x-forms.button class="js-approve" disabled="true">Approve</x-forms.button>
                 <x-forms.button-small class="js-discard">Discard</x-forms.button-small>
             </div>
         @else
@@ -83,6 +85,19 @@
                     @include('staging._merge-toggle', ['card' => $duplicate])
                 </div>
             @endforeach
+
+            {{-- Every word this card would link is already on one existing card, so it adds
+                 nothing to the vocabulary base. A suggestion only: Approve stays live. --}}
+            @php $covering = $proposal->coveringCards($alreadyInBase, $knownWords); @endphp
+            @if($covering->isNotEmpty())
+                <p class="mt-3 text-sm text-orange-400">
+                    Probably not needed — all its words are already in
+                    @foreach($covering as $coveringCard)
+                        <a href="/cards/{{ $coveringCard->id }}" class="font-bold hover:underline">{{ $coveringCard->term }}</a>@if(! $loop->last), @endif
+                    @endforeach.
+                    Consider discarding it.
+                </p>
+            @endif
 
             {{-- The chip tray, in the order the Term spells its words. A new word is
                  strikeable: ✕ records it as known, so it is never proposed again. A word

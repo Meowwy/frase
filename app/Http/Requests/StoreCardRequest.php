@@ -25,7 +25,6 @@ class StoreCardRequest extends FormRequest
             'term' => ['required', 'string', 'max:120', 'min:2'],
             'definition' => ['required', 'string'],
             'translation' => ['nullable', 'string'],
-            'example_sentence' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
             'theme_id' => ['nullable'],
         ];

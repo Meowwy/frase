@@ -30,7 +30,6 @@ class UpdateCardRequest extends FormRequest
             'translation' => ['required', 'string'],
             // Nullable so the field can be cleared; the column is NOT NULL, hence the
             // coalesce in the controller.
-            'example_sentence' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ];
     }

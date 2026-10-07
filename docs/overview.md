@@ -7,8 +7,7 @@ gotchas. Read this first; the other files in `docs/` go deep on one feature area
 ## What the app is
 
 Frase is a **language-learning app**. Users save words and phrases they encounter, get
-**AI-generated context** for them (example sentences, definitions, translations, usage
-fragments), and review them later via spaced-repetition flashcards and AI conversation practice.
+**AI-generated context** for them (translations and definitions), and review them later via spaced-repetition flashcards and AI conversation practice.
 A user can build active vocabulary in **up to 5 target languages**, plus optionally their own
 native language (see [multi-language](multi-language.md)).
 

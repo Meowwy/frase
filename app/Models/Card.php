@@ -199,8 +199,7 @@ class Card extends Model
             'term' => $term,
             // '' for a native-language card, whose schema has no translation at all.
             'translation' => $content['translation'] ?? '',
-            // These columns are NOT NULL, so coalesce to an empty string.
-            'example_sentence' => $content['sentence'] ?? '',
+            // NOT NULL, so coalesce to an empty string.
             'definition' => $content['definition'] ?? '',
             'context' => $context,
         ];

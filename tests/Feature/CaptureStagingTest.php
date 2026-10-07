@@ -68,7 +68,6 @@ class CaptureStagingTest extends TestCase
     private function cardContent(array $overrides = []): array
     {
         return array_replace([
-            'sentence' => 'Jag undrar [hur mycket kostar det] i den nya butiken.',
             'translation' => 'how much does it cost',
             'definition' => 'Asking after the price of something.',
         ], $overrides);
@@ -162,7 +161,7 @@ class CaptureStagingTest extends TestCase
             'base_words' => [
                 ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
             ],
-        ]), $this->cardContent(['sentence' => 'Biljetten [kostade] mer än jag trodde.', 'translation' => 'cost']));
+        ]), $this->cardContent(['translation' => 'cost']));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'kostade']);
 
@@ -908,6 +907,47 @@ class CaptureStagingTest extends TestCase
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
         $this->assertStringContainsString('made redundant by this card', $rows);
         $this->assertStringContainsString('data-card-id="'.$redundant->id.'"', $rows);
+    }
+
+    /**
+     * A proposal whose every linkable word is already on one card adds nothing to the base:
+     * staging suggests discarding it, and Approve stays live.
+     */
+    public function test_a_proposal_whose_words_are_all_on_one_card_is_flagged_as_not_needed(): void
+    {
+        [$user, $language] = $this->learner();
+        $hur = $this->baseWord($user, $language, 'hur', 'adverb');
+        $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
+        $kosta = $this->baseWord($user, $language, 'kosta', 'verb');
+
+        $covering = $this->cardUsing($user, $language, 'hur mycket kostade biljetten', $hur, $mycket, $kosta);
+        $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
+
+        $proposal = $this->completedProposal($user, $language);
+        $present = Proposal::presenceIndex(collect([$proposal]));
+        $known = Proposal::knownIndex(collect([$proposal]));
+
+        $this->assertSame([$covering->id], $proposal->coveringCards($present, $known)->pluck('id')->all());
+        $this->assertTrue($proposal->isApprovable());
+        $this->assertStringContainsString('Probably not needed', $this->actingAs($user)->getJson('/staging/list')->json('rows'));
+    }
+
+    public function test_a_known_word_does_not_stop_a_proposal_being_covered_but_a_new_word_does(): void
+    {
+        [$user, $language] = $this->learner();
+        $hur = $this->baseWord($user, $language, 'hur', 'adverb');
+        $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
+        $card = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
+
+        $proposal = $this->completedProposal($user, $language);
+        $indexes = fn () => [Proposal::presenceIndex(collect([$proposal])), Proposal::knownIndex(collect([$proposal]))];
+
+        // kosta is new, so the card adds a word to the base.
+        $this->assertTrue($proposal->coveringCards(...$indexes())->isEmpty());
+
+        KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'kosta', 'part_of_speech' => 'verb']);
+
+        $this->assertSame([$card->id], $proposal->coveringCards(...$indexes())->pluck('id')->all());
     }
 
     public function test_merging_moves_the_wordboxes_and_deletes_the_old_card_with_its_links(): void

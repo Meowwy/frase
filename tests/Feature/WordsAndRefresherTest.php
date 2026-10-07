@@ -39,7 +39,6 @@ class WordsAndRefresherTest extends TestCase
             'user_id' => $user->id,
             'language_id' => $language->id,
             'term' => $term,
-            'example_sentence' => 'Jag undrar ['.$term.'] varje dag.',
             'next_study_at' => now(),
         ] + $attributes);
 
@@ -84,7 +83,7 @@ class WordsAndRefresherTest extends TestCase
         // The lemma in its display form, never the inflected form the Term uses.
         $this->assertSame('ett hus', $house['back']);
         $this->assertSame('en: hus', $house['front']);
-        $this->assertSame('Jag undrar ... varje dag.', $house['hint']);
+        $this->assertSame('', $house['hint']);
     }
 
     /**
@@ -129,7 +128,6 @@ class WordsAndRefresherTest extends TestCase
             'user_id' => $user->id,
             'language_id' => $language->id,
             'term' => 'ett gult hus',
-            'example_sentence' => 'Jag bor i [ett gult hus].',
             'next_study_at' => now(),
         ]);
         $second->baseWords()->attach($shared->id);
@@ -190,7 +188,7 @@ class WordsAndRefresherTest extends TestCase
         $this->assertCount(1, $deck);
         $this->assertSame('cost (past)', $deck[0]['front']);
         $this->assertSame('kostade', $deck[0]['back']);
-        $this->assertSame('Jag undrar ... varje dag.', $deck[0]['hint']);
+        $this->assertSame('', $deck[0]['hint']);
     }
 
     /**

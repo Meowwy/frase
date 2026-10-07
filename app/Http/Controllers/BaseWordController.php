@@ -142,7 +142,7 @@ class BaseWordController extends Controller
         $languageId = $this->resolveLanguage($request);
 
         $baseWords = Auth::user()->baseWords()
-            ->with(['language', 'cards' => fn ($q) => $q->select('cards.id', 'example_sentence')])
+            ->with('language')
             ->when($languageId, fn ($q) => $q->where('language_id', $languageId))
             // Never recalled is as stale as it gets, so nulls come first.
             ->orderByRaw('last_recalled_at is not null, last_recalled_at asc')
@@ -154,11 +154,7 @@ class BaseWordController extends Controller
         // filter were left in the session by an earlier, unrelated session.
         session(['learning_mode' => 'refresher', 'more_cards_available' => false]);
 
-        $deck = $baseWords->map(function (BaseWord $baseWord) {
-            $sentence = (string) ($baseWord->cards->first()?->example_sentence ?? '');
-
-            return Learning::wordEntry($baseWord, preg_replace('/\[.*?\]/', '...', $sentence)) + ['wordbox' => ''];
-        })->all();
+        $deck = $baseWords->map(fn (BaseWord $baseWord) => Learning::wordEntry($baseWord) + ['wordbox' => ''])->all();
 
         return Learning::renderDeck($deck, 'refresher');
     }

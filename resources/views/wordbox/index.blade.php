@@ -110,14 +110,6 @@
                     <x-panel class="w-48">
                         <div class="py-2">
                             <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/{{ $wordbox->id }}/sentences">Sentences</a>
-                            </h3>
-                            <p class="text-sm mt-2">Recall the word from an English sentence with a blank.</p>
-                        </div>
-                    </x-panel>
-                    <x-panel class="w-48">
-                        <div class="py-2">
-                            <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
                                 <a href="/startLearning/{{ $wordbox->id }}/conversation">Conversation</a>
                             </h3>
                             <p class="text-sm mt-2">Chat with an AI that makes you use each word.</p>

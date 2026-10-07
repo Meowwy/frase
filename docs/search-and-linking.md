@@ -9,12 +9,8 @@ embeddings still get generated.
 ## Search (`SeachController` — note the typo, it's the real class/file name)
 
 - `GET /search` (`@index`) — validates `searchTerm` (min 2 chars), does a `LIKE %term%` match on
-  `phrase` scoped to the current user, ordered so **prefix matches sort first**
-  (`ORDER BY CASE WHEN phrase LIKE 'term%' THEN 0 ELSE 1 END`), limited to 15 results. Bracket
-  markers in each result's `example_sentence` are turned into `<span class="font-bold">` before
-  rendering (same bracket-highlighting pattern used on the card detail page — see
-  [cards](cards.md), and note both **escape the sentence first** with `e()` before splicing in
-  that `<span>`, since the view renders the result raw with `{!! !!}`).
+  `term` scoped to the current user, ordered so **prefix matches sort first**
+  (`ORDER BY CASE WHEN term LIKE 'term%' THEN 0 ELSE 1 END`), limited to 15 results.
 - `GET /searchWordbox/{wbid}` (`@searchWordbox`) — a similar but separate search scoped for the
   wordbox edit page: returns matches (limit 10) either as JSON (AJAX request) for an inline
   results dropdown, or as part of a full `wordbox.edit` render otherwise.

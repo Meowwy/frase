@@ -27,7 +27,9 @@
 </head>
 <body class="bg-black text-white font-lato pb-20">
 <div class="px-10">
-    <nav class="flex items-center py-4 border-b border-white/10 gap-6">
+    {{-- Sticky, so it stays reachable on long pages. It bleeds over the wrapper's padding
+         (-mx-10 px-10) so content scrolling underneath never shows at its edges. --}}
+    <nav class="sticky top-0 z-50 -mx-10 px-10 bg-black flex items-center py-4 border-b border-white/10 gap-6">
         <div class="flex-1">
             <a href="/">
                 <p class="font-bold">Frase</p>

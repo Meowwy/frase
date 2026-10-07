@@ -98,10 +98,6 @@ class CardController extends Controller
     {
         $this->authorize('view', $card);
 
-        // Escape first so any raw HTML in the AI-generated sentence can't reach the
-        // `{!! !!}` output in the view — only the <span> we add below is trusted.
-        $card->example_sentence = preg_replace('/\[(.*?)\]/', '<span class="text-gray-300 font-bold">$1</span>', e($card->example_sentence));
-
         if (! is_null($card->theme_id)) {
             $theme = Theme::where('user_id', Auth::id())
                 ->where('id', $card->theme_id)
@@ -276,11 +272,7 @@ class CardController extends Controller
     {
         $this->authorize('update', $card);
 
-        $data = $request->validated();
-        // The column is NOT NULL; nullable in the request so the field can be cleared.
-        $data['example_sentence'] ??= '';
-
-        $card->update($data);
+        $card->update($request->validated());
 
         return redirect('/cards/'.$card->id);
     }
@@ -369,7 +361,6 @@ class CardController extends Controller
             'language_id' => $language->id,
             'level' => 1,
             'translation' => $data['translation'] ?? '',
-            'example_sentence' => $data['example_sentence'] ?? '',
             'note' => $data['note'] ?? null,
             'definition' => $data['definition'],
             'next_study_at' => now(),

@@ -6,10 +6,6 @@
         <x-forms.input value="{{$card->term}}" label="Term" name="term"/>
         <x-forms.input value="{{$card->definition}}" label="Definition" name="definition"/>
         <x-forms.input value="{{$card->translation}}" label="Translation" name="translation"/>
-        {{-- A textarea, not a single-line input: a whole-sentence Term's example is a
-             two-line exchange and can be long. --}}
-        <x-forms.textarea label="Example sentence" name="example_sentence">{{$card->example_sentence}}</x-forms.textarea>
-
         <x-forms.textarea label="Note" name="note">{{$card->note}}</x-forms.textarea>
         <x-forms.divider></x-forms.divider>
         <div class="flex justify-between">

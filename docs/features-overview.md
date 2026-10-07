@@ -27,8 +27,8 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   keep any number of words, none included. A word you already have stays in the tray with a green
   border and nothing to decide (it is linked to the new card automatically); known words are shown
   aside — tap one to un-know it.
-- **Approve** writes the card and its words — and only then is the definition, translation and
-  example sentence generated, so nothing is spent on a term you throw away. You stay on staging:
+- **Approve** writes the card and its words — and only then are the definition and translation
+  generated, so nothing is spent on a term you throw away. You stay on staging:
   the proposal shrinks to one line, then becomes a link to the new card. **Discard** leaves
   nothing behind: the proposal shrinks to a "discarded" line with **Capture again**, which captures
   the same term and context afresh. A term the AI couldn't read — it failed, or took
@@ -38,12 +38,14 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 - **Browser extension**: capture a word from any webpage without visiting the site — it lands in
   the same staging feed. See [browser-extension](browser-extension.md).
 - **Related cards**: each proposal lists your existing cards that share its words, most overlap
-  first, and flags a single-word card the new term makes redundant. Switch any of them to **merge**:
+  first, and flags a single-word card the new term makes redundant. The other way round, a term
+  whose words are all already on one of your cards (*book* when you have *She is reading a book*)
+  is flagged **probably not needed**, with a suggestion to discard it — you can still approve it. Switch any of them to **merge**:
   on approval it is removed and its wordboxes move to the new card (its review progress and note
   don't). Discarding the proposal removes nothing.
 - **Capturing a term you already have** is blocked until you give it a Context (to keep both, e.g.
   *run* the verb and *run* the noun) or merge the old card into it. Staging also offers to
-  **regenerate** the existing card instead — fresh translation, definition and example sentence,
+  **regenerate** the existing card instead — fresh translation and definition,
   while your review progress, note, words and linked cards stay as they are. Having one of a term's
   *words* in your vocabulary base is a different thing, and never stops you saving the term.
 
@@ -101,10 +103,6 @@ a mode:
 
 - **Translation** (the first mode) — see the translation, recall the term, flip to check. The
   classic Anki-style review; a card in your own native language shows its definition instead.
-- **Sentences** — see a sentence with the term blanked out, try to recall it, flip to check.
-- **Sentences (writing)** — same sentence, but you type the missing word instead of flipping a
-  card; forgiving about capitalization/punctuation/spelling of the surrounding text, not about the
-  word itself.
 - **Words** — the individual words your due cards are made of, one at a time: see the translation,
   recall the word. A card is cleared once you've got every one of its words.
 - **Definitions** — see the definition, recall the term.

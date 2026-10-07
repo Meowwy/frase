@@ -5,7 +5,6 @@
         <x-forms.input label="Term" name="term"/>
         <x-forms.input label="Definition" name="definition"/>
         <x-forms.input label="Translation" name="translation"/>
-        <x-forms.input label="Example sentence" name="example_sentence"/>
 
         <x-forms.select label="Theme" name="theme_id">
             <x-forms.option value="-1">No theme chosen</x-forms.option>

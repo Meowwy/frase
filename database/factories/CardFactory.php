@@ -20,7 +20,6 @@ class CardFactory extends Factory
             'user_id' => fake()->randomElement([1, 2]),
             'term' => fake()->word,
             'translation' => fake()->word,
-            'example_sentence' => fake()->sentence,
             'definition' => fake()->sentence,
             'note' => null,
             'next_study_at' => now(),

@@ -8,10 +8,6 @@
                     <p>{{$card->translation}}</p>
                 </div>
             </div>
-            <div class="min-w-0">
-                {{-- An expression's sentence is a two-line A:/B: exchange, so keep the breaks. --}}
-                <p class="whitespace-pre-line">{!! $card->example_sentence !!}</p>
-            </div>
         </a>
 
 </x-panel>

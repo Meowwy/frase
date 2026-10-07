@@ -148,7 +148,9 @@ _Avoid_: ignored word, blacklist, excluded word, struck word
 
 **Related cards**:
 The learner's existing cards that share a base word with a proposal, shown on it in staging. A
-lone-word card whose word the new Term contains is flagged *made redundant by this card*.
+lone-word card whose word the new Term contains is flagged *made redundant by this card*; the other
+way round, a proposal whose every base word is already on one card is flagged *probably not
+needed*.
 _Avoid_: similar cards, synonyms, linked cards (those are the manual links in ORGANIZE)
 
 **Merge**:
@@ -298,15 +300,14 @@ The session scope that serves every card in the selection regardless of schedule
 _Avoid_: practice, review all, free review
 
 **Cleared**:
-What a card becomes once its Term has been produced — as a whole (Translation, Sentences,
-Sentences-write, Definitions, Conversation), or in Words mode once every one of the card's base
+What a card becomes once its Term has been produced — as a whole (Translation, Definitions,
+Conversation), or in Words mode once every one of the card's base
 words has been answered correctly. Either path advances the card's level. Every other word-level answer (Refresher)
 stamps a base word's last recall and never clears a card.
 _Avoid_: passed, completed, answered, correct
 
 **Learning mode**:
-How a session presents its cards — Translation, Sentences, Sentences (writing), Words,
-Definitions, or Conversation.
+How a session presents its cards — Translation, Words, Definitions, or Conversation.
 _Avoid_: exercise, game, activity, drill
 
 **Translation**:

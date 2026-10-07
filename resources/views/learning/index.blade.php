@@ -1,9 +1,5 @@
-@props(['cards', 'cardCount', 'mode' => 'sentences'])
+@props(['cards', 'cardCount', 'mode' => 'translation'])
 @php
-    // The writing variant of Sentences swaps the flashcard for the sentence with an
-    // inline input; everything around it (pill, hint, counters, exit) stays the same.
-    $writeMode = $mode === 'sentences_write';
-
     // Words mode and Refresher deal individual BASE WORDS rather than cards, so a deck
     // entry is a word and the part of speech travels with it. They differ in one thing:
     // Words is scheduled and can clear a card, Refresher only ever stamps last recall.
@@ -20,7 +16,7 @@
         </button>
 
     <div class="flex justify-center items-center">
-        <div class="flex-col items-center {{ $writeMode ? 'w-full max-w-2xl' : '' }}">
+        <div class="flex-col items-center">
             <div class="flex justify-center items-center gap-2 mb-4">
                 <span id="wordboxName" class="invisible text-lg mr-1 font-bold bg-orange-800 text-white rounded-full px-3 py-1">&nbsp;</span>
                 @if($wordDeck)
@@ -30,44 +26,28 @@
                     <span id="partOfSpeech" class="text-sm italic text-white/60"></span>
                 @endif
             </div>
-            @if($writeMode)
-                <div class="mb-6">
-                    <div id="sentenceBox" class="bg-white/5 rounded-[15px] border border-white/10 p-6 text-xl leading-relaxed text-center cursor-text">
-                        <span id="sentenceBefore"></span><input id="answerInput" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                               class="bg-transparent border-b-2 border-white/20 px-2 py-0 w-44 text-center mx-1 font-medium text-blue-400 focus:outline-none focus:border-blue-500 transition-colors"><span id="sentenceAfter"></span>
-                    </div>
-                    <p id="reveal" class="hidden mt-4 text-center text-white/60">
-                        Correct answer: <span id="revealAnswer" class="font-bold text-green-500"></span>
-                    </p>
+            <div class="flashcard" id="flashcard">
+                <div class="front" id="front">
+                    No cards loaded.
                 </div>
-            @else
-                <div class="flashcard" id="flashcard">
-                    <div class="front" id="front">
-                        No cards loaded.
-                    </div>
-                    <div class="back" id="back">
-                        No cards loaded.
-                    </div>
+                <div class="back" id="back">
+                    No cards loaded.
                 </div>
-            @endif
+            </div>
             <div>
-                <x-panel class="mb-6 cursor-pointer justify-center items-center max-w-[300px] {{ $writeMode ? 'mx-auto' : '' }}" outline="orange" id="hint">
+                {{-- Hidden for a card without a hint. Only Definitions carries one now; the
+                     panel stays so a future hint source can switch it back on. --}}
+                <x-panel class="mb-6 cursor-pointer justify-center items-center max-w-[300px]" outline="orange" id="hint">
                     <p id="hintText" class="text-sm text-center">Click to show hint.</p>
                 </x-panel>
             </div>
-            @if($writeMode)
-                <div class="navigationStyle flex justify-center mx-auto">
-                    <button class="w-[300px]" id="actionBtn">Check</button>
-                </div>
-            @else
-                <div class="navigationStyle flex justify-center">
-                    <button class="w-[300px]" id="flipBtn">Flip</button>
-                </div>
-                <div class="navigationStyle">
-                    <button class="hidden" id="wrongBtn">Wrong</button>
-                    <button class="hidden" id="correctBtn">Correct</button>
-                </div>
-            @endif
+            <div class="navigationStyle flex justify-center">
+                <button class="w-[300px]" id="flipBtn">Flip</button>
+            </div>
+            <div class="navigationStyle">
+                <button class="hidden" id="wrongBtn">Wrong</button>
+                <button class="hidden" id="correctBtn">Correct</button>
+            </div>
         </div>
     </div>
     </div>
@@ -88,10 +68,6 @@
 
     <script>
         {!! $cards !!}
-
-        // Sentences (writing): the front is a sentence with an inline input instead of a
-        // card to flip, and the grade comes from what the learner typed.
-        const writeMode = @json($writeMode);
 
         // A word deck grades base words, so `results` holds base-word ids; the card-level
         // grades are derived from them at the end (Words) or not sent at all (Refresher).
@@ -209,131 +185,47 @@
             resultsForm.submit();
         }
 
-        let showCard;
-        // The spacebar shortcut and the main button share one action per mode: flipping
-        // the card, or checking the typed answer / moving to the next sentence.
-        let primaryAction;
+        const flashcard = document.getElementById('flashcard');
+        const front = document.getElementById('front');
+        const back = document.getElementById('back');
+        const wrongBtn = document.getElementById('wrongBtn');
+        const correctBtn = document.getElementById('correctBtn');
+        const flipBtn = document.getElementById('flipBtn');
 
-        if (writeMode) {
-            const sentenceBox = document.getElementById('sentenceBox');
-            const sentenceBefore = document.getElementById('sentenceBefore');
-            const sentenceAfter = document.getElementById('sentenceAfter');
-            const answerInput = document.getElementById('answerInput');
-            const reveal = document.getElementById('reveal');
-            const revealAnswer = document.getElementById('revealAnswer');
-            const actionBtn = document.getElementById('actionBtn');
-
-            // Same result colours as the gap-fill exercise.
-            const RESULT_CLASSES = ['!border-green-500', '!text-green-500', '!border-red-500', '!text-red-500'];
-
-            // checked = the answer is revealed and the button now deals the next card.
-            let checked = false;
-            let wasCorrect = false;
-
-            // Punctuation the sentence may carry into the blank (a trailing "." or "!")
-            // should never cost the answer; apostrophes stay, they are part of the word.
-            const normalize = value => value
-                .toLowerCase()
-                .replace(/[.,!?;:…"“”„«»¡¿()\[\]{}]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-            // A hyphenated term is also accepted written with spaces ("e-mail" / "e mail").
-            const flattenHyphens = value => value.replace(/[-‐‑]/g, ' ').replace(/\s+/g, ' ').trim();
-
-            function isAnswerCorrect(typed, answer) {
-                const a = normalize(typed);
-                const b = normalize(answer);
-
-                return a === b || flattenHyphens(a) === flattenHyphens(b);
-            }
-
-            showCard = function () {
-                showWordbox();
-                sentenceBefore.textContent = cards[currentIndex].before;
-                sentenceAfter.textContent = cards[currentIndex].after;
-                answerInput.value = '';
-                answerInput.readOnly = false;
-                answerInput.classList.remove(...RESULT_CLASSES);
-                reveal.classList.add('hidden');
-                actionBtn.textContent = 'Check';
-                checked = false;
-                hintText.textContent = 'Click to show hint.';
-                updateCounters();
-                answerInput.focus();
-            };
-
-            // Grade what was typed against the form the sentence actually hides, colour
-            // the input like the gap-fill exercise and reveal the answer below it.
-            function check() {
-                wasCorrect = isAnswerCorrect(answerInput.value, cards[currentIndex].answer);
-                answerInput.readOnly = true;
-                answerInput.classList.add(...(wasCorrect
-                    ? ['!border-green-500', '!text-green-500']
-                    : ['!border-red-500', '!text-red-500']));
-                revealAnswer.textContent = cards[currentIndex].answer;
-                reveal.classList.remove('hidden');
-                actionBtn.textContent = 'Next';
-                checked = true;
-            }
-
-            primaryAction = function () {
-                checked ? advance(wasCorrect) : check();
-            };
-
-            actionBtn.addEventListener('click', primaryAction);
-            sentenceBox.addEventListener('click', () => answerInput.focus());
-
-            // Enter works while typing; the shared spacebar shortcut only takes over once
-            // the input is read-only (after checking), so a space still types a space.
-            answerInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    primaryAction();
-                }
-            });
-        } else {
-            const flashcard = document.getElementById('flashcard');
-            const front = document.getElementById('front');
-            const back = document.getElementById('back');
-            const wrongBtn = document.getElementById('wrongBtn');
-            const correctBtn = document.getElementById('correctBtn');
-            const flipBtn = document.getElementById('flipBtn');
-
-            showCard = function () {
-                flashcard.classList.remove('is-flipped');
-                front.textContent = cards[currentIndex].front;
-                showWordbox();
-                if (partOfSpeech) { partOfSpeech.textContent = cards[currentIndex].part_of_speech; }
-                wrongBtn.classList.add('hidden');
-                correctBtn.classList.add('hidden');
-                flipBtn.classList.remove('hidden');
-                hintText.textContent = 'Click to show hint.';
-                updateCounters();
-            };
-
-            primaryAction = function () {
-                back.textContent = cards[currentIndex].back;
-                flashcard.classList.toggle('is-flipped');
-                flipBtn.classList.add('hidden');
-                wrongBtn.classList.remove('hidden');
-                correctBtn.classList.remove('hidden');
-            };
-
-            flashcard.addEventListener('click', primaryAction);
-            flipBtn.addEventListener('click', primaryAction);
-            wrongBtn.addEventListener('click', () => advance(false));
-            correctBtn.addEventListener('click', () => advance(true));
+        function showCard() {
+            flashcard.classList.remove('is-flipped');
+            front.textContent = cards[currentIndex].front;
+            showWordbox();
+            if (partOfSpeech) { partOfSpeech.textContent = cards[currentIndex].part_of_speech; }
+            wrongBtn.classList.add('hidden');
+            correctBtn.classList.add('hidden');
+            flipBtn.classList.remove('hidden');
+            hintText.textContent = 'Click to show hint.';
+            hintElement.classList.toggle('hidden', ! cards[currentIndex].hint);
+            updateCounters();
         }
 
-        // Spacebar flips the current card (checks / advances in writing mode), mirroring a
-        // click — but not while the user is typing in a field (e.g. the nav-bar search).
+        function flip() {
+            back.textContent = cards[currentIndex].back;
+            flashcard.classList.toggle('is-flipped');
+            flipBtn.classList.add('hidden');
+            wrongBtn.classList.remove('hidden');
+            correctBtn.classList.remove('hidden');
+        }
+
+        flashcard.addEventListener('click', flip);
+        flipBtn.addEventListener('click', flip);
+        wrongBtn.addEventListener('click', () => advance(false));
+        correctBtn.addEventListener('click', () => advance(true));
+
+        // Spacebar flips the current card, mirroring a click — but not while the user is
+        // typing in a field (e.g. the nav-bar search).
         document.addEventListener('keydown', (e) => {
             const el = e.target;
-            const typing = (el.tagName === 'INPUT' && !el.readOnly) || el.tagName === 'TEXTAREA' || el.isContentEditable;
+            const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
             if (e.code === 'Space' && !e.repeat && !typing) {
                 e.preventDefault(); // stop the page from scrolling
-                primaryAction();
+                flip();
             }
         });
 

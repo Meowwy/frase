@@ -383,21 +383,16 @@ class AI extends Model
             $user .= " It was seen in this context: \"{$context}\".";
         }
 
-        $sentence = "Exactly ONE natural {$language} sentence containing the WHOLE Term inside square brackets exactly once; never put the surrounding punctuation inside the brackets and never bracket only part of the Term. It must be RICH and ILLUSTRATIVE: at least 6 words besides the Term, naming a concrete situation, actor or result, so a learner who does NOT know the Term could work out its meaning from the surrounding words alone. Bracket the Term in the form it takes there — e.g. \"She [broke her promise] to call me the moment she landed.\" If the Term is itself a whole sentence, write instead a short exchange of two lines, each starting with \"– \": a line someone says, then the Term as the reply, bracketed whole — e.g. \"– Shall we take the bus home? – [I would rather walk].\"";
-
         $translation = "The natural equivalent of the WHOLE Term in {$nativeLanguage}, exactly as typed — keep its inflection (tense, number, person), so a past-tense Term gets a past-tense translation. What a native speaker would really say for the same thing, never a word-by-word rendering. At most 2 variants separated by \"; \". Never an explanation.";
 
         $definition = "EXPLAINS what the Term means in {$definitionLanguage} — never a translation, an equivalent or a list of synonyms, and it never contains the Term itself. If the Term is a whole utterance, say instead when you would say it and what the speaker is doing (\"used to politely refuse something you have been offered\").";
 
         if (! is_null($context)) {
-            $sentence .= ' Show the sense it has in the supplied context.';
             $translation .= ' In the meaning it has in the supplied context.';
             $definition .= ' In the meaning it has in the supplied context.';
         }
 
-        $properties = [
-            'sentence' => ['type' => 'string', 'description' => $sentence],
-        ];
+        $properties = [];
 
         if (! $isNative) {
             $properties['translation'] = ['type' => 'string', 'description' => $translation];

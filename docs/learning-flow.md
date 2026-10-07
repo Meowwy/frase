@@ -1,8 +1,8 @@
 # Learning Flow (SRS flashcards)
 
-The card-set builder, the spaced-repetition scheduling algorithm, the five flashcard-style
+The card-set builder, the spaced-repetition scheduling algorithm, the three flashcard-style
 learning modes, and Refresher, the unscheduled vocabulary-base practice that sits alongside them.
-The sixth learning mode, live AI conversation, is only bootstrapped here — its actual chat logic is
+The fourth learning mode, live AI conversation, is only bootstrapped here — its actual chat logic is
 in [conversation-challenge](conversation-challenge.md)'s sibling doc, the SRS-specific one: see
 "Conversation mode" below, which hands off to `ChatController`.
 
@@ -51,10 +51,9 @@ served and `session(['more_cards_available' => true])` is set (the UI can then s
 more due" hint); otherwise all due cards are served. `cram` scope always returns everything,
 uncapped. The returned collection is always `->shuffle()`d.
 
-Every mode serves every card. There is one kind of card (see [cards](cards.md)), so Sentences,
-Sentences-write and Definitions skip no Term, however long or idiomatic: a
-whole-sentence Term's example is a two-line exchange and its definition says when you'd say it, so
-both fronts still work. Only Words mode narrows the pool, to cards that have base words (below).
+Every mode serves every card. There is one kind of card (see [cards](cards.md)), so Definitions
+skips no Term, however long or idiomatic: a whole-sentence Term's definition says when you'd say
+it. Only Words mode narrows the pool, to cards that have base words (below).
 
 ## Rendering a session (`Learning::renderLearningView($mode)`)
 
@@ -63,39 +62,27 @@ every other mode from cards (`Learning::cardEntries()`). Both hand off to
 `Learning::renderDeck($cards, $mode)`, which serializes the deck into the shared view — and which
 Refresher also calls directly, being the same word-dealing shape without a session.
 
-For `translation`, `sentences`, `sentences_write` and `definitions`, each entry is built **per card**,
+For `translation` and `definitions`, each entry is built **per card**,
 `{id, front, back, hint, wordbox}`:
 
 | Mode | front | back | hint |
 |---|---|---|---|
-| `translation` | `translation`, or `definition` when it is empty | the **Term** | `example_sentence` with the bracketed span replaced by `...` |
-| `sentences` | `example_sentence` with the bracketed span replaced by `...` | **the bracketed form** | `translation` |
-| `sentences_write` | *(see below — split, not a single front)* | *(none — the split carries `answer`)* | `translation` |
+| `translation` | `translation`, or `definition` when it is empty | the **Term** | *(none)* |
 | `definitions` | `definition` | the **Term** | `translation` |
 
 **Every mode's answer is the card's Term** — there is no focus word to answer instead of it (see
-[cards](cards.md) "What a card is built around"). `translation` and `definitions` show the Term itself as the back.
+[cards](cards.md) "What a card is built around").
 
 `translation` is the classic Anki-style review and the builder's **first** tile. A native-language
 card (see [multi-language](multi-language.md)) is generated without a translation, so its
-definition stands in on the front — otherwise those cards would have an empty front. The hint is
-the blanked sentence rather than the translation, since the translation is already the question.
+definition stands in on the front — otherwise those cards would have an empty front. It has no
+hint: the hint used to be the card's blanked example sentence, and cards no longer have one.
 
-The two Sentences modes take the answer from the sentence itself instead, because the gap is the
-question: whatever the brackets hide is what the learner has to produce. That is the Term too, but
-in the form *this* sentence inflects it into, which the stored `term` (a base form) would not
-match — so `sentences` reveals `Learning::sentenceParts($card)['answer']` as its back, the same
-string `sentences_write` grades against. `sentences_write` therefore carries no `back` at all; its
-`answer` key is the one source of truth, and the flip-card `back` element is not rendered in that
-mode anyway.
-
-The blanking uses the same `/\[.*?\]/` regex the sentence-bracket prompt rule exists to support
-(see [ai-integration](ai-integration.md)), now always around the **whole Term** rather than a
-focus word inside it. The full set is serialized as a JS variable (`let cards = [...];`) and handed
+The full set is serialized as a JS variable (`let cards = [...];`) and handed
 to `learning/index.blade.php`, which drives the whole session **client-side** — no per-card request
 during review.
 
-A correct answer in any of these four modes clears the card (SRS level/`next_study_at` advance —
+A correct answer in either mode clears the card (SRS level/`next_study_at` advance —
 see "SRS algorithm" below) and stamps last-recall on **every** base word and fixed expression
 linked to it (`Card::stampRecall()`) — producing the Term is producing all of them. Conversation mode's clearing/stamping is the same; see
 "Conversation mode" below.
@@ -134,8 +121,7 @@ one answer across the cards that share the word (empty for Refresher, which clea
   the learner needs it to know which one is being asked about even before flipping the card. The
   view renders it in a pill **outside** the flashcard, next to the wordbox pill — one element that
   is simply visible the whole time the word is on screen, rather than a copy on each face;
-- **hint** — the parent card's context (its blanked example sentence); the first such card's, for a
-  word shared by several.
+- **hint** — empty. It used to be the parent card's blanked example sentence; Refresher's the same.
 
 Answers are tracked client-side and batched into one write at session end: the deck's own
 `results` array becomes `/saveLearning`'s `words` parameter, and the per-card array beside it is
@@ -208,47 +194,8 @@ a one-pass countdown.
   `invisible`, so cards don't visually jump around depending on whether they have one.
 - "Save and quit" is the standard back-button style (arrow + text), absolutely positioned
   top-left, rather than a full-width strip.
-
-### Sentences — writing variant (`sentences_write`)
-
-A second flavour of the Sentences mode where the learner **types** the missing word instead of
-flipping a card. Same page, same deck/SRS/counters/hint/"Save and quit" — only the card area and
-action button change: `$writeMode = $mode === 'sentences_write'` swaps the flashcard for a panel
-holding the example sentence with an **inline `<input>`** where the blank is, and swaps
-Flip/Wrong/Correct for a single **Check → Next** button.
-
-`Learning::sentenceParts($card)` splits `example_sentence` around the **first** `[...]` into
-`before`/`answer`/`after` — so the checked answer is the **exact inflected form the sentence
-actually hides**, not the card's base-form `term` (a sentence with no brackets at all falls
-back to using the whole sentence as `before` and the **Term** as the answer, so the mode degrades
-gracefully instead of erroring).
-
-Checking is entirely **client-side** (no request, same pattern as the gap-fill exercise checker)
-and deliberately **forgiving about form, not spelling**: `isAnswerCorrect()` lowercases, collapses
-whitespace, and strips punctuation the sentence's surrounding text can drag into what the learner
-selects/types (`. , ! ? ; : … " ' ( )` etc.) — **apostrophes are kept**, since they're part of the
-word itself (contractions, possessives). If that still doesn't match, it retries with every
-hyphen replaced by a space, so a hyphenated term is accepted written apart too (`e-mail` /
-`e mail`). Result colours reuse the gap-fill exercise's green/red input-border classes. The typed
-text stays visible and the correct answer is revealed **below** the sentence after checking.
-Grading is then automatic: **Next** feeds the boolean comparison straight into the same
-`advance(correct)` function the Wrong/Correct buttons in the other modes call — it's the same
-repeat-until-correct path, just fed a computed result instead of a manual button press.
-
-**A checked answer is final** — `check()` sets the input `readOnly` and nothing takes that back
-before the next card. Letting a wrong answer be corrected in place was tried and reverted: it
-would have been redundant, because a wrong card is not lost anyway. It stays in the deck and comes
-round again in the same session, so the learner gets their second attempt there, on a card they
-have to type from scratch rather than one with the answer already on screen.
-
-**Keyboard**: `Enter` checks while the input is editable; the page's shared spacebar shortcut
-(used to flip/advance cards in the other modes) skips text inputs only while they're editable, so
-once `check()` sets the input `readOnly`, the **spacebar** works to trigger Check/Next exactly
-like it advances a card elsewhere.
-
-In `set.blade.php`, the Sentences mode tile is split horizontally into two halves (`divide-y`,
-each its own hoverable `.mode-link`) — *Sentences* (flip-card) on top, *Writing* below — so both
-share one tile in the mode grid.
+- The **hint** panel is hidden for any entry whose `hint` is empty, which today is everything but
+  Definitions. It is kept, not deleted, so a future hint source only has to fill the field.
 
 ## Conversation mode (live AI roleplay chat)
 

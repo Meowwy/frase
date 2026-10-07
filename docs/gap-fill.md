@@ -50,8 +50,7 @@ of every exercise generated for that wordbox alongside the current one.
 
 ## Checking answers
 
-Same client-side pattern as the SRS "Sentences — writing" mode (see [learning-flow](learning-flow.md)): the
-learner fills numbered gap `<input>`s and checks locally, no request round-trip per check.
+Entirely client-side: the learner fills numbered gap `<input>`s and checks locally, no request round-trip per check.
 `correct_answers` (an id-keyed map from `AI::generateTextWithGaps`'s `answers` array, reshaped in
 `AI::generateTextWithGaps` itself from `[{index, phrase}, ...]` into `[index => phrase, ...]`) is
 embedded into the page for the client-side checker to compare against.
