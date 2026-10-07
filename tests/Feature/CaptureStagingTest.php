@@ -11,7 +11,6 @@ use App\Models\Language;
 use App\Models\LexiconEntry;
 use App\Models\Proposal;
 use App\Models\User;
-use App\Models\Wordbox;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -882,54 +881,53 @@ class CaptureStagingTest extends TestCase
         ]);
     }
 
-    public function test_related_cards_are_sorted_by_shared_words_capped_and_lead_with_the_redundant_one(): void
+    public function test_related_cards_are_sorted_by_shared_words_and_capped(): void
     {
         [$user, $language] = $this->learner();
         $hur = $this->baseWord($user, $language, 'hur', 'adverb');
         $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
-        $kosta = $this->baseWord($user, $language, 'kosta', 'verb');
 
-        $both = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
         foreach (range(1, 5) as $i) {
             $this->cardUsing($user, $language, "hur gammal $i", $hur);
         }
-        // A lone word the new Term now covers (matched on the lemma).
-        $redundant = $this->cardUsing($user, $language, 'kosta', $kosta);
+        $both = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
 
         $proposal = $this->completedProposal($user, $language);
         $related = $proposal->relatedCards(Proposal::presenceIndex(collect([$proposal])));
 
-        $this->assertCount(5, $related);
-        $this->assertSame([$redundant->id, $both->id], $related->take(2)->pluck('card.id')->all());
-        $this->assertTrue($related->first()['redundant']);
-        $this->assertFalse($related->get(1)['redundant']);
-
-        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
-        $this->assertStringContainsString('made redundant by this card', $rows);
-        $this->assertStringContainsString('data-card-id="'.$redundant->id.'"', $rows);
+        $this->assertCount(Proposal::MAX_RELATED_CARDS, $related);
+        $this->assertSame($both->id, $related->first()['card']->id);
+        $this->assertSame(2, $related->first()['shared']);
     }
 
     /**
-     * A proposal whose every linkable word is already on one card adds nothing to the base:
-     * staging suggests discarding it, and Approve stays live.
+     * A proposal whose every linked word is already on one card adds nothing to the base:
+     * staging refuses it, pointing at the most recently saved such card.
      */
-    public function test_a_proposal_whose_words_are_all_on_one_card_is_flagged_as_not_needed(): void
+    public function test_a_proposal_whose_words_are_all_on_one_card_is_refused(): void
     {
         [$user, $language] = $this->learner();
+        Http::fake();
         $hur = $this->baseWord($user, $language, 'hur', 'adverb');
         $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
         $kosta = $this->baseWord($user, $language, 'kosta', 'verb');
 
-        $covering = $this->cardUsing($user, $language, 'hur mycket kostade biljetten', $hur, $mycket, $kosta);
+        $this->cardUsing($user, $language, 'hur mycket kostade biljetten', $hur, $mycket, $kosta);
+        $latest = $this->cardUsing($user, $language, 'hur mycket kostar kaffet', $hur, $mycket, $kosta);
         $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
 
         $proposal = $this->completedProposal($user, $language);
-        $present = Proposal::presenceIndex(collect([$proposal]));
-        $known = Proposal::knownIndex(collect([$proposal]));
+        $batch = collect([$proposal]);
 
-        $this->assertSame([$covering->id], $proposal->coveringCards($present, $known)->pluck('id')->all());
-        $this->assertTrue($proposal->isApprovable());
-        $this->assertStringContainsString('Probably not needed', $this->actingAs($user)->getJson('/staging/list')->json('rows'));
+        $this->assertSame($latest->id, $proposal->coveringCard(Proposal::presenceIndex($batch), Proposal::knownIndex($batch), Proposal::expressionPresenceIndex($batch))->id);
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('at least one card with exactly these words', $rows);
+        $this->assertStringContainsString('href="/cards/'.$latest->id.'"', $rows);
+        $this->assertStringNotContainsString('js-approve', $rows);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(409)->assertJson(['covering_card_id' => $latest->id]);
+        Http::assertNothingSent();
     }
 
     public function test_a_known_word_does_not_stop_a_proposal_being_covered_but_a_new_word_does(): void
@@ -940,65 +938,34 @@ class CaptureStagingTest extends TestCase
         $card = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
 
         $proposal = $this->completedProposal($user, $language);
-        $indexes = fn () => [Proposal::presenceIndex(collect([$proposal])), Proposal::knownIndex(collect([$proposal]))];
+        $covering = fn () => $proposal->coveringCard(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'knownIndex', 'expressionPresenceIndex']));
 
         // kosta is new, so the card adds a word to the base.
-        $this->assertTrue($proposal->coveringCards(...$indexes())->isEmpty());
+        $this->assertNull($covering());
 
         KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'kosta', 'part_of_speech' => 'verb']);
 
-        $this->assertSame([$card->id], $proposal->coveringCards(...$indexes())->pluck('id')->all());
+        $this->assertSame($card->id, $covering()->id);
     }
 
-    public function test_merging_moves_the_wordboxes_and_deletes_the_old_card_with_its_links(): void
+    public function test_a_fixed_expression_the_card_lacks_stops_a_proposal_being_covered(): void
     {
         [$user, $language] = $this->learner();
-        $kosta = $this->baseWord($user, $language, 'kosta', 'verb');
-        $old = $this->cardUsing($user, $language, 'kostar', $kosta);
-        $wordbox = Wordbox::factory()->create(['user_id' => $user->id]);
-        $old->wordbox()->attach($wordbox->id);
-        $other = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
-        $old->linkedCards()->attach($other->id);
-        $other->linkedCards()->attach($old->id);
+        $words = collect([['hur', 'adverb'], ['mycket', 'adverb'], ['kosta', 'verb']])
+            ->map(fn ($word) => $this->baseWord($user, $language, ...$word));
+        $card = $this->cardUsing($user, $language, 'hur mycket kostade det', ...$words);
+        $expression = FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'hur mycket', 'translation' => 'how much']);
+
         $proposal = $this->completedProposal($user, $language);
+        $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'translation' => 'how much']);
+        $proposal->load('fixedExpressions');
+        $covering = fn () => $proposal->coveringCard(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'knownIndex', 'expressionPresenceIndex']));
 
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$old->id}", ['merge' => 1])->assertNoContent();
-        $this->assertSame([$old->id], $proposal->fresh()->merge_card_ids);
+        $this->assertNull($covering());
 
-        $this->fakeOpenAi($this->cardContent());
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+        $card->fixedExpressions()->attach($expression->id);
 
-        $this->assertModelMissing($old);
-        $card = Card::where('term', 'hur mycket kostar det')->sole();
-        $this->assertTrue($card->wordbox->contains($wordbox));
-        $this->assertTrue($card->baseWords->contains($kosta));
-        $this->assertDatabaseMissing('card_base_word', ['card_id' => $old->id]);
-        $this->assertDatabaseMissing('synonyms', ['synonym_card_id' => $old->id]);
-        $this->assertModelExists($kosta);
-    }
-
-    public function test_unmarking_a_card_keeps_it(): void
-    {
-        [$user, $language] = $this->learner();
-        $old = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
-        $proposal = $this->completedProposal($user, $language);
-
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$old->id}", ['merge' => 1]);
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$old->id}", ['merge' => 0]);
-
-        $this->assertSame([], $proposal->fresh()->merge_card_ids);
-    }
-
-    public function test_discarding_a_proposal_leaves_a_card_marked_for_merge(): void
-    {
-        [$user, $language] = $this->learner();
-        $old = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
-        $proposal = $this->completedProposal($user, $language);
-        $proposal->update(['merge_card_ids' => [$old->id]]);
-
-        $this->actingAs($user)->deleteJson("/staging/{$proposal->id}")->assertStatus(200);
-
-        $this->assertModelExists($old);
+        $this->assertSame($card->id, $covering()->id);
     }
 
     public function test_an_identical_term_is_blocked_without_a_context(): void
@@ -1013,7 +980,6 @@ class CaptureStagingTest extends TestCase
 
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
         $this->assertStringContainsString('Regenerate that card', $rows);
-        $this->assertStringContainsString('js-merge', $rows);
     }
 
     public function test_an_identical_term_with_a_context_is_approved_as_a_second_card(): void
@@ -1028,38 +994,6 @@ class CaptureStagingTest extends TestCase
 
         $this->assertSame(2, Card::count());
         $this->assertModelExists($existing);
-    }
-
-    public function test_an_identical_term_is_approvable_once_the_duplicate_is_marked_for_merge(): void
-    {
-        [$user, $language] = $this->learner();
-        $existing = $this->cardUsing($user, $language, 'hur mycket kostar det');
-        $proposal = $this->completedProposal($user, $language);
-
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$existing->id}", ['merge' => 1]);
-        $this->assertTrue($proposal->fresh()->isApprovable());
-
-        $this->fakeOpenAi($this->cardContent());
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
-
-        $this->assertModelMissing($existing);
-        $this->assertSame(1, Card::count());
-    }
-
-    public function test_a_learner_cannot_mark_someone_elses_card_or_one_in_another_language(): void
-    {
-        [$user, $language] = $this->learner();
-        [$stranger] = $this->learner();
-        $theirs = Card::factory()->create(['user_id' => $stranger->id, 'language_id' => $language->id]);
-        $english = Language::where('code', 'en')->sole();
-        $elsewhere = Card::factory()->create(['user_id' => $user->id, 'language_id' => $english->id]);
-        $proposal = $this->completedProposal($user, $language);
-
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$theirs->id}", ['merge' => 1])->assertStatus(403);
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/merge/{$elsewhere->id}", ['merge' => 1])->assertStatus(422);
-        $this->actingAs($stranger)->postJson("/staging/{$proposal->id}/merge/{$theirs->id}", ['merge' => 1])->assertStatus(403);
-
-        $this->assertNull($proposal->fresh()->merge_card_ids);
     }
 
     /**

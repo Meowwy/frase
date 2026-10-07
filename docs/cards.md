@@ -222,7 +222,6 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `context` | nullable, the learner's own input — editable in staging (see below) |
 | `term` | nullable until CALL 1 resolves |
 | `senses` | nullable JSON (`array` cast) — the sense picker's options, `[{part_of_speech, gloss, translation}, …]`, up to 4. Only ever set for a single-word Term captured without a Context with two or more common senses; `AnalyzeProposalJob::senses()` enforces that in PHP too, since a stray answer would block approval |
-| `merge_card_ids` | nullable JSON (`array` cast) — the existing cards marked to be merged away on approval (see "Related cards and Merge" below) |
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
 
@@ -248,7 +247,7 @@ query per list: green-bordered, not strikeable, linked) or **new** (strikeable; 
 (reusing an existing one per the check above) and first-or-creates the `fixed_expressions` row for
 every fixed expression that isn't struck (an already-present one is linked even if it was struck
 before it entered the base), writes the card and its `card_base_word` / `card_fixed_expression`
-links, merges away the marked cards, deletes the proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
+links, deletes the proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
 proposal exactly as it was in staging rather than a half-written card.
 
 ### Endpoints (`ProposalController`, `ProposalPolicy` for ownership)
@@ -263,8 +262,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /staging/{proposal}/language` | correct the detected language, or answer the language picker — see below |
 | `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
 | `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
-| `POST /staging/{proposal}/merge/{card}` | `merge=1` / `merge=0` marks or unmarks one card for merge. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
-| `POST /staging/{proposal}/approve` | `409` with the existing card's id on an identical Term that still blocks (see "The duplicate check"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
+| `POST /staging/{proposal}/approve` | `409` with `duplicate_card_id` on an identical Term that still blocks (see "The duplicate check") or with `covering_card_id` on a covered proposal (see "Covered proposals"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
 | `DELETE /staging/{proposal}` | discard |
 
 Deliberate shapes in the UI (`staging/index.blade.php`):
@@ -318,34 +316,29 @@ same Context endpoint. The re-run has a Context, so it returns no senses and ext
 the chosen sense, lexicon attributes included — there is no separate code path applying a sense to
 the chips, and the sense is kept as the card's Context so Regenerate stays in it.
 
-### Related cards and Merge
+### Related cards
 
 **Related cards** (`Proposal::relatedCards()`) are the learner's cards linked to any of the
-proposal's already-present base words, most shared words first, at most 5
-(`Proposal::MAX_RELATED_CARDS`) so a common word can't flood the panel. A card whose Term is a lone
-word equal (case-insensitively) to one of those words' lemma is flagged *made redundant by this
-card* and listed first — it's the card the learner most likely wants to replace.
+proposal's already-present base words, listed side by side, most shared words first, at most 4
+(`Proposal::MAX_RELATED_CARDS`) so a common word can't flood the panel. They are information only:
+staging never removes or merges an existing card.
 Cards with the identical Term are left out; the duplicate notice shows those. Computed live, and
 without a query of its own: the presence index's base words already carry their cards, and the
 2-second poll is why that matters.
 
-**Probably not needed** (`Proposal::coveringCards()`) is the reverse direction: when **every** base
-word the proposal would link is already present *and* on one and the same existing card (*book*
-beside "She is reading a book"), the card would add nothing to the vocabulary base, so staging
-names that card and suggests discarding. It is a suggestion only — the proposal stays approvable,
-because the learner may still want the Term as a card of its own. Known words don't count (they are
-never linked); a proposal with a new word, or with no linkable words at all, is never covered.
-Fixed expressions are not considered. Same live, query-free computation as related cards, and
-identical-Term cards are again left to the duplicate notice.
+### Covered proposals
 
-**Merge.** Any related or identical card can be marked with its *merge into this card* switch (a
-switch, not a button, since marking runs nothing); the mark lives in `merge_card_ids` until
-approval and does nothing before it, so **discard removes nothing**. On approve, inside the
-transaction that writes the new card, each marked card (re-scoped to the learner and language)
-hands its wordbox memberships to the new card (`syncWithoutDetaching`, so no duplicates) and is
-deleted; the FK cascades take its wordbox, base-word, fixed-expression and manual links (both
-mirrored `synonyms` rows) with it. Its SRS progress and note are **not** carried over — the learner
-should actually review the longer Term they just saved, so the new card starts fresh.
+A proposal is **covered** (`Proposal::coveringCard()`) when **every** base word and fixed
+expression it would link is already in the base *and* on one and the same existing card (*book*
+beside "She is reading a book"). Such a card would add nothing to the vocabulary base, so staging
+**refuses** it: the row collapses to one line, like a discarded one, saying there is already at
+least one card with exactly these words and linking the most recently saved such card, with only a
+bin to clear it. `ProposalController::approve()` checks again and answers `409`. Known words and
+struck expressions don't count (they are never linked); a proposal with a new word or expression,
+or with nothing to link at all, is never covered. It is only checked once the language and sense
+are settled, since either can change the words. The expression presence index carries its cards
+for this, so it stays query-free like related cards; identical-Term cards are left to the duplicate
+notice.
 
 ## Capture flow (creating a card)
 
@@ -385,10 +378,9 @@ base-word fact.
 
 `Proposal::duplicateCards()` reads it. An identical Term doesn't always mean a duplicate — *run*
 the verb and *run* the noun are two cards — so the proposal is approvable despite a match **only
-if** it has a non-empty Context **or** every matching card is marked for merge
-(`Proposal::blockingDuplicates()` is what's left otherwise, and `isApprovable()` requires it
-empty). While a match still blocks, staging names the card, disables Approve and offers
-**Regenerate that card**, Discard or Merge. The check runs at render time and again inside
+if** it has a non-empty Context (`Proposal::blockingDuplicates()` is the matches otherwise, and
+`isApprovable()` requires it empty). While a match still blocks, staging names the card, disables
+Approve and offers **Regenerate that card** or Discard. The check runs at render time and again inside
 `ProposalController::approve()`, which answers `409` — the render is a view of the world a moment
 ago, and only the second one is authoritative.
 

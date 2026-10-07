@@ -37,14 +37,13 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   exactly what you want on the card. It skips staging entirely.
 - **Browser extension**: capture a word from any webpage without visiting the site — it lands in
   the same staging feed. See [browser-extension](browser-extension.md).
-- **Related cards**: each proposal lists your existing cards that share its words, most overlap
-  first, and flags a single-word card the new term makes redundant. The other way round, a term
-  whose words are all already on one of your cards (*book* when you have *She is reading a book*)
-  is flagged **probably not needed**, with a suggestion to discard it — you can still approve it. Switch any of them to **merge**:
-  on approval it is removed and its wordboxes move to the new card (its review progress and note
-  don't). Discarding the proposal removes nothing.
+- **Related cards**: each proposal lists up to 4 of your existing cards that share its words, most
+  overlap first.
+- **A term that adds nothing** — all its words and expressions are already on one of your cards
+  (*book* when you have *She is reading a book*) — is refused: staging says so and links that card,
+  and you can only clear it.
 - **Capturing a term you already have** is blocked until you give it a Context (to keep both, e.g.
-  *run* the verb and *run* the noun) or merge the old card into it. Staging also offers to
+  *run* the verb and *run* the noun). Staging also offers to
   **regenerate** the existing card instead — fresh translation and definition,
   while your review progress, note, words and linked cards stay as they are. Having one of a term's
   *words* in your vocabulary base is a different thing, and never stops you saving the term.

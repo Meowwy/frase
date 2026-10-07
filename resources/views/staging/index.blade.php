@@ -99,12 +99,6 @@
                     .done(window.stagingRefresh);
             });
 
-            // Mark a related or identical card to be merged away on approval, or unmark it.
-            $list.on('click', '.js-merge', function () {
-                post(this, '/merge/' + $(this).data('card-id'), { merge: $(this).data('merge') })
-                    .done(window.stagingRefresh);
-            });
-
             // Correcting the detected language and answering the language picker are the
             // same call: the language is pinned and CALL 1 runs again.
             $list.on('change', '.js-language, .js-language-option', function () {

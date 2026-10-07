@@ -8,6 +8,10 @@
         $failed = $proposal->hasFailed();
         $duplicates = $pending || $failed ? collect() : $proposal->duplicateCards();
         $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
+        // Only once the language and sense are settled: either can change the words.
+        $covering = $pending || $failed || $proposal->language_options || $proposal->senses
+            ? null
+            : $proposal->coveringCard($alreadyInBase, $knownWords, $expressionsInBase);
     @endphp
 
     {{-- The raw input and Context ride along so a discarded row can capture them again. --}}
@@ -52,6 +56,18 @@
                 <x-forms.button class="js-approve" disabled="true">Approve</x-forms.button>
                 <x-forms.button-small class="js-discard">Discard</x-forms.button-small>
             </div>
+        @elseif($covering)
+            {{-- Refused: every word and expression it would link is already on one card, so
+                 it would add nothing to the vocabulary base. One line, like a discarded row. --}}
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="text-white/40">✕</span>
+                <span class="js-term font-bold text-white/60">{{ $proposal->term }}</span>
+                <span class="text-sm text-white/40">
+                    not added — there is already at least one card with exactly these words:
+                    <a href="/cards/{{ $covering->id }}" class="font-bold text-white hover:underline">{{ $covering->term }}</a>
+                </span>
+                <button type="button" class="js-discard ml-auto text-white/50 hover:text-white" title="Delete">🗑</button>
+            </div>
         @else
             {{-- The Term sits in a block of its own: nothing here is strikeable, and
                  striking never rewrites it. --}}
@@ -71,33 +87,16 @@
                 </select>
             </div>
 
-            {{-- An identical Term is saved as a second card only with a Context of its own, or
-                 by merging the old card into this one. --}}
+            {{-- An identical Term is saved as a second card only with a Context of its own. --}}
             @foreach($duplicates as $duplicate)
-                <div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-white/60">
-                    <span>
-                        You already have
-                        <a href="/cards/{{ $duplicate->id }}" class="font-bold text-white hover:underline">{{ $duplicate->term }}</a>.
-                        @if($blocked->contains($duplicate))
-                            Add a Context to keep both, merge it into this one, or regenerate it instead.
-                        @endif
-                    </span>
-                    @include('staging._merge-toggle', ['card' => $duplicate])
-                </div>
-            @endforeach
-
-            {{-- Every word this card would link is already on one existing card, so it adds
-                 nothing to the vocabulary base. A suggestion only: Approve stays live. --}}
-            @php $covering = $proposal->coveringCards($alreadyInBase, $knownWords); @endphp
-            @if($covering->isNotEmpty())
-                <p class="mt-3 text-sm text-orange-400">
-                    Probably not needed — all its words are already in
-                    @foreach($covering as $coveringCard)
-                        <a href="/cards/{{ $coveringCard->id }}" class="font-bold hover:underline">{{ $coveringCard->term }}</a>@if(! $loop->last), @endif
-                    @endforeach.
-                    Consider discarding it.
+                <p class="mt-3 text-sm text-white/60">
+                    You already have
+                    <a href="/cards/{{ $duplicate->id }}" class="font-bold text-white hover:underline">{{ $duplicate->term }}</a>.
+                    @if($blocked->contains($duplicate))
+                        Add a Context to keep both, or regenerate it instead.
+                    @endif
                 </p>
-            @endif
+            @endforeach
 
             {{-- The chip tray, in the order the Term spells its words. A new word is
                  strikeable: ✕ records it as known, so it is never proposed again. A word
@@ -192,20 +191,13 @@
                 </div>
             @endif
 
-            {{-- Related cards: what this card overlaps with, any of which can be merged away
-                 on approval (wordboxes carried over). --}}
+            {{-- Related cards: what this card overlaps with, most shared words first. --}}
             @php $related = $proposal->relatedCards($alreadyInBase); @endphp
             @if($related->isNotEmpty())
-                <div class="mt-3 space-y-1 text-sm">
-                    <p class="text-white/60">Related cards</p>
+                <div class="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                    <span class="text-white/60">Related cards</span>
                     @foreach($related as $item)
-                        <div class="flex flex-wrap items-center gap-2">
-                            <a href="/cards/{{ $item['card']->id }}" class="hover:underline">{{ $item['card']->term }}</a>
-                            @if($item['redundant'])
-                                <span class="text-xs text-orange-400">made redundant by this card</span>
-                            @endif
-                            @include('staging._merge-toggle', ['card' => $item['card']])
-                        </div>
+                        <a href="/cards/{{ $item['card']->id }}" class="hover:underline">{{ $item['card']->term }}</a>
                     @endforeach
                 </div>
             @endif

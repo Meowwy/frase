@@ -42,11 +42,10 @@ class Proposal extends Model
     protected $casts = [
         'language_options' => 'array',
         'senses' => 'array',
-        'merge_card_ids' => 'array',
     ];
 
     /** How many related cards staging lists per proposal. */
-    public const MAX_RELATED_CARDS = 5;
+    public const MAX_RELATED_CARDS = 4;
 
     /**
      * How long CALL 1 may stay out before staging gives up on it and offers a retry. A job
@@ -77,7 +76,8 @@ class Proposal extends Model
     /**
      * Whether Approve may fire: once CALL 1 has landed in one language (a proposal still
      * waiting on the language picker has none), if it offered senses one has been picked,
-     * and no identical card is in the way. How many base words are linked never
+     * and no identical card is in the way. A covered proposal (see coveringCard()) is
+     * refused before this is ever asked. How many base words are linked never
      * matters — a card may link none of them, or many. The control disables itself on this
      * rather than failing after the fact.
      */
@@ -105,21 +105,6 @@ class Proposal extends Model
     {
         return $this->status === self::STATUS_FAILED
             || ($this->status !== self::STATUS_COMPLETED && ! $this->isAwaitingAnalysis());
-    }
-
-    public function isMarkedForMerge(Card $card): bool
-    {
-        return in_array($card->id, $this->merge_card_ids ?? [], true);
-    }
-
-    /**
-     * Mark an existing card to be removed when this proposal is approved, or unmark it.
-     */
-    public function markForMerge(Card $card, bool $merge): void
-    {
-        $ids = collect($this->merge_card_ids)->reject(fn (int $id) => $id === $card->id);
-
-        $this->update(['merge_card_ids' => ($merge ? $ids->push($card->id) : $ids)->values()->all()]);
     }
 
     /**
@@ -219,7 +204,8 @@ class Proposal extends Model
         }
 
         // `form` is a NOCASE column, so this match is case-insensitive.
-        return FixedExpression::whereIn('user_id', $proposals->pluck('user_id')->unique())
+        // Like presenceIndex(), each entry carries its cards, for coveringCard().
+        return FixedExpression::with('cards:id,term')->whereIn('user_id', $proposals->pluck('user_id')->unique())
             ->whereIn('language_id', $proposals->pluck('language_id')->filter()->unique())
             ->whereIn('form', $forms)
             ->get()
@@ -249,62 +235,83 @@ class Proposal extends Model
 
     /**
      * The learner's existing cards that share an already-present base word with this
-     * proposal, as `{card, shared, redundant}`: most shared words first, capped. A lone-word
-     * card whose Term is the lemma of one of those base words is **made redundant** by this card and
-     * leads the list.
+     * proposal, as `{card, shared}`: most shared words first, capped.
      *
      * Built from the presence index, whose base words already carry their cards, so a whole
      * list costs no query beyond it. Cards with the identical Term are left out: the
      * duplicate notice shows those.
      *
      * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
-     * @return \Illuminate\Support\Collection<int, array{card: Card, shared: int, redundant: bool}>
+     * @return \Illuminate\Support\Collection<int, array{card: Card, shared: int}>
      */
     public function relatedCards(SupportCollection $present): SupportCollection
     {
-        $shared = $this->baseWords->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)));
-        $lemmas = $shared->map(fn (ProposalBaseWord $word) => mb_strtolower($word->lemma));
-
-        return $shared
+        return $this->baseWords
+            ->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)))
             ->flatMap(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards)
-            ->reject(fn (Card $card) => mb_strtolower($card->term) === mb_strtolower((string) $this->term))
+            ->reject(fn (Card $card) => $this->hasTermOf($card))
             ->groupBy('id')
-            ->map(fn (SupportCollection $cards) => [
-                'card' => $cards->first(),
-                'shared' => $cards->count(),
-                'redundant' => $lemmas->contains(mb_strtolower(trim($cards->first()->term))),
-            ])
-            ->sortBy([['redundant', 'desc'], ['shared', 'desc']])
+            ->map(fn (SupportCollection $cards) => ['card' => $cards->first(), 'shared' => $cards->count()])
+            ->sortByDesc('shared')
             ->take(self::MAX_RELATED_CARDS)
             ->values();
     }
 
     /**
-     * The existing cards that already carry **every** base word this proposal would link —
-     * capturing *book* beside "She is reading a book". Such a proposal adds nothing to the
-     * vocabulary base, so staging suggests discarding it; it stays approvable. Known words
-     * don't count (they are never linked), and a proposal with a new word or no words at
-     * all is never covered. Cards with the identical Term are left out: the duplicate
-     * notice shows those.
+     * The most recently saved card that already carries **every** base word and fixed
+     * expression this proposal would link — capturing *book* beside "She is reading a book".
+     * Such a proposal adds nothing to the vocabulary base, so staging refuses it. Known words
+     * and struck expressions don't count (they are never linked), and a proposal that links
+     * nothing at all is never covered. Cards with the identical Term are left out: the
+     * duplicate notice shows those.
      *
      * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
      * @param  \Illuminate\Support\Collection<string, KnownWord>  $known  see knownIndex()
-     * @return \Illuminate\Support\Collection<int, Card>
+     * @param  \Illuminate\Support\Collection<string, FixedExpression>  $presentExpressions  see expressionPresenceIndex()
      */
-    public function coveringCards(SupportCollection $present, SupportCollection $known): SupportCollection
+    public function coveringCard(SupportCollection $present, SupportCollection $known, SupportCollection $presentExpressions): ?Card
     {
-        $words = $this->baseWords->reject(fn (ProposalBaseWord $word) => $this->groupOf($word, $present, $known) === self::GROUP_KNOWN);
+        // Each linked word's or expression's cards, or null for one not in the base yet.
+        $cardSets = $this->linkedWords($present, $known)
+            ->map(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))?->cards)
+            ->concat($this->linkedExpressions($presentExpressions)
+                ->map(fn (ProposalFixedExpression $expression) => $presentExpressions->get($this->expressionKeyFor($expression))?->cards))
+            ->values();
 
-        if ($words->isEmpty() || $words->contains(fn (ProposalBaseWord $word) => ! $present->has($this->presenceKeyFor($word)))) {
-            return collect();
+        if ($cardSets->isEmpty() || $cardSets->contains(fn ($cards) => is_null($cards))) {
+            return null;
         }
-
-        $cardSets = $words->map(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards);
 
         return $cardSets->first()
             ->filter(fn (Card $card) => $cardSets->every(fn (Collection $cards) => $cards->contains('id', $card->id)))
-            ->reject(fn (Card $card) => mb_strtolower($card->term) === mb_strtolower((string) $this->term))
-            ->values();
+            ->reject(fn (Card $card) => $this->hasTermOf($card))
+            ->sortByDesc('id')
+            ->first();
+    }
+
+    /**
+     * The candidate words approval links: all but the known ones.
+     */
+    private function linkedWords(SupportCollection $present, SupportCollection $known): SupportCollection
+    {
+        return $this->baseWords->reject(fn (ProposalBaseWord $word) => $this->groupOf($word, $present, $known) === self::GROUP_KNOWN);
+    }
+
+    /**
+     * The fixed expressions approval links. A struck one is skipped unless it has since
+     * entered the expression base, in which case it is shown as already present and linked
+     * like any other.
+     */
+    private function linkedExpressions(SupportCollection $presentExpressions): SupportCollection
+    {
+        return $this->fixedExpressions->reject(
+            fn (ProposalFixedExpression $expression) => $expression->struck && ! $presentExpressions->has($this->expressionKeyFor($expression))
+        );
+    }
+
+    private function hasTermOf(Card $card): bool
+    {
+        return mb_strtolower($card->term) === mb_strtolower((string) $this->term);
     }
 
     /**
@@ -328,23 +335,19 @@ class Proposal extends Model
 
     /**
      * The identical cards that still stop this proposal being approved. A Context makes it
-     * a card of its own (*run* the verb beside *run* the noun); otherwise every identical
-     * card has to be marked for merge, so that merging is how a card gets replaced.
+     * a card of its own (*run* the verb beside *run* the noun); without one, the existing
+     * card is regenerated instead.
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, Card>
      */
     public function blockingDuplicates(): Collection
     {
-        if (filled($this->context)) {
-            return new Collection;
-        }
-
-        return $this->duplicateCards()->reject(fn (Card $card) => $this->isMarkedForMerge($card));
+        return filled($this->context) ? new Collection : $this->duplicateCards();
     }
 
     /**
      * Write the card, its base-word and fixed-expression links and the base entries they
-     * need, merge away the cards marked for it, then run CALL 2 for its content. Returns the new card, or null when CALL 2 fails — in which case
+     * need, then run CALL 2 for its content. Returns the new card, or null when CALL 2 fails — in which case
      * nothing is written and the proposal is still sitting in staging.
      *
      * The base rows are created first and reused rather than inserted blindly, so two
@@ -370,9 +373,7 @@ class Proposal extends Model
             $card = Card::persist($user, $language, $this->term, $this->context, $content);
 
             // Known words are never linked; already-present and new ones both resolve below.
-            $linked = $this->baseWords->reject(fn (ProposalBaseWord $word) => $this->groupOf($word, $present, $known) === self::GROUP_KNOWN);
-
-            foreach ($linked as $candidate) {
+            foreach ($this->linkedWords($present, $known) as $candidate) {
                 $baseWord = BaseWord::resolve(
                     $user,
                     $language,
@@ -386,29 +387,13 @@ class Proposal extends Model
                 $card->baseWords()->attach($baseWord->id);
             }
 
-            // A struck expression is skipped unless it has since entered the expression base,
-            // in which case it is shown as already present and linked like any other.
-            $expressions = $this->fixedExpressions->reject(
-                fn (ProposalFixedExpression $expression) => $expression->struck && ! $presentExpressions->has($this->expressionKeyFor($expression))
-            );
-
-            foreach ($expressions as $candidate) {
+            foreach ($this->linkedExpressions($presentExpressions) as $candidate) {
                 $expression = FixedExpression::firstOrCreate(
                     ['user_id' => $user->id, 'language_id' => $language->id, 'form' => $candidate->form],
                     ['translation' => $candidate->translation],
                 );
 
                 $card->fixedExpressions()->attach($expression->id);
-            }
-
-            // Merge: the marked cards hand their wordboxes to the new card and go. Their
-            // progress and note stay behind — the new card is a fresh one to review. Deleting
-            // cascades their wordbox, base-word, fixed-expression and manual links.
-            $merged = Card::where('user_id', $user->id)->forLanguage($language->id)->whereKey($this->merge_card_ids ?? [])->with('wordbox')->get();
-
-            foreach ($merged as $old) {
-                $card->wordbox()->syncWithoutDetaching($old->wordbox->modelKeys());
-                $old->delete();
             }
 
             $this->delete();
