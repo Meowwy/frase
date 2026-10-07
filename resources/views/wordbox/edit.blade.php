@@ -155,7 +155,7 @@
                 }
 
                 $.ajax({
-                    url: "{{ route('seachWordbox', $wordbox->id) }}",
+                    url: "{{ route('searchWordbox', $wordbox->id) }}",
                     method: 'GET',
                     data: { searchTerm: query },
                     success: function(response) {

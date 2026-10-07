@@ -6,7 +6,7 @@ that exists in the schema but is currently switched off in favor of manual linki
 this doc covers the two `synonyms`/`related_terms` tables' original automatic purpose and how
 embeddings still get generated.
 
-## Search (`SeachController` — note the typo, it's the real class/file name)
+## Search (`SearchController`)
 
 - `GET /search` (`@index`) — validates `searchTerm` (min 2 chars), does a `LIKE %term%` match on
   `term` scoped to the current user, ordered so **prefix matches sort first**

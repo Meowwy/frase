@@ -74,7 +74,7 @@ nav is grouped by them. See `CONTEXT.md` and [features-overview](features-overvi
   (An inline closure that updated a card by id used to live here too; it's been folded into
   `CardController::update()` so the ownership check described in [cards](cards.md) applies to it
   — see "Known rough edges" below for the history.)
-- Some routes bypass a controller class entirely and call a **static method on a model** directly
+- Some routes bypass a controller class entirely and call a **static method on `Learning`** directly
   as the route action (`Learning::setLearning`, `Learning::startLearning`,
   `Learning::startLearningSet` — see [learning-flow](learning-flow.md)). This is an established pattern for the
   learning-session bootstrap flow specifically; it isn't used elsewhere.
@@ -147,9 +147,7 @@ question: **does it depend only on source code, or on the environment it runs in
 ## Controllers & models
 
 - Controllers live in `app/Http/Controllers`, PascalCase + `Controller` suffix
-  (`CardController`). Note the historical typo `SeachController` (missing the "r") — it is the
-  real, routed controller for `/search`; don't "fix" the class name without also fixing every
-  route/import.
+  (`CardController`).
 - Validation is usually done inline with `$request->validate()`; a few endpoints use Form
   Request classes (`StoreCardRequest`, `UpdateCardRequest`, `StoreWordboxRequest` in
   `app/Http/Requests`). `StoreCardRequest`/`UpdateCardRequest` back the two live manual
@@ -165,15 +163,12 @@ question: **does it depend only on source code, or on the environment it runs in
   explicit registration needed. `CardPolicy`, `WordboxPolicy`, and `GapFillExercisePolicy` exist
   and are used this way. A closure route that needs the same check (not every route is worth
   promoting to a controller method for this alone) uses `abort_unless(Auth::user()->can('ability',
-  $model), 403)` instead — same policy, same effect. **A few older per-linking endpoints on
-  `CardController`** (`linkSearch`, `link`, `unlink`, `saveNote`) still use a hand-rolled
-  `abort_unless($card->user_id === Auth::id(), 403)` rather than the policy — functionally
-  equivalent, just written before the policy existed; new authorization checks should use the
-  policy form.
+  $model), 403)` instead — same policy, same effect.
 - Business logic that spans a whole feature (not just "read/write one row") is often placed as
   static methods on a model instead of a controller when the model already owns the relevant
-  state — `App\Models\AI` (all OpenAI calls, see [ai-integration](ai-integration.md)) and `App\Models\Learning`
-  (SRS scheduling + learning-session bootstrap, see [learning-flow](learning-flow.md)) are the two big examples.
+  state. `App\Models\AI` (all OpenAI calls, see [ai-integration](ai-integration.md)) and `App\Models\Learning`
+  (SRS scheduling + learning-session bootstrap, see [learning-flow](learning-flow.md)) are the two big examples
+  — plain classes of static methods living in `app/Models`, not Eloquent models (they have no table).
   `Proposal::approve()` and `BaseWord::resolve()` follow the same pattern. This is a deliberate,
   established pattern in this codebase — follow it for similar feature-level logic rather than
   introducing a new service-class layer.

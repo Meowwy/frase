@@ -3,15 +3,11 @@
 namespace App\Models;
 
 use App\Support\LanguageGuideline;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class AI extends Model
+class AI
 {
-    use HasFactory;
-
     /**
      * Chat model used for every text generation in the app.
      * GPT-5.6 luna: follows per-field instructions far more reliably than the
@@ -408,59 +404,6 @@ class AI extends Model
             'generate_card',
             $properties,
         );
-    }
-
-    public static function generateThemes(string $phrases, string $targetLanguage)
-    {
-        logger('Generating themes.');
-        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
-
-            'model' => self::MODEL,
-            'reasoning_effort' => self::REASONING_EFFORT,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => 'You group a learner\'s vocabulary into a small set of meaningful theme decks. Write the theme names in the given language.',
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "Phrases: \"{$phrases}\". Language: \"{$targetLanguage}\".",
-                ],
-            ],
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'name' => 'generate_themes',
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'themes' => [
-                                'type' => 'array',
-                                'description' => 'Up to 10 broad themes that cover the phrases so each phrase fits into one theme.',
-                                'items' => [
-                                    '$ref' => '#/$defs/theme',
-                                ],
-                            ],
-                        ],
-                        'required' => ['themes'],
-                        'additionalProperties' => false,
-                        '$defs' => [
-                            'theme' => [
-                                'type' => 'string',
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ]);
-
-        if ($response->json('choices.0.message.refusal') != null) {
-            // handle this situation
-            return '';
-        }
-
-        return $response;
     }
 
     public static function generateTextWithGaps(string $phrases, string $targetLanguage, string $wordboxName, ?string $themePreference = null, ?string $level = null): ?array

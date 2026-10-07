@@ -6,7 +6,7 @@ use App\Models\Card;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-class SeachController extends Controller
+class SearchController extends Controller
 {
     /**
      * Display a listing of the resource.

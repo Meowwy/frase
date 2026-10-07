@@ -8,7 +8,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\GapFillExerciseController;
 use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\RegisteredUserController;
-use App\Http\Controllers\SeachController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
@@ -190,8 +190,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/base', [BaseWordController::class, 'index'])->name('base');
     Route::get('/refresher', [BaseWordController::class, 'refresher'])->name('refresher');
 
-    Route::get('/search', [SeachController::class, 'index']);
-    Route::get('/searchWordbox/{wbid}', [SeachController::class, 'searchWordbox'])->name('seachWordbox');
+    Route::get('/search', [SearchController::class, 'index']);
+    Route::get('/searchWordbox/{wbid}', [SearchController::class, 'searchWordbox'])->name('searchWordbox');
 
     Route::get('/cards', [CardController::class, 'index']);
     Route::get('/cards/{card:id}', [CardController::class, 'show']);

@@ -28,11 +28,6 @@
                 </a>
             </div>
 
-
-            {{--<x-forms.form id="generateThemesForm" method="POST" action="/generateThemes">
-                <x-forms.button id="saveThemesBtn">Generate themes with AI</x-forms.button>
-            </x-forms.form>--}}
-
         </div>
         <p class="bg-yellow-100 text-yellow-800 border border-yellow-300 p-4 rounded-md">
             Keep in mind that changing themes won't affect existing cards.

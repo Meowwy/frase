@@ -161,7 +161,7 @@ class CardController extends Controller
      */
     public function linkSearch(\Illuminate\Http\Request $request, Card $card)
     {
-        abort_unless($card->user_id === Auth::id(), 403);
+        $this->authorize('view', $card);
 
         $q = trim((string) $request->query('q', ''));
         if ($q === '') {
@@ -187,7 +187,7 @@ class CardController extends Controller
      */
     public function link(\Illuminate\Http\Request $request, Card $card)
     {
-        abort_unless($card->user_id === Auth::id(), 403);
+        $this->authorize('update', $card);
 
         $data = $request->validate(['card_id' => ['required', 'integer']]);
 
@@ -232,8 +232,8 @@ class CardController extends Controller
      */
     public function unlink(Card $card, Card $other)
     {
-        abort_unless($card->user_id === Auth::id(), 403);
-        abort_unless($other->user_id === Auth::id(), 403);
+        $this->authorize('update', $card);
+        $this->authorize('update', $other);
 
         $card->linkedCards()->detach($other->id);
         $other->linkedCards()->detach($card->id);
@@ -246,7 +246,7 @@ class CardController extends Controller
      */
     public function saveNote(\Illuminate\Http\Request $request, Card $card)
     {
-        abort_unless($card->user_id === Auth::id(), 403);
+        $this->authorize('update', $card);
 
         $data = $request->validate(['note' => ['nullable', 'string']]);
 

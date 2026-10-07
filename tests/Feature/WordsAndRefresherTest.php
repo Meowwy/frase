@@ -6,6 +6,7 @@ use App\Models\BaseWord;
 use App\Models\Card;
 use App\Models\Language;
 use App\Models\Learning;
+use App\Models\Theme;
 use App\Models\User;
 use App\Models\Wordbox;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -217,6 +218,26 @@ class WordsAndRefresherTest extends TestCase
         $deck = $this->deck($this->actingAs($user)->get('/startLearning/'.$wordbox->id.'/translation')->getContent());
 
         $this->assertSame('house', $deck[0]['front']);
+    }
+
+    /**
+     * A theme filter is matched among the learner's own themes only — another learner's
+     * theme of the same name serves nothing, and doesn't crash the session.
+     */
+    public function test_the_legacy_theme_filter_serves_only_the_learners_own_theme(): void
+    {
+        [$user, $language] = $this->learner();
+        $theme = Theme::create(['user_id' => $user->id, 'language_id' => $language->id, 'name' => 'Home']);
+        $this->cardWithWords($user, $language, 'hus', [], ['translation' => 'house', 'theme_id' => $theme->id]);
+        $this->cardWithWords($user, $language, 'bil', [], ['translation' => 'car']);
+
+        $deck = $this->deck($this->actingAs($user)->withSession(['learning_filter' => 'Home'])
+            ->get('/startLearning/0/translation')->getContent());
+        $this->assertSame(['house'], array_column($deck, 'front'));
+
+        [$other] = $this->learner();
+        $this->assertSame([], $this->deck($this->actingAs($other)->withSession(['learning_filter' => 'Home'])
+            ->get('/startLearning/0/translation')->getContent()));
     }
 
     /**

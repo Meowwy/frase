@@ -35,7 +35,7 @@
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                         <a href="/startLearning/0/words">Words</a>
                     </h3>
-                    <p class="text-sm mt-4">Recall the English translation from Czech word.</p>
+                    <p class="text-sm mt-4">Recall the individual words your cards are made of, one at a time.</p>
                 </div>
             </x-panel>
             <x-panel class="w-48">
@@ -43,7 +43,7 @@
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                         <a href="/startLearning/0/definitions">Definitions</a>
                     </h3>
-                    <p class="text-sm mt-4">Recall the English translation from an English definition.</p>
+                    <p class="text-sm mt-4">Recall the term from its definition.</p>
                 </div>
             </x-panel>
         </div>

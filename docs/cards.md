@@ -449,9 +449,8 @@ carries no score.
 `Card::linkedCards()` is a `belongsToMany(Card::class, 'synonyms', 'card_id',
 'synonym_card_id')->withTimestamps()`.
 
-Endpoints (`CardController`), all enforcing `$card->user_id === Auth::id()` inline (predate
-`CardPolicy` — see [overview](overview.md) "Authorization"; functionally equivalent, just written
-before the policy existed):
+Endpoints (`CardController`), all authorized through `CardPolicy` (see [overview](overview.md)
+"Authorization"):
 
 - `GET /cards/{card:id}/link-search?q=` — same-language candidates, excludes self + already-linked.
 - `POST /cards/{card:id}/links` (`{card_id}`) — `syncWithoutDetaching` on both sides.

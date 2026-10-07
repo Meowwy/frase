@@ -2,12 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-class Learning extends Model
+class Learning
 {
     /**
      * Words mode deals individual base words, not cards, so its cap is counted in words.
@@ -17,78 +15,54 @@ class Learning extends Model
      */
     public const WORDS_PER_SESSION = 15;
 
+    /**
+     * The cards a session serves. Takes either the structured selection from the builder,
+     * or a legacy string filter from the older entry points: 'due', a wordbox id (that
+     * wordbox's own page — always cram) or a theme name.
+     */
     public static function getCardsForLearning($filter)
     {
         if (is_array($filter)) {
             return self::getCardsForSelection($filter);
         }
 
-        if ($filter === 'due') {
-            try {
-                $dueCardsCount = Auth::user()->cards()
-                    ->whereDate('next_study_at', '<=', now()->toDateString())
-                    ->count();
+        $query = Auth::user()->cards()->with(['wordbox:id,name', 'baseWords']);
 
-                if ($dueCardsCount > 20) {
-                    $cards = Auth::user()->cards()
-                        ->with(['wordbox:id,name', 'baseWords'])
-                        ->whereDate('next_study_at', '<=', now()->toDateString())
-                        ->limit(15)
-                        ->get();
-                    session(['more_cards_available' => true]);
-                } else {
-                    $cards = Auth::user()->cards()
-                        ->with(['wordbox:id,name', 'baseWords'])
-                        ->whereDate('next_study_at', '<=', now()->toDateString())
-                        ->get();
-                    session(['more_cards_available' => false]);
-                }
-            } catch (\Exception $exception) {
-                $cards = [];
-            }
+        if (is_numeric($filter)) {
+            session(['more_cards_available' => false]);
 
-        } elseif (is_numeric($filter)) {
-            try {
-                $cards = Auth::user()->wordboxes()
-                    ->where('id', $filter)
-                    ->firstOrFail()
-                    ->cards()
-                    ->with(['wordbox:id,name', 'baseWords'])
-                    ->get();
-            } catch (\Exception $exception) {
-                $cards = [];
-            }
-        } else {
-            try {
-                $theme = Theme::where('name', $filter)->first();
-                $dueCardsCount = Auth::user()->cards()
-                    ->where('theme_id', $theme->id)
-                    ->whereDate('next_study_at', '<=', now()->toDateString())
-                    ->count();
-
-                if ($dueCardsCount > 20) {
-                    $cards = Auth::user()->cards()
-                        ->with(['wordbox:id,name', 'baseWords'])
-                        ->where('theme_id', $theme->id)
-                        ->whereDate('next_study_at', '<=', now()->toDateString())
-                        ->limit(15)
-                        ->get();
-                    session(['more_cards_available' => true]);
-                } else {
-                    $cards = Auth::user()->cards()
-                        ->with(['wordbox:id,name', 'baseWords'])
-                        ->where('theme_id', $theme->id)
-                        ->whereDate('next_study_at', '<=', now()->toDateString())
-                        ->get();
-                    session(['more_cards_available' => false]);
-                }
-
-            } catch (\Exception $exception) {
-                $cards = [];
-            }
+            return $query->whereHas('wordbox', fn ($q) => $q->where('wordboxes.id', $filter))->get()->shuffle();
         }
 
-        return $cards->shuffle();
+        if ($filter !== 'due') {
+            $theme = Auth::user()->themes()->where('name', $filter)->first();
+
+            if (! $theme) {
+                return collect();
+            }
+
+            $query->where('theme_id', $theme->id);
+        }
+
+        self::onlyDue($query);
+
+        return $query->get()->shuffle();
+    }
+
+    /**
+     * Narrow a query to due cards, capped: past 20 due, only 15 are served and the session
+     * is told there are more.
+     */
+    private static function onlyDue($query): void
+    {
+        $query->whereDate('next_study_at', '<=', now()->toDateString());
+
+        $more = (clone $query)->count() > 20;
+        session(['more_cards_available' => $more]);
+
+        if ($more) {
+            $query->limit(15);
+        }
     }
 
     /**
@@ -118,14 +92,7 @@ class Learning extends Model
         // 'all' → no wordbox constraint (every term in the language).
 
         if ($scope === 'due') {
-            $query->whereDate('next_study_at', '<=', now()->toDateString());
-
-            if ((clone $query)->count() > 20) {
-                session(['more_cards_available' => true]);
-                $query->limit(15);
-            } else {
-                session(['more_cards_available' => false]);
-            }
+            self::onlyDue($query);
         } else {
             session(['more_cards_available' => false]);
         }
@@ -135,7 +102,6 @@ class Learning extends Model
 
     public static function setLearning($filter)
     {
-        // Cache::put('learning_filter',$filter, now()->addMinutes(15));
         session(['learning_filter' => $filter]);
 
         return redirect('/setLearning');

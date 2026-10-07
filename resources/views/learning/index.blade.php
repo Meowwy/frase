@@ -53,9 +53,9 @@
     </div>
 
     <div class="flex justify-center gap-2 items-center mt-6">
-        <x-number-display id="unseenInfo" number="{{$cardCount}}" text="queue"></x-number-display>
-        <x-number-display id="wrongInfo" number="0"  text="wrong"></x-number-display>
-        <x-number-display id="correctInfo" number="0"  text="correct"></x-number-display>
+        <x-number-display number-id="queueCount" number="{{$cardCount}}" text="queue"></x-number-display>
+        <x-number-display number-id="wrongCount" number="0" text="wrong"></x-number-display>
+        <x-number-display number-id="correctCount" number="0" text="correct"></x-number-display>
     </div>
     <div>
         <x-forms.form id="resultsForm" method="POST" action="/saveLearning">
@@ -90,9 +90,9 @@
         const wordsInput = document.getElementById('wordsInput');
         const partOfSpeech = document.getElementById('partOfSpeech');
 
-        const queueInfo = document.getElementById('queue');
-        const wrongInfo = document.getElementById('wrong');
-        const correctInfo = document.getElementById('correct');
+        const queueInfo = document.getElementById('queueCount');
+        const wrongInfo = document.getElementById('wrongCount');
+        const correctInfo = document.getElementById('correctCount');
 
         // A card is "reviewed" once it has a results entry (its first answer, which is
         // the grade sent to the backend — repeat-until-correct never overwrites it).

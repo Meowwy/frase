@@ -243,9 +243,6 @@ negatives plus a worked `schön` example each.
 
 ## Related generators
 
-- **`AI::generateThemes($phrases, $targetLanguage)`** — groups a semicolon-joined list of a
-  user's phrases into up to 10 theme names. Called from `ThemeController@generate`, which is
-  scratch/debug code (`dd()`s the result) — not wired into a real flow. See [wordboxes-themes-tags](wordboxes-themes-tags.md).
 - **`AI::generateTextWithGaps($phrases, $targetLanguage, $wordboxName, $themePreference = null,
   $level = null)`** — writes a short story that naturally works in every supplied phrase
   (adapting inflection/form as needed, not requiring verbatim use), replaces each with a numbered

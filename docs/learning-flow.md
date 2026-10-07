@@ -46,10 +46,12 @@ Accepts **either** the structured array from the builder (dispatches to
 theme name) for the old entry points — kept as one method so `renderLearningView()` doesn't need
 to know which flow it's serving.
 
-Both code paths share the same **due-set cap**: if more than 20 cards are due, only **15** are
-served and `session(['more_cards_available' => true])` is set (the UI can then show a "there are
-more due" hint); otherwise all due cards are served. `cram` scope always returns everything,
-uncapped. The returned collection is always `->shuffle()`d.
+Both code paths share the same **due-set cap**, `Learning::onlyDue()`: if more than 20 cards are
+due, only **15** are served and `session(['more_cards_available' => true])` is set (the UI can then
+show a "there are more due" hint); otherwise all due cards are served. `cram` scope — and a
+wordbox's own page, which is always cram — returns everything, uncapped. A theme is looked up
+among the learner's own themes; an unknown one serves nothing. The returned collection is always
+`->shuffle()`d.
 
 Every mode serves every card. There is one kind of card (see [cards](cards.md)), so Definitions
 skips no Term, however long or idiomatic: a whole-sentence Term's definition says when you'd say
@@ -164,9 +166,8 @@ Persisting a result (`AjaxController@saveLearning` — the whole of what that co
 `POST /saveLearning`) reads a JSON array of
 `{id, result}` from the request, and per card: sets `next_study_at` via the formula above,
 increments `level` on a correct result or **resets it to 1** on a wrong one, stamps
-`last_studied = now()`, saves. There is no per-card ownership check here beyond `Card::find` —
-the id list comes from the session-driven client the user is already looking at, not arbitrary
-input.
+`last_studied = now()`, saves. The cards are loaded through `Auth::user()->cards()`, so an id
+the learner doesn't own is silently skipped.
 
 `POST /saveLearning` takes two parallel JSON arrays, both of `{id, result}`:
 

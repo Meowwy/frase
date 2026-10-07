@@ -58,11 +58,8 @@ from all three.
   posted list, then updates or creates the rest. Since it's scoped to
   `currentSaveLanguage()` on both read and write, switching languages can never delete another
   language's themes.
-- `AI::generateThemes` (see [ai-integration](ai-integration.md)) still exists but has no live caller —
-  the debug-only `ThemeController@generate`/`POST /generateThemes` route and the broken
-  `CreateThemesJob` job (referenced a nonexistent `phrases()` relation) that used to call it have
-  been removed. If AI-suggested theme names is ever wanted as a real feature, it needs a proper
-  UI, not a resurrection of either of those.
+- There is no AI theme generation: `AI::generateThemes` and everything that called it have been
+  removed. If AI-suggested theme names is ever wanted as a real feature, it needs a proper UI.
 - Wordboxes have mostly superseded themes as the primary organizing concept for new work; themes
   are kept because existing cards/UI depend on them, not because they're the preferred pattern
   going forward.
