@@ -320,8 +320,10 @@ the chips, and the sense is kept as the card's Context so Regenerate stays in it
 
 ### Related cards
 
-**Related cards** (`Proposal::relatedCards()`) are the learner's cards linked to any of the
-proposal's already-present base words, listed side by side, most shared words first, at most 4
+**Related cards** (`Proposal::relatedCards()`) are the learner's cards that share **at least two**
+of the proposal's already-present base words, **or at least one noun**. A single shared verb,
+adverb or pronoun (*hur*, *kosta*, *det*) links too many unrelated phrases to mean anything, while a
+shared noun is usually a shared topic. They are listed side by side, most shared words first, at most 4
 (`Proposal::MAX_RELATED_CARDS`) so a common word can't flood the panel. They are information only:
 staging never removes or merges an existing card.
 Cards with the identical Term are left out; the duplicate notice shows those. Computed live, and

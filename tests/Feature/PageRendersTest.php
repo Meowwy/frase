@@ -144,7 +144,15 @@ class PageRendersTest extends TestCase
             'language_id' => $this->language->id,
             'term' => 'vad kostar det',
         ]);
-        $card->baseWords()->attach($existing->id);
+        // Two shared words make it a related card; one shared verb alone would not.
+        $det = BaseWord::create([
+            'user_id' => $this->user->id,
+            'language_id' => $this->language->id,
+            'lemma' => 'det',
+            'part_of_speech' => 'pronoun',
+            'translation' => 'it',
+        ]);
+        $card->baseWords()->attach([$existing->id, $det->id]);
 
         $proposal = $this->user->proposals()->create([
             'language_id' => $this->language->id,
@@ -154,7 +162,7 @@ class PageRendersTest extends TestCase
         ]);
 
         // Same lemma, different part of speech — a different vocabulary item, not a match.
-        foreach ([['kosta', 'verb'], ['kosta', 'noun']] as [$lemma, $partOfSpeech]) {
+        foreach ([['kosta', 'verb'], ['kosta', 'noun'], ['det', 'pronoun']] as [$lemma, $partOfSpeech]) {
             $proposal->baseWords()->create([
                 'lemma' => $lemma,
                 'part_of_speech' => $partOfSpeech,
@@ -167,7 +175,7 @@ class PageRendersTest extends TestCase
         $response->assertStatus(200);
         // The card that word is already used in is listed as a related card.
         $response->assertSee('vad kostar det');
-        // Exactly one of the two chips matched.
-        $this->assertSame(1, substr_count($response->getContent(), 'js-in-base'));
+        // kosta the noun did not match; kosta the verb and det did.
+        $this->assertSame(2, substr_count($response->getContent(), 'js-in-base'));
     }
 }

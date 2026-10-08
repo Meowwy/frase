@@ -147,7 +147,7 @@ it and the chip becomes proposable again.
 _Avoid_: ignored word, blacklist, excluded word, struck word
 
 **Related cards**:
-The learner's existing cards that share a base word with a proposal, shown on it in staging.
+The learner's existing cards that share at least two base words, or one noun, with a proposal, shown on it in staging.
 _Avoid_: similar cards, synonyms, linked cards (those are the manual links in ORGANIZE)
 
 **Covered**:

@@ -234,8 +234,9 @@ class Proposal extends Model
     }
 
     /**
-     * The learner's existing cards that share an already-present base word with this
-     * proposal, as `{card, shared}`: most shared words first, capped.
+     * The learner's existing cards that share at least two already-present base words with
+     * this proposal, or at least one noun, as `{card, shared}`: most shared words first,
+     * capped. One shared verb, adverb or the like is too weak a link to be worth listing.
      *
      * Built from the presence index, whose base words already carry their cards, so a whole
      * list costs no query beyond it. Cards with the identical Term are left out: the
@@ -248,10 +249,12 @@ class Proposal extends Model
     {
         return $this->baseWords
             ->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)))
-            ->flatMap(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards)
-            ->reject(fn (Card $card) => $this->hasTermOf($card))
-            ->groupBy('id')
-            ->map(fn (SupportCollection $cards) => ['card' => $cards->first(), 'shared' => $cards->count()])
+            ->flatMap(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards
+                ->map(fn (Card $card) => ['card' => $card, 'noun' => $word->part_of_speech === 'noun']))
+            ->reject(fn (array $hit) => $this->hasTermOf($hit['card']))
+            ->groupBy(fn (array $hit) => $hit['card']->id)
+            ->filter(fn (SupportCollection $hits) => $hits->count() >= 2 || $hits->contains('noun', true))
+            ->map(fn (SupportCollection $hits) => ['card' => $hits->first()['card'], 'shared' => $hits->count()])
             ->sortByDesc('shared')
             ->take(self::MAX_RELATED_CARDS)
             ->values();

@@ -37,8 +37,8 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   exactly what you want on the card. It skips staging entirely.
 - **Browser extension**: capture a word from any webpage without visiting the site — it lands in
   the same staging feed. See [browser-extension](browser-extension.md).
-- **Related cards**: each proposal lists up to 4 of your existing cards that share its words, most
-  overlap first.
+- **Related cards**: each proposal lists up to 4 of your existing cards that share at least two of
+  its words, or one noun, most overlap first.
 - **A term that adds nothing** — all its words and expressions are already on one of your cards
   (*book* when you have *She is reading a book*) — is refused: staging says so and links that card,
   and you can only clear it.

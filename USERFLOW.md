@@ -113,17 +113,11 @@ one is picked. Picking a sense writes it into the proposal's Context and re-runs
 has a Context and extracts everything in the chosen sense. The sense is kept as the card's Context,
 so regenerating the card later stays in it.
 
-#### Related cards and Merge
+#### Related cards
 
-Each proposal shows its **related cards**: the learner's existing cards that share at least one of
-its base words, most shared words first, at most five so a common word can't flood the panel. A
-single-word card whose word appears in the new Term is flagged *made redundant by this card* and
-listed first — it is the one the learner most likely wants to replace.
-
-Any related card can be switched to **merge** into the new one. Nothing happens to it until approval; then it is
-removed, its wordbox memberships move to the new card, and its review progress and note are
-dropped — the new card starts fresh, so the learner actually reviews the longer Term they just
-saved. **Discarding the proposal removes nothing.**
+Each proposal shows its **related cards**: the learner's existing cards that share at least two of
+its base words, or at least one noun, most shared words first, at most four so a common word can't
+flood the panel. They are information only: staging never removes or merges an existing card.
 
 #### An identical Term
 

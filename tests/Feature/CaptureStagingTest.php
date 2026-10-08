@@ -881,23 +881,30 @@ class CaptureStagingTest extends TestCase
         ]);
     }
 
-    public function test_related_cards_are_sorted_by_shared_words_and_capped(): void
+    /**
+     * A card is related when it shares two base words with the proposal, or one noun.
+     */
+    public function test_related_cards_share_two_words_or_a_noun_sorted_and_capped(): void
     {
         [$user, $language] = $this->learner();
         $hur = $this->baseWord($user, $language, 'hur', 'adverb');
         $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
+        $pris = $this->baseWord($user, $language, 'pris', 'noun');
 
         foreach (range(1, 5) as $i) {
-            $this->cardUsing($user, $language, "hur gammal $i", $hur);
+            $this->cardUsing($user, $language, "ett bra pris $i", $pris);
         }
         $both = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
+        $lone = $this->cardUsing($user, $language, 'hur gammal', $hur);
 
         $proposal = $this->completedProposal($user, $language);
-        $related = $proposal->relatedCards(Proposal::presenceIndex(collect([$proposal])));
+        $proposal->baseWords()->create(['lemma' => 'pris', 'part_of_speech' => 'noun', 'translation' => 'price']);
+        $related = $proposal->load('baseWords')->relatedCards(Proposal::presenceIndex(collect([$proposal])));
 
         $this->assertCount(Proposal::MAX_RELATED_CARDS, $related);
         $this->assertSame($both->id, $related->first()['card']->id);
         $this->assertSame(2, $related->first()['shared']);
+        $this->assertNotContains($lone->id, $related->pluck('card.id'));
     }
 
     /**
