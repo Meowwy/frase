@@ -9,22 +9,16 @@ use Illuminate\Support\Facades\Auth;
 class AjaxController extends Controller
 {
     /**
-     * Persist a finished flashcard session. Two parallel arrays, both batched into this
-     * one request at session end:
-     *
-     *  - `results` — `{id, result}` per CARD. A correct result clears the card (level and
-     *    schedule advance) and stamps last-recall on every base word and fixed expression linked
-     *    to it: producing the Term is producing all of them.
-     *  - `words` — `{id, result}` per BASE WORD, which Words mode sends. A correct answer
-     *    stamps that word's own last recall; nothing here touches a card's schedule, since
-     *    whether the card cleared is already decided in the `results` array.
+     * Persist a finished flashcard session: `results`, `{id, result}` per card, batched into
+     * this one request at session end. A correct result clears the card (level and schedule
+     * advance) and stamps last-recall on every base word and fixed expression linked to it:
+     * producing the Term is producing all of them.
      *
      * See docs/learning-flow.md "SRS algorithm".
      */
     public function saveLearning(Request $request)
     {
         $results = json_decode($request->input('results'), true) ?? [];
-        $wordResults = json_decode($request->input('words'), true) ?? [];
 
         // Scope to the current user's own cards in one query, then skip any id that
         // isn't in that set — silently ignores both a missing id and an id the user
@@ -49,12 +43,6 @@ class AjaxController extends Controller
             if ($r['result'] === 1) {
                 $card->stampRecall();
             }
-        }
-
-        $correctWordIds = array_column(array_filter($wordResults, fn ($w) => ($w['result'] ?? 0) === 1), 'id');
-
-        if ($correctWordIds) {
-            Auth::user()->baseWords()->whereIn('id', $correctWordIds)->update(['last_recalled_at' => now()]);
         }
 
         return redirect('/completeLearning');

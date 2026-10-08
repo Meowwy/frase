@@ -169,7 +169,8 @@ One entry per **lemma and part of speech** per language — the **base word**: t
 of speech, its native translation (set once, at proposal time, never revised), any grammatical
 attributes that part of speech carries, and its **last recall**. It holds only words the learner
 is learning — new or wanted ones, never known ones. The base carries no sense finer than part of
-speech, no schedule and no generated content; sense lives on cards. Its jobs are deduplication and
+speech, no card schedule and no generated content; sense lives on cards. It does carry each
+word's Frammenti progress. Its jobs are deduplication and
 coverage — telling the learner what they've already met, and which words appear across many cards
 without being owned by any single card's review.
 
@@ -193,7 +194,7 @@ language's own guideline, not something hardcoded per feature:
 - **Swedish**: nouns carry a **gender** — *common* or *neuter* — displayed as the *en*/*ett*
   article. A Swedish noun's canonical **display form** is the article plus the lemma (*"ett hus"*,
   *"en bil"*), and that display form is what the learner sees and is expected to learn — wherever
-  a Swedish noun's lemma is shown (staging chips, the vocabulary base, Words mode, Refresher), it
+  a Swedish noun's lemma is shown (staging chips, the vocabulary base, Frammenti), it
   is shown with its article, not bare. Swedish **verbs** are shown in **dictionary form**: the
   infinitive with a bar marking off the ending inflection replaces, then the present-tense ending
   (*"komm|a -er"*, *"tal|a -ar"*, *"bo -r"*, irregulars written out — *"var|a är"*). Unlike the
@@ -226,38 +227,25 @@ implementation choice, not part of this spec.
 
 ## LEARN
 
-**SRS lives on cards only.** A card is cleared when its **Term** is produced — as a whole, or,
-uniquely in Words mode, one base word at a time. Clearing a card stamps **last recall** on every
-base word and fixed expression linked to it. Every other word-level answer only ever stamps a base
-word's last recall, and only on a correct answer; it never touches a card's schedule.
-
-Every learning mode serves every card, except that Words mode skips cards with no base words.
+**SRS lives on cards only.** A card is cleared when its whole **Term** is produced. Clearing a card
+stamps **last recall** on every base word and fixed expression linked to it. Every learning mode
+serves every card, and the answer is always the whole Term.
 
 - **Translation** — the first mode the builder offers, and the classic Anki-style review. Front is
   the card's translation (its definition, for a native-language card, which has no translation),
-  back is the Term, hint is the example sentence with the Term blanked out. The learner flips the
-  card and grades themselves Wrong or Correct.
-- **Sentences / Sentences-write / Definitions / Conversation** — the target they elicit is always
-  the whole Term.
-- **Words** — pulls the **individual base words** of due cards (not the cards themselves),
-  already-present ones included, into one shuffled, per-word session capped at **15 words**; a due
-  card enters only if all of its base words fit under that cap. Front is the base word's own
-  translation, back is its **lemma** in its **display form** (never the inflected form the Term uses —
-  for a Swedish noun the back is *"ett hus"*, not *"hus"*, and for a Swedish verb *"komm|a -er"*),
-  hint is the parent card's context. **Part of speech is shown alongside the word on both front
-  and back**, since two base words can share a lemma and differ only by part of speech. A card
-  clears once every one of its base words has been answered correctly within the session; each
-  correct word also stamps that word's own last recall independently of whether the card clears.
-- **Refresher** — free-form, unscheduled practice over the whole vocabulary base, ordered by
-  **staleness** (how long since last recall). Front/back/part-of-speech are the same as Words; a
-  correct answer stamps that word's last recall and nothing else — no schedule, and it never clears
-  a card. It is not a learning mode: no session scope.
+  back is the Term. The learner flips the card and grades themselves Wrong or Correct.
+- **Definitions / Conversation** — the target they elicit is always the whole Term.
+- **Frammenti** — unscheduled practice over the vocabulary base and expression base, in batches of
+  five AI-written fragments, each testing one base word or fixed expression at that item's **tier**:
+  type it into a gap (II) or write a whole sentence with it (III); recognition (I) is disabled for
+  now. Each item keeps
+  its own tier and **rest**; a correct answer at tier II or III stamps its last recall. It never
+  touches a card's schedule and is not a learning mode. See `docs/frammenti.md`.
 
 ## Out of scope
 
 - **Migrating existing cards.** Existing data is expendable; a fresh start on deploy is
   acceptable.
-- **Practice built on fixed expressions** — no mode, no Refresher, no Gap-fill use.
 - **Remembering struck fixed expressions** as known.
 - **The hide-a-word review mode** (a base word of a multi-word Term hidden mid-sentence). It would
   need the Term's own spelling of each word, which is no longer stored.

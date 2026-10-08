@@ -8,14 +8,6 @@ use Illuminate\Support\Str;
 class Learning
 {
     /**
-     * Words mode deals individual base words, not cards, so its cap is counted in words.
-     * A due card enters the pool only if ALL of its base words fit under this — no card
-     * ever contributes a partial word set, or it could never clear. See
-     * docs/learning-flow.md "Words mode".
-     */
-    public const WORDS_PER_SESSION = 15;
-
-    /**
      * The cards a session serves. Takes either the structured selection from the builder,
      * or a legacy string filter from the older entry points: 'due', a wordbox id (that
      * wordbox's own page — always cram) or a theme name.
@@ -26,7 +18,7 @@ class Learning
             return self::getCardsForSelection($filter);
         }
 
-        $query = Auth::user()->cards()->with(['wordbox:id,name', 'baseWords']);
+        $query = Auth::user()->cards()->with('wordbox:id,name');
 
         if (is_numeric($filter)) {
             session(['more_cards_available' => false]);
@@ -75,7 +67,7 @@ class Learning
         $wordbox = $filter['wordbox'] ?? 'all';
         $scope = $filter['scope'] ?? 'due';
 
-        $query = Auth::user()->cards()->with(['wordbox:id,name', 'baseWords']);
+        $query = Auth::user()->cards()->with('wordbox:id,name');
 
         if ($languageId) {
             $query->where('language_id', $languageId);
@@ -176,32 +168,19 @@ class Learning
             return self::startConversation();
         }
 
-        $cardsForLearning = self::getCardsForLearning(session('learning_filter'));
+        $cards = self::cardEntries(self::getCardsForLearning(session('learning_filter')), $mode);
 
-        // Words mode deals base words rather than cards, so it builds its own deck.
-        $cards = $mode === 'words'
-            ? self::wordEntries($cardsForLearning)
-            : self::cardEntries($cardsForLearning, $mode);
-
-        return self::renderDeck($cards, $mode);
-    }
-
-    /**
-     * Serialize a deck for the shared flashcard view, which drives the whole session
-     * client-side from this one JS variable — no per-card request during review.
-     */
-    public static function renderDeck(array $cards, string $mode)
-    {
+        // The view drives the whole session client-side from this one JS variable — no
+        // per-card request during review.
         return view('learning.index', [
             'cards' => 'let cards = '.json_encode($cards).';',
             'cardCount' => count($cards),
-            'mode' => $mode,
         ]);
     }
 
     /**
-     * One entry per card, for every mode but Words. The answer is always the card's Term —
-     * there is no focus word to elicit instead of it.
+     * One entry per card. The answer is always the card's Term — there is no focus word
+     * to elicit instead of it.
      */
     protected static function cardEntries($cards, string $mode): array
     {
@@ -220,67 +199,6 @@ class Learning
         }
 
         return $entries;
-    }
-
-    /**
-     * Words mode's deck: the individual base words of the due cards, shuffled, capped at
-     * WORDS_PER_SESSION. A card is admitted only if all of its base words fit, so the
-     * session can actually clear it; cards with no base words at all (an expression whose
-     * words were all filtered at capture) can only clear through the other modes.
-     *
-     * The deck is keyed by base word, not by (card, word) pair, because a word is routinely
-     * linked to several cards — that is what the base is for. Asking for it once and
-     * crediting the answer to every card that uses it is both less tedious and the right
-     * arithmetic; `card_ids` is what carries that, and a word already dealt for an earlier
-     * card costs a later one nothing against the cap.
-     */
-    protected static function wordEntries($cards): array
-    {
-        $entries = [];
-        $budget = self::WORDS_PER_SESSION;
-
-        foreach ($cards as $card) {
-            $baseWords = $card->baseWords;
-            $unseen = $baseWords->reject(fn (BaseWord $baseWord) => isset($entries[$baseWord->id]));
-
-            if ($baseWords->isEmpty() || $unseen->count() > $budget) {
-                continue;
-            }
-
-            $budget -= $unseen->count();
-            $wordbox = $card->wordbox->first()?->name ?? '';
-
-            foreach ($baseWords as $baseWord) {
-                $entries[$baseWord->id] ??= self::wordEntry($baseWord) + ['wordbox' => $wordbox];
-                $entries[$baseWord->id]['card_ids'][] = $card->id;
-            }
-        }
-
-        $entries = array_values($entries);
-        shuffle($entries);
-
-        return $entries;
-    }
-
-    /**
-     * One base word as a flashcard. The back is always the LEMMA in its display form —
-     * "ett hus", never bare "hus" and never the inflected form the parent card's
-     * Term happens to use. Part of speech travels with it because two base words can share
-     * a lemma and differ only by it. No hint: it was the parent card's example sentence,
-     * which cards no longer have.
-     */
-    public static function wordEntry(BaseWord $baseWord): array
-    {
-        return [
-            'id' => $baseWord->id,
-            'front' => $baseWord->translation,
-            'back' => $baseWord->displayForm(),
-            'part_of_speech' => $baseWord->part_of_speech,
-            'hint' => '',
-            // Which cards this answer counts towards. Empty for Refresher, which clears
-            // nothing — see BaseWordController::refresher().
-            'card_ids' => [],
-        ];
     }
 
     /**

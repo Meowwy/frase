@@ -13,11 +13,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The two word-level review surfaces: Words mode (scheduled, inside a session, and the one
- * word-level path that can clear a card) and Refresher (unscheduled, stamps last recall
- * and nothing else).
+ * The whole-Term learning modes, what clearing a card stamps, and the vocabulary-base page.
  */
-class WordsAndRefresherTest extends TestCase
+class LearningModesAndBaseTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -64,99 +62,6 @@ class WordsAndRefresherTest extends TestCase
         preg_match('/let cards = (\[.*?\]);/s', $html, $matches);
 
         return json_decode($matches[1], true);
-    }
-
-    public function test_words_mode_deals_base_words_in_their_display_form_with_the_part_of_speech(): void
-    {
-        [$user, $language] = $this->learner();
-        $this->cardWithWords($user, $language, 'ett stort hus', [
-            ['stor', 'adjective', null],
-            ['hus', 'noun', ['gender' => 'neuter']],
-        ]);
-
-        $deck = $this->deck($this->actingAs($user)
-            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
-            ->get('/startLearningSet/words')->getContent());
-
-        $this->assertCount(2, $deck);
-
-        $house = collect($deck)->firstWhere('part_of_speech', 'noun');
-        // The lemma in its display form, never the inflected form the Term uses.
-        $this->assertSame('ett hus', $house['back']);
-        $this->assertSame('en: hus', $house['front']);
-        $this->assertSame('', $house['hint']);
-    }
-
-    /**
-     * The cap is counted in words, and a card only enters if ALL of its words fit — a card
-     * that contributed a partial word set could never clear.
-     */
-    public function test_words_mode_admits_a_card_only_when_all_of_its_words_fit_the_cap(): void
-    {
-        [$user, $language] = $this->learner();
-
-        // Four cards of five words each: 15 words is three whole cards, and the fourth is
-        // skipped rather than half-dealt.
-        foreach (range(1, 4) as $n) {
-            $this->cardWithWords($user, $language, 'big'.$n, array_map(
-                fn ($i) => ['w'.$n.$i, 'noun', null],
-                range(1, 5)
-            ));
-        }
-
-        $deck = $this->deck($this->actingAs($user)
-            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
-            ->get('/startLearningSet/words')->getContent());
-
-        $this->assertCount(Learning::WORDS_PER_SESSION, $deck);
-
-        $perCard = collect($deck)->flatMap(fn ($entry) => $entry['card_ids'])->countBy();
-        $this->assertCount(3, $perCard);
-        $this->assertSame([5], $perCard->values()->unique()->all());
-    }
-
-    /**
-     * A word linked to two due cards is the normal case, not an edge one — that is what the
-     * base is for. It is asked once, and the answer counts towards both.
-     */
-    public function test_words_mode_deals_a_shared_base_word_once_and_credits_both_cards(): void
-    {
-        [$user, $language] = $this->learner();
-        $first = $this->cardWithWords($user, $language, 'ett stort hus', [['stor', 'adjective', null], ['hus', 'noun', null]]);
-        $shared = $user->baseWords()->where('lemma', 'hus')->sole();
-
-        $second = Card::factory()->create([
-            'user_id' => $user->id,
-            'language_id' => $language->id,
-            'term' => 'ett gult hus',
-            'next_study_at' => now(),
-        ]);
-        $second->baseWords()->attach($shared->id);
-
-        $deck = $this->deck($this->actingAs($user)
-            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
-            ->get('/startLearningSet/words')->getContent());
-
-        // Three links across two cards, but only two distinct words to answer.
-        $this->assertCount(2, $deck);
-
-        $entry = collect($deck)->firstWhere('id', $shared->id);
-        $this->assertEqualsCanonicalizing([$first->id, $second->id], $entry['card_ids']);
-    }
-
-    public function test_words_mode_skips_a_card_with_no_base_words(): void
-    {
-        [$user, $language] = $this->learner();
-        // A card whose words were all filtered at capture can only clear elsewhere.
-        $this->cardWithWords($user, $language, 'I would rather not', []);
-        $this->cardWithWords($user, $language, 'hus', [['hus', 'noun', null]]);
-
-        $deck = $this->deck($this->actingAs($user)
-            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
-            ->get('/startLearningSet/words')->getContent());
-
-        $this->assertCount(1, $deck);
-        $this->assertSame('hus', $deck[0]['back']);
     }
 
     /**
@@ -268,62 +173,6 @@ class WordsAndRefresherTest extends TestCase
 
         $this->assertSame(1, $card->fresh()->level);
         $this->assertNull($user->baseWords()->sole()->last_recalled_at);
-    }
-
-    /**
-     * The per-word array stamps last recall on its own; the card array beside it is what
-     * decides whether the card cleared.
-     */
-    public function test_the_per_word_array_stamps_only_correct_words(): void
-    {
-        [$user, $language] = $this->learner();
-        $this->cardWithWords($user, $language, 'ett stort hus', [['stor', 'adjective', null], ['hus', 'noun', null]]);
-        $right = $user->baseWords()->where('lemma', 'hus')->sole();
-        $wrong = $user->baseWords()->where('lemma', 'stor')->sole();
-
-        $this->actingAs($user)->post('/saveLearning', [
-            'results' => json_encode([]),
-            'words' => json_encode([
-                ['id' => $right->id, 'result' => 1],
-                ['id' => $wrong->id, 'result' => 0],
-            ]),
-        ]);
-
-        $this->assertNotNull($right->fresh()->last_recalled_at);
-        $this->assertNull($wrong->fresh()->last_recalled_at);
-    }
-
-    public function test_a_learner_cannot_stamp_someone_elses_base_word(): void
-    {
-        [$owner, $language] = $this->learner();
-        $attacker = User::factory()->create();
-        $this->cardWithWords($owner, $language, 'hus', [['hus', 'noun', null]]);
-        $word = $owner->baseWords()->sole();
-
-        $this->actingAs($attacker)->post('/saveLearning', [
-            'results' => json_encode([]),
-            'words' => json_encode([['id' => $word->id, 'result' => 1]]),
-        ]);
-
-        $this->assertNull($word->fresh()->last_recalled_at);
-    }
-
-    public function test_refresher_orders_the_whole_base_by_staleness(): void
-    {
-        [$user, $language] = $this->learner();
-        $this->cardWithWords($user, $language, 'ett stort hus', [
-            ['stor', 'adjective', null],
-            ['hus', 'noun', ['gender' => 'neuter']],
-            ['gammal', 'adjective', null],
-        ]);
-
-        $user->baseWords()->where('lemma', 'stor')->update(['last_recalled_at' => now()->subDay()]);
-        $user->baseWords()->where('lemma', 'hus')->update(['last_recalled_at' => now()->subYear()]);
-        // 'gammal' was never recalled, which is as stale as it gets.
-
-        $deck = $this->deck($this->actingAs($user)->get('/refresher')->getContent());
-
-        $this->assertSame(['gammal', 'ett hus', 'stor'], array_column($deck, 'back'));
     }
 
     public function test_the_vocabulary_base_page_shows_the_display_form_and_coverage(): void

@@ -171,7 +171,7 @@ whole-language forms of the same question — the first filters CALL 1's answer 
 what the learner actually sees (*"ett hus"*, *"komm|a -er"*; a stored dictionary form stands in for
 the lemma and the article prefixes still apply around it). `BaseWord::displayForm()` and
 `ProposalBaseWord::displayForm()` are thin wrappers over that last one, so staging chips, the
-vocabulary base, Words mode and Refresher can never disagree about how a word is spelled.
+vocabulary base and Frammenti can never disagree about how a word is spelled.
 
 Both the attribute properties and `dictionary_form` reach CALL 1's `base_words` schema as a **union
 across the learner's languages** — the call decides the language in the same answer, so the schema
@@ -249,8 +249,47 @@ negatives plus a worked `schön` example each.
   `[n]` placeholder, and returns `{text, title, answers}` where `answers` maps each index to the
   exact text that belongs in that gap. Runs on the queue (`GenerateGapFillJob`), not
   synchronously — see [gap-fill](gap-fill.md).
+- **`AI::generateFragments($slots, $targetLanguage, $nativeLanguage, $level, $baseLemmas)`** — one
+  Frammenti batch; see "Frammenti" below.
 - **`AI::getEmbedding($text)`** / **`AI::cosineSimilarity($a, $b)`** — embedding + similarity
   helpers used for (currently paused) automatic card linking. See [search-and-linking](search-and-linking.md).
+
+### Frammenti — `AI::generateFragments()`
+
+One strict-schema call (`requestCardJson`, default reasoning effort) per batch of 5 slots chosen
+by `Frammenti::deal()`. Shapes, validation and the client side are in [frammenti](frammenti.md).
+Its prompt rules, and why each one is there. The distractor rule only matters for tier I, which is
+disabled for now (see [frammenti](frammenti.md)) but kept in the prompt:
+
+- **One phrase or one sentence, natural.** A fragment exists to show the item in a fresh, real
+  context. A paragraph would bury it, and a stilted textbook sentence teaches the wrong usage.
+- **Difficulty is capped by the CEFR level, never length** (`levelInstruction()`, rule 2 above).
+  A beginner still gets a whole sentence.
+- **The item is used in a sense that fits its part of speech and translation.** Base words carry
+  no sense finer than part of speech, so this is the only thing keeping *run* the noun from being
+  tested as a verb.
+- **Exactly one item per fragment: one gap or one highlight, never another item of the batch.** A
+  fragment with two of the batch's items in it would give one away or test two at once.
+- **Below B1, other content words come from the supplied sample of the learner's lemmas, or are
+  too basic to collect.** Otherwise a beginner can't understand the context the item sits in, and
+  the fragment also revises more of their own words at once. At B1 and above, any vocabulary
+  within the level is allowed, which makes the contexts richer.
+- **Distractors are plausible but clearly wrong in the fragment, in the same written shape as the
+  item** (same article or dictionary-style notation). A distractor that also fits makes a correct
+  answer marked wrong, and one in a different shape (*bil* beside *ett hus*) gives the answer away
+  by form alone. Only distractors are asked for: the correct option is the stored display form or
+  translation, added by PHP, so the model can't mis-spell the answer.
+- **At tier II, the surrounding words must make the gap's form recoverable**, and `accepted` lists
+  every form that fits. The learner is typing an inflected form, so the sentence has to say which
+  one, and any other correct form must not be marked wrong.
+- **At tier III, the item's counterpart in the native translation is marked too**, so the learner
+  knows which word the sentence is testing and self-grading has a clear target.
+- **A tier III fragment's only content words are the learner's tier III items** (tier III and
+  mastered, sent as a sample of up to 80; everything else is a function word). The learner writes
+  the whole sentence, so it should only ask for words they have already produced in a cloze, and
+  self-grading stays about the tested item rather than vocabulary they never learned. With few
+  tier III items that makes for short phrases, which is fine. It is a prompt rule, not checked in
+  PHP: inflection makes a word-by-word check unreliable.
 
 ## Conversation & challenge chat methods
 

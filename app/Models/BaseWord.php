@@ -17,7 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * and attributes are set once, at proposal time, and never revised: sense lives on cards,
  * and the base carries no sense finer than part of speech.
  *
- * It has no schedule and no generated content. Its jobs are deduplication and coverage.
+ * It has no card schedule and no generated content. Its jobs are deduplication and
+ * coverage, and it carries its own Frammenti progress (docs/frammenti.md).
  * See docs/cards.md "The vocabulary base".
  */
 class BaseWord extends Model
@@ -27,6 +28,10 @@ class BaseWord extends Model
     protected $casts = [
         'grammar_attributes' => 'array',
         'last_recalled_at' => 'datetime',
+        'frammenti_tier' => 'integer',
+        'frammenti_correct_streak' => 'integer',
+        'frammenti_wrong_streak' => 'integer',
+        'frammenti_rest_until' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -48,7 +53,7 @@ class BaseWord extends Model
      * The lemma as the learner is expected to learn it — "ett hus" for a Swedish neuter
      * noun, "komm|a -er" for a Swedish verb, bare "hus" for a language whose guideline
      * defines no display form. This is what every screen shows: staging chips, the base
-     * list, Words mode, Refresher.
+     * list, Frammenti.
      */
     public function displayForm(): string
     {

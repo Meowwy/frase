@@ -1,11 +1,4 @@
-@props(['cards', 'cardCount', 'mode' => 'translation'])
-@php
-    // Words mode and Refresher deal individual BASE WORDS rather than cards, so a deck
-    // entry is a word and the part of speech travels with it. They differ in one thing:
-    // Words is scheduled and can clear a card, Refresher only ever stamps last recall.
-    $wordDeck = in_array($mode, ['words', 'refresher'], true);
-    $clearsCards = $mode === 'words';
-@endphp
+@props(['cards', 'cardCount'])
 <x-html-layout>
     <div class="relative">
         <button id="exitBtn" type="button" class="absolute left-0 top-0 inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
@@ -19,12 +12,6 @@
         <div class="flex-col items-center">
             <div class="flex justify-center items-center gap-2 mb-4">
                 <span id="wordboxName" class="invisible text-lg mr-1 font-bold bg-orange-800 text-white rounded-full px-3 py-1">&nbsp;</span>
-                @if($wordDeck)
-                    {{-- Outside the card on purpose, so it is visible on both front and
-                         back: two base words can share a lemma and differ only by part of
-                         speech, so the learner needs it before flipping too. --}}
-                    <span id="partOfSpeech" class="text-sm italic text-white/60"></span>
-                @endif
             </div>
             <div class="flashcard" id="flashcard">
                 <div class="front" id="front">
@@ -60,20 +47,11 @@
     <div>
         <x-forms.form id="resultsForm" method="POST" action="/saveLearning">
             <input id="resultsInput" type="hidden" name="results">
-            {{-- The per-word array a word deck submits alongside (or, for Refresher,
-                 instead of) the per-card one. See docs/learning-flow.md. --}}
-            <input id="wordsInput" type="hidden" name="words">
         </x-forms.form>
     </div>
 
     <script>
         {!! $cards !!}
-
-        // A word deck grades base words, so `results` holds base-word ids; the card-level
-        // grades are derived from them at the end (Words) or not sent at all (Refresher).
-        const wordDeck = @json($wordDeck);
-        const clearsCards = @json($clearsCards);
-        const dealtWords = wordDeck ? cards.slice() : [];
 
         // Total cards dealt at the start of the session; used to derive the "correct"
         // counter (a card leaves the deck only when answered correctly).
@@ -87,8 +65,6 @@
         const hintText = document.getElementById('hintText');
         const resultsForm = document.getElementById('resultsForm');
         const resultsInput = document.getElementById('resultsInput');
-        const wordsInput = document.getElementById('wordsInput');
-        const partOfSpeech = document.getElementById('partOfSpeech');
 
         const queueInfo = document.getElementById('queueCount');
         const wrongInfo = document.getElementById('wrongCount');
@@ -154,34 +130,8 @@
 
         exitBtn.addEventListener('click', end);
 
-        // A card clears only once EVERY one of its base words was answered correctly —
-        // first time round, the same rule the other modes apply to a card's own answer. A
-        // word left unanswered (the learner quit early) leaves its card untouched.
-        function derivedCardResults() {
-            // A word linked to several cards is dealt once and counts towards all of them.
-            const byCard = new Map();
-            dealtWords.forEach(w => w.card_ids.forEach(cardId => {
-                if (! byCard.has(cardId)) { byCard.set(cardId, []); }
-                byCard.get(cardId).push(w.id);
-            }));
-
-            const cardResults = [];
-            byCard.forEach((wordIds, cardId) => {
-                const graded = wordIds.map(id => results.find(r => r.id === id));
-                if (graded.some(g => ! g)) { return; }
-                cardResults.push({ id: cardId, result: graded.every(g => g.result === 1) ? 1 : 0 });
-            });
-
-            return cardResults;
-        }
-
         function end() {
-            if (wordDeck) {
-                wordsInput.value = JSON.stringify(results);
-                resultsInput.value = JSON.stringify(clearsCards ? derivedCardResults() : []);
-            } else {
-                resultsInput.value = JSON.stringify(results);
-            }
+            resultsInput.value = JSON.stringify(results);
             resultsForm.submit();
         }
 
@@ -196,7 +146,6 @@
             flashcard.classList.remove('is-flipped');
             front.textContent = cards[currentIndex].front;
             showWordbox();
-            if (partOfSpeech) { partOfSpeech.textContent = cards[currentIndex].part_of_speech; }
             wrongBtn.classList.add('hidden');
             correctBtn.classList.add('hidden');
             flipBtn.classList.remove('hidden');
@@ -229,8 +178,8 @@
             }
         });
 
-        // An empty deck is reachable — Refresher over an empty vocabulary base, or Words
-        // mode over cards with no base words — so don't try to deal a card that isn't there. The card's own "No cards loaded." default stands.
+        // An empty deck is reachable (e.g. a legacy entry point with nothing due), so don't
+        // try to deal a card that isn't there. The card's own "No cards loaded." default stands.
         if (cards.length) {
             showCard();
         } else {

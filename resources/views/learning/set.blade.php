@@ -33,14 +33,6 @@
             <x-panel class="w-48">
                 <div class="py-8">
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                        <a href="/startLearning/0/words">Words</a>
-                    </h3>
-                    <p class="text-sm mt-4">Recall the individual words your cards are made of, one at a time.</p>
-                </div>
-            </x-panel>
-            <x-panel class="w-48">
-                <div class="py-8">
-                    <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
                         <a href="/startLearning/0/definitions">Definitions</a>
                     </h3>
                     <p class="text-sm mt-4">Recall the term from its definition.</p>
@@ -75,7 +67,7 @@
                 <span id="reviewSentence">Review <span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> from <span id="startTarget" class="text-blue-400">all terms</span> by...</span>
                 <span id="noCardsSentence" class="hidden">No cards to review</span>
             </x-section-heading>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-center">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-center">
                 <x-panel class="mode-panel">
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
@@ -90,14 +82,6 @@
                             <a href="#" class="mode-link" data-mode="conversation">Conversation</a>
                         </h3>
                         <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
-                    </div>
-                </x-panel>
-                <x-panel class="mode-panel">
-                    <div class="py-8">
-                        <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                            <a href="#" class="mode-link" data-mode="words">Words</a>
-                        </h3>
-                        <p class="text-sm mt-4">Recall the individual words your due cards are made of, one at a time.</p>
                     </div>
                 </x-panel>
                 <x-panel class="mode-panel">

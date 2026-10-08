@@ -73,9 +73,9 @@ like *tycka om* or *either … or …* — the same way: translation, card count
 cards' terms in the side panel. They are picked out of the terms you capture and shown in staging as their
 own chips (strike one to skip it for that capture); a card's page lists them next to its words.
 
-It is not a second review queue: it has no schedule. Its jobs are to stop the same word being
+It is not a second review queue: it has no review schedule. Its jobs are to stop the same word being
 collected twice and to show you which words run through many of your phrases without belonging to
-any one card. See [cards](cards.md) "The vocabulary base".
+any one card, and it is what Frammenti practises (below). See [cards](cards.md) "The vocabulary base".
 
 ## Cards list (nav: "Cards")
 
@@ -102,15 +102,26 @@ a mode:
 
 - **Translation** (the first mode) — see the translation, recall the term, flip to check. The
   classic Anki-style review; a card in your own native language shows its definition instead.
-- **Words** — the individual words your due cards are made of, one at a time: see the translation,
-  recall the word. A card is cleared once you've got every one of its words.
 - **Definitions** — see the definition, recall the term.
 - Reviews use **spaced repetition**: getting a card right pushes its next review further out
   (doubling each time), getting it wrong resets it to "review again tomorrow."
-- **Refresher** (from the vocabulary base, not the session builder) — free practice over your whole
-  base, the words you haven't recalled in longest first. It isn't scheduled and it never changes a
-  card's review date; it just records that you still know the word.
 - See [learning-flow](learning-flow.md).
+
+## Frammenti (nav: "Frammenti")
+
+- Unscheduled practice with your words and fixed expressions, five short AI-written sentences at a
+  time, each built around one of them. Always playable, and it never changes a card's review date.
+- Opens for a language once you've saved at least 5 nouns and 5 verbs in it. Pick the language (if
+  you learn several) and press **Start**; Enter checks, moves on, and starts the next batch.
+- Each word moves through two **tiers**: type it into a gap in the form the sentence needs, then
+  write a whole sentence from your native language, built only from words you've reached that tier
+  with, and mark yourself. Two right in a row move a word
+  up, two wrong move it back down, and two right at the top make it **mastered**, checked again only
+  every few weeks.
+- A word you get right rests for a while (longer at higher tiers), so you meet the ones you struggle
+  with more often. After each batch you see what you got right and which words went up or down.
+- Reached from the nav, from the vocabulary base, and from the end of a review session. See
+  [frammenti](frammenti.md).
 
 ## Conversation practice (three ways)
 

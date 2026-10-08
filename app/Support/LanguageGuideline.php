@@ -140,7 +140,7 @@ class LanguageGuideline
      * The lemma as the learner is expected to learn it: a Swedish neuter noun's display
      * form is "ett hus", not bare "hus", and a Swedish verb's is "komm|a -er", not bare
      * "komma". Everywhere a base word is shown — staging chips, the vocabulary base,
-     * Words mode, Refresher — shows this, never the bare lemma.
+     * Frammenti — shows this, never the bare lemma.
      *
      * A stored dictionary form stands in for the lemma and the article prefixes still
      * apply around it, so a language that wanted both would get both.

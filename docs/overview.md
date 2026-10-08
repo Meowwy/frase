@@ -15,7 +15,7 @@ The core loop is: **capture** a word/phrase → it waits in **staging** as a pro
 works out what it is → the learner **approves** it, which writes the card and adds its words to
 their **vocabulary base** (see [ai-integration](ai-integration.md), [cards](cards.md)) → the card
 enters an SRS queue → the user reviews it via one of several **learning modes** (see
-[learning-flow](learning-flow.md)) or practises it in a live AI conversation (see
+[learning-flow](learning-flow.md)), practises its words in [Frammenti](frammenti.md), or practises it in a live AI conversation (see
 [conversation-challenge](conversation-challenge.md), [conversation-voice](conversation-voice.md),
 [conversation-game](conversation-game.md)).
 

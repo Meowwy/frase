@@ -5,6 +5,7 @@ use App\Http\Controllers\BaseWordController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\FrammentiController;
 use App\Http\Controllers\GapFillExerciseController;
 use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\RegisteredUserController;
@@ -152,6 +153,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/startLearningSet/{mode}', [Learning::class, 'startLearningSet']);
     Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
 
+    // Frammenti: unscheduled fragment practice over the vocabulary and expression bases.
+    Route::get('/frammenti', [FrammentiController::class, 'index'])->name('frammenti');
+    Route::post('/frammenti/batch', [FrammentiController::class, 'batch']);
+    Route::post('/frammenti/results', [FrammentiController::class, 'results']);
+
     // Conversation learning mode (live AI roleplay chat; state lives in the session).
     Route::post('/chat/message', [ChatController::class, 'message']);
     Route::post('/chat/recap', [ChatController::class, 'recap']);
@@ -185,9 +191,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/staging/{proposal}/approve', [ProposalController::class, 'approve']);
     Route::delete('/staging/{proposal}', [ProposalController::class, 'destroy']);
 
-    // ORGANIZE: the vocabulary base. LEARN: Refresher, its unscheduled practice.
+    // ORGANIZE: the vocabulary base.
     Route::get('/base', [BaseWordController::class, 'index'])->name('base');
-    Route::get('/refresher', [BaseWordController::class, 'refresher'])->name('refresher');
 
     Route::get('/search', [SearchController::class, 'index']);
     Route::get('/searchWordbox/{wbid}', [SearchController::class, 'searchWordbox'])->name('searchWordbox');

@@ -102,7 +102,7 @@ class AI
     }
 
     /**
-     * Shared plumbing for the four card-creation calls: one strict-schema chat
+     * Shared plumbing for the card-creation calls and Frammenti: one strict-schema chat
      * completion, decoded into an array. Returns null on a refusal, a non-2xx response
      * or an unparseable body, having logged it first — same contract as every other
      * method in this file, so every caller checks for null.
@@ -491,6 +491,109 @@ class AI
         }
 
         return $data;
+    }
+
+    /**
+     * One Frammenti batch: a short fragment per slot, each testing one base word or fixed
+     * expression in the way its fragment type asks (see docs/frammenti.md). Slots come
+     * from Frammenti::slot(); the result is validated here, so a fragment the client
+     * can't render is a failed call, never a broken screen. Correct options are not
+     * asked for — PHP adds the stored ones, so only distractors come from the model.
+     *
+     * $baseLemmas (below B1 only) are the learner's own words to build fragments from.
+     * $tierThreeWords (when a slot is III) are the only content words a III fragment may use.
+     *
+     * Returns one ['fragment', 'translation', 'distractors', 'accepted'] per slot, in slot
+     * order, or null on failure.
+     */
+    public static function generateFragments(array $slots, string $targetLanguage, string $nativeLanguage, ?string $level, ?array $baseLemmas, ?array $tierThreeWords = null): ?array
+    {
+        $system = "You write Frammenti: short practice fragments in {$targetLanguage} for a learner whose native language is {$nativeLanguage}. "
+            .'Each fragment is ONE phrase or ONE sentence, natural, as a native speaker would really say it. '
+            .'It tests exactly one item, used in a sense that fits its part of speech and translation, and contains no other item of the batch. '
+            .'Fragment types: '
+            .'Ia — the item is replaced by ONE gap "___" (for a discontinuous expression, one "___" per part); the gap stands for the item in whatever form the sentence needs. '
+            .'Ib — the item, in whatever form the sentence needs, is wrapped in [[ ]]. '
+            .'II — like Ia, and the surrounding words must make the gap\'s form recoverable; "accepted" lists, per gap in order, every form that correctly fills it in this fragment. '
+            .'III — the item is wrapped in [[ ]], and its counterpart in the translation too. '
+            ."\"translation\" is the natural {$nativeLanguage} translation of the whole fragment, with no gaps. "
+            .'"distractors" has exactly the number asked for, plausible but clearly wrong in the fragment: for Ia, other items written in exactly the same shape as the item is given (same article or dictionary-style notation); for Ib, translations into '.$nativeLanguage.' in the same shape as the item\'s translation. '
+            .'"accepted" is empty except for II.'
+            .self::levelInstruction($level);
+
+        if ($baseLemmas) {
+            $system .= ' Build every fragment only from the item, the learner\'s own words listed below (in any form) and words too basic to be worth learning.';
+        }
+        if ($tierThreeWords) {
+            $system .= ' A III fragment is stricter: besides the item, its only content words are the learner\'s tier III words listed below (in any form); '
+                .'everything else must be a function word (article, pronoun, preposition, conjunction, auxiliary verb). Keep it as short as that needs — a phrase is fine.';
+        }
+
+        $lines = array_map(fn ($slot, $i) => ($i + 1).". {$slot['fragment_type']} — \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['translation']}\""
+            .($slot['distractors_needed'] ? "; write {$slot['distractors_needed']} distractor(s)" : '; no distractors')
+            .($slot['distractors'] ? ' (the other options are: "'.implode('", "', $slot['distractors']).'")' : ''),
+            $slots, array_keys($slots));
+
+        $user = 'Write one fragment per slot, in this order:'."\n".implode("\n", $lines);
+        if ($baseLemmas) {
+            $user .= "\n\nThe learner's own words: ".implode(', ', $baseLemmas);
+        }
+        if ($tierThreeWords) {
+            $user .= "\n\nThe learner's tier III words: ".implode(', ', $tierThreeWords);
+        }
+
+        $result = self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'generate_fragments',
+            [
+                'fragments' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'fragment' => ['type' => 'string'],
+                            'translation' => ['type' => 'string'],
+                            'distractors' => ['type' => 'array', 'items' => ['type' => 'string']],
+                            'accepted' => ['type' => 'array', 'items' => ['type' => 'array', 'items' => ['type' => 'string']]],
+                        ],
+                        'required' => ['fragment', 'translation', 'distractors', 'accepted'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        );
+
+        $fragments = $result['fragments'] ?? null;
+
+        if (! is_array($fragments) || count($fragments) !== count($slots)) {
+            Log::error('generate_fragments returned the wrong number of fragments.');
+
+            return null;
+        }
+
+        foreach ($slots as $i => $slot) {
+            $fragment = $fragments[$i];
+            $gaps = preg_match_all('/_{3,}/', $fragment['fragment']);
+            $marked = preg_match('/\[\[.+?\]\]/', $fragment['fragment']) === 1;
+
+            $valid = trim($fragment['translation']) !== '' && match ($slot['fragment_type']) {
+                'Ia' => $gaps > 0 && count($fragment['distractors']) === $slot['distractors_needed'],
+                'Ib' => $marked && count($fragment['distractors']) === $slot['distractors_needed'],
+                'II' => $gaps > 0 && count($fragment['accepted']) === $gaps && ! in_array([], $fragment['accepted'], true),
+                'III' => $marked,
+            };
+
+            if (! $valid) {
+                Log::error("generate_fragments returned an invalid {$slot['fragment_type']} fragment: ".json_encode($fragment));
+
+                return null;
+            }
+        }
+
+        return $fragments;
     }
 
     /**

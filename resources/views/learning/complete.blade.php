@@ -15,6 +15,13 @@
             <br>
         @endif
     </div>
+<div class="mb-4">
+    {{-- Keep practising once the due cards run out, in the finished session's language. --}}
+    @php $filter = session('learning_filter'); @endphp
+    <a href="{{ route('frammenti', is_array($filter) && $filter['language_id'] ? ['language_id' => $filter['language_id']] : []) }}">
+        <x-forms.button>Play Frammenti</x-forms.button>
+    </a>
+</div>
 <div>
     <a href="/">
         <x-forms.button-small>Back to home</x-forms.button-small>

@@ -78,7 +78,7 @@ captured term also no longer lands in a chosen wordbox, so it starts in General 
 moved from `/cards` if the learner wants it somewhere.
 
 What remains is `User::currentSaveLanguage()`, which answers a narrower question: which language a
-screen that shows one language at a time (`/cards`, `/base`, `/refresher`, the Learn builder) should
+screen that shows one language at a time (`/cards`, `/base`, `/frammenti`, the Learn builder) should
 open on. It resolves `active_language_id` → first target language, and may return `null` for a
 brand-new user with no languages set up. The name is now slightly wider than the job; every caller
 passes an explicit `language_id` when the user has picked one.

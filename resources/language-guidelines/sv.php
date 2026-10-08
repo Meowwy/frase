@@ -30,7 +30,7 @@ return [
 
                 // How to render {gender, lemma} as the word's canonical
                 // display form — the form the learner is shown and expected
-                // to learn (docs/learning-flow.md "Words mode").
+                // to learn (CONTEXT.md "Display form").
                 'display' => [
                     'common' => 'en',
                     'neuter' => 'ett',

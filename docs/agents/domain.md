@@ -44,7 +44,7 @@ it upfront.
 When your output names a domain concept (an issue title, a refactor proposal, a hypothesis, a test
 name, a variable), use the term as `CONTEXT.md` defines it, and never a term it lists under
 `_Avoid_`. Several of these distinctions are load-bearing rather than stylistic — Term vs. base
-word, Words vs. Refresher, wordbox vs. theme — and collapsing them produces wrong work, not just
+word, tier vs. level, wordbox vs. theme — and collapsing them produces wrong work, not just
 inconsistent wording.
 
 If the concept you need isn't in the glossary yet, that's a signal: either you're inventing

@@ -1,15 +1,15 @@
-{{-- Shared by both /base tabs: title, Refresher, the tab switch and the language filter. --}}
+{{-- Shared by both /base tabs: title, Frammenti, the tab switch and the language filter. --}}
 <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
     <div>
         <h1 class="text-2xl font-bold">Vocabulary base</h1>
         <p class="text-sm text-white/50">
             The words you are learning in this language, one entry per lemma and part of
             speech, and the fixed expressions you learn as wholes. Neither carries a review
-            schedule — that lives on your cards.
+            schedule — that lives on your cards — but both are what Frammenti practises.
         </p>
     </div>
-    <a href="{{ route('refresher', ['language_id' => $activeLanguageId]) }}">
-        <x-forms.button>Refresher</x-forms.button>
+    <a href="{{ route('frammenti', ['language_id' => $activeLanguageId]) }}">
+        <x-forms.button>Frammenti</x-forms.button>
     </a>
 </div>
 

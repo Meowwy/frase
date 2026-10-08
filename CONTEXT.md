@@ -36,7 +36,7 @@ base, wordboxes, search.
 _Avoid_: manage, browse, library, storage
 
 **LEARN**:
-The module that practices saved vocabulary — learning modes, the SRS, Refresher and conversation
+The module that practices saved vocabulary — learning modes, the SRS, Frammenti and conversation
 practice.
 _Avoid_ (as the module's name): Review, Study, Practice
 
@@ -177,7 +177,8 @@ One entry in the vocabulary base: a lemma, its **part of speech**, its native tr
 **grammatical attributes** (if its language and part of speech carry any), and when it was last
 recalled. Two base words may share a lemma when they differ in part of speech — *run* the verb and
 *run* the noun are different base words, not one. It carries no sense finer than part of speech, no
-schedule and no generated content — those live on cards.
+card schedule and no generated content — those live on cards — only its Frammenti progress (tier
+and rest).
 _Avoid_: focus word, headword, root, stem, vocabulary item
 
 **Lemma**:
@@ -226,7 +227,7 @@ _Avoid_: dictionary (bare), word list
 The one string every screen shows for a base word, built from its lemma plus whatever its language
 guideline adds — *ett hus* for a Swedish neuter noun, *komm|a -er* for a Swedish verb, bare *hus*
 for a language with no such rule. It is what the learner is expected to produce, so staging chips,
-the vocabulary base, Words mode and Refresher all show it and never the bare lemma.
+the vocabulary base and Frammenti all show it and never the bare lemma.
 _Avoid_: label, rendered form
 
 **Fixed expression**:
@@ -242,19 +243,15 @@ _Avoid_: idiom, collocation, phrase
 
 **Expression base**:
 The learner's inventory of fixed expressions in one language, alongside the vocabulary base. Like
-it, it has no schedule; its entries are linked to the cards whose Terms contain them. *Expression*
+it, it has no card schedule, only Frammenti progress; its entries are linked to the cards whose Terms contain them. *Expression*
 on its own always means this, never a kind of card.
 _Avoid_: phrasebook, idiom list
 
 **Last recall**:
-The datetime a base word or fixed expression was last produced correctly. It is set only on a
-correct answer, and it schedules nothing.
+The datetime a base word or fixed expression was last produced correctly — by clearing a card that
+contains it, or at tier II or III in Frammenti. It is set only on a correct answer, and it schedules
+nothing.
 _Avoid_: last studied, last seen, reviewed at, due date
-
-**Staleness**:
-How long ago a base word was last recalled — the only ordering Refresher uses. It is not a schedule
-and never makes anything due.
-_Avoid_: due, overdue, priority, decay, urgency
 
 ### ORGANIZE — collections
 
@@ -297,14 +294,12 @@ The session scope that serves every card in the selection regardless of schedule
 _Avoid_: practice, review all, free review
 
 **Cleared**:
-What a card becomes once its Term has been produced — as a whole (Translation, Definitions,
-Conversation), or in Words mode once every one of the card's base
-words has been answered correctly. Either path advances the card's level. Every other word-level answer (Refresher)
-stamps a base word's last recall and never clears a card.
+What a card becomes once its whole Term has been produced (Translation, Definitions, Conversation).
+It advances the card's level. Nothing word-level clears a card.
 _Avoid_: passed, completed, answered, correct
 
 **Learning mode**:
-How a session presents its cards — Translation, Words, Definitions, or Conversation.
+How a session presents its cards — Translation, Definitions, or Conversation.
 _Avoid_: exercise, game, activity, drill
 
 **Translation**:
@@ -312,16 +307,33 @@ The learning mode that shows a card's translation (its definition, for a native-
 elicits the Term — the classic Anki-style review, and the first mode the builder offers.
 _Avoid_: reverse mode, recall mode, flashcards
 
-**Words**:
-The learning mode that elicits the individual base words of due cards, shuffled. It is scheduled and
-lives inside a session, which is what separates it from Refresher — and clearing every one of a
-card's base words here clears the card itself, the one word-level path that does.
-_Avoid_: word mode, base practice
+### LEARN — Frammenti
 
-**Refresher**:
-Free-form practice over the vocabulary base, ordered by staleness. It is **not** a learning mode: no
-session scope, no schedule, and it never clears a card.
-_Avoid_: drill, practice mode, word practice, cram (that is a session scope)
+See [docs/frammenti.md](docs/frammenti.md).
+
+**Frammenti**:
+Unscheduled practice over the vocabulary base and expression base, in batches of fragments. Not a
+learning mode, and it never clears a card.
+_Avoid_: snippets, drill, practice mode
+
+**Fragment**:
+One sentence or phrase that tests one base word or fixed expression at one tier. What it tests gets
+no term of its own: write "the base word or fixed expression a fragment tests".
+_Avoid_: snippet, exercise, question, item
+
+**Tier**:
+How a fragment tests its word (I recognition, II cloze, III full write), and how far a base word or
+fixed expression has got.
+_Avoid_: level (that is a card's), stage, difficulty
+
+**Mastered**:
+A base word or fixed expression past tier III, still checked at long rests.
+_Avoid_: known (that is a struck word), learned
+
+**Rest**:
+How long a base word or fixed expression sits out of Frammenti after a correct answer. A priority,
+never a gate.
+_Avoid_: due, cooldown
 
 ### LEARN — conversation practice
 
