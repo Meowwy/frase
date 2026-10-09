@@ -494,52 +494,68 @@ class AI
     }
 
     /**
-     * One Frammenti batch: a short fragment per slot, each testing one base word or fixed
-     * expression in the way its fragment type asks (see docs/frammenti.md). Slots come
-     * from Frammenti::slot(); the result is validated here, so a fragment the client
-     * can't render is a failed call, never a broken screen. Correct options are not
-     * asked for — PHP adds the stored ones, so only distractors come from the model.
+     * One Frammenti batch: a short phrase or sentence per slot, each using one base word
+     * or fixed expression (see docs/frammenti.md). Slots come from Frammenti::slot().
+     *
+     * The two exercise kinds are told apart by the response SCHEMA, never by prose: each
+     * slot is its own required property, `slot_1`…, whose shape is the one its kind needs
+     * — a gapped phrase with its answers for II, a phrase with its item marked for III.
+     * So the model can't swap kinds, drop a slot or reorder them, and the prompt only
+     * says what a good phrase is. The result is still validated here, so a fragment the
+     * client can't render is a failed call, never a broken screen.
      *
      * $baseLemmas (below B1 only) are the learner's own words to build fragments from.
      * $tierThreeWords (when a slot is III) are the only content words a III fragment may use.
      *
-     * Returns one ['fragment', 'translation', 'distractors', 'accepted'] per slot, in slot
-     * order, or null on failure.
+     * Returns one ['fragment', 'translation', 'accepted'] per slot, in slot order
+     * (`accepted` is empty for III), or null on failure.
      */
     public static function generateFragments(array $slots, string $targetLanguage, string $nativeLanguage, ?string $level, ?array $baseLemmas, ?array $tierThreeWords = null): ?array
     {
-        $system = "You write Frammenti: short practice fragments in {$targetLanguage} for a learner whose native language is {$nativeLanguage}. "
-            .'Each fragment is ONE phrase or ONE sentence, natural, as a native speaker would really say it. '
-            .'It tests exactly one item, used in a sense that fits its part of speech and translation, and contains no other item of the batch. '
-            .'Fragment types: '
-            .'Ia — the item is replaced by ONE gap "___" (for a discontinuous expression, one "___" per part); the gap stands for the item in whatever form the sentence needs. '
-            .'Ib — the item, in whatever form the sentence needs, is wrapped in [[ ]]. '
-            .'II — like Ia, and the surrounding words must make the gap\'s form recoverable; "accepted" lists, per gap in order, every form that correctly fills it in this fragment. '
-            .'III — the item is wrapped in [[ ]], and its counterpart in the translation too. '
-            ."\"translation\" is the natural {$nativeLanguage} translation of the whole fragment, with no gaps. "
-            .'"distractors" has exactly the number asked for, plausible but clearly wrong in the fragment: for Ia, other items written in exactly the same shape as the item is given (same article or dictionary-style notation); for Ib, translations into '.$nativeLanguage.' in the same shape as the item\'s translation. '
-            .'"accepted" is empty except for II.'
+        $system = "You are a language tutor. Write short {$targetLanguage} phrases or sentences for a learner whose native language is {$nativeLanguage}, "
+            .'one per slot, each natural, as a native speaker would really say it. '
+            .'Each uses its own item in a sense that fits the item\'s part of speech and translation, and none of the other slots\' items.'
             .self::levelInstruction($level);
 
         if ($baseLemmas) {
-            $system .= ' Build every fragment only from the item, the learner\'s own words listed below (in any form) and words too basic to be worth learning.';
-        }
-        if ($tierThreeWords) {
-            $system .= ' A III fragment is stricter: besides the item, its only content words are the learner\'s tier III words listed below (in any form); '
-                .'everything else must be a function word (article, pronoun, preposition, conjunction, auxiliary verb). Keep it as short as that needs — a phrase is fine.';
+            $system .= ' Besides the item, use only the learner\'s own words (in any form) and words too basic to be worth learning.';
         }
 
-        $lines = array_map(fn ($slot, $i) => ($i + 1).". {$slot['fragment_type']} — \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['translation']}\""
-            .($slot['distractors_needed'] ? "; write {$slot['distractors_needed']} distractor(s)" : '; no distractors')
-            .($slot['distractors'] ? ' (the other options are: "'.implode('", "', $slot['distractors']).'")' : ''),
-            $slots, array_keys($slots));
+        // The native translation is shown as plain text, so it never carries markup.
+        $translation = ['type' => 'string', 'description' => "Natural {$nativeLanguage} translation of the whole phrase, as plain text."];
 
-        $user = 'Write one fragment per slot, in this order:'."\n".implode("\n", $lines);
+        $properties = [];
+        $lines = [];
+        foreach ($slots as $i => $slot) {
+            $key = 'slot_'.($i + 1);
+            $lines[] = "{$key}: \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['translation']}\"";
+
+            if ($slot['fragment_type'] === 'II') {
+                // A base word is one gap even with its article ("en skola"); only an expression
+                // whose parts end up apart in the phrase gets one gap per part.
+                $gap = $slot['part_of_speech'] === 'fixed expression'
+                    ? 'replaced by one "___" — or one "___" per part, only if other words of the phrase stand between its parts'
+                    : 'replaced by a single "___" (article included, never a gap of its own)';
+
+                $properties[$key] = self::object([
+                    'fragment' => ['type' => 'string', 'description' => "The phrase / short sentence with the item, in whatever form the phrase needs, {$gap}. The words around it make the missing form unambiguous."],
+                    'translation' => $translation,
+                    'accepted' => ['type' => 'array', 'items' => ['type' => 'array', 'items' => ['type' => 'string']], 'description' => 'For each "___" in order, every form that correctly fills it in this phrase.'],
+                ]);
+            } else {
+                $properties[$key] = self::object([
+                    'fragment' => ['type' => 'string', 'description' => 'The phrase / short sentence with the item wrapped in [[ ]]. Besides the item, its only content words are the learner\'s practised words (in any form); everything else is a function word. As short as that needs — a phrase is fine.'],
+                    'translation' => $translation,
+                ]);
+            }
+        }
+
+        $user = 'Items:'."\n".implode("\n", $lines);
         if ($baseLemmas) {
             $user .= "\n\nThe learner's own words: ".implode(', ', $baseLemmas);
         }
         if ($tierThreeWords) {
-            $user .= "\n\nThe learner's tier III words: ".implode(', ', $tierThreeWords);
+            $user .= "\n\nThe learner's practised words: ".implode(', ', $tierThreeWords);
         }
 
         $result = self::requestCardJson(
@@ -548,52 +564,47 @@ class AI
                 ['role' => 'user', 'content' => $user],
             ],
             'generate_fragments',
-            [
-                'fragments' => [
-                    'type' => 'array',
-                    'items' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'fragment' => ['type' => 'string'],
-                            'translation' => ['type' => 'string'],
-                            'distractors' => ['type' => 'array', 'items' => ['type' => 'string']],
-                            'accepted' => ['type' => 'array', 'items' => ['type' => 'array', 'items' => ['type' => 'string']]],
-                        ],
-                        'required' => ['fragment', 'translation', 'distractors', 'accepted'],
-                        'additionalProperties' => false,
-                    ],
-                ],
-            ],
+            $properties,
         );
 
-        $fragments = $result['fragments'] ?? null;
-
-        if (! is_array($fragments) || count($fragments) !== count($slots)) {
-            Log::error('generate_fragments returned the wrong number of fragments.');
-
+        if (! $result) {
             return null;
         }
 
+        $fragments = [];
         foreach ($slots as $i => $slot) {
-            $fragment = $fragments[$i];
+            $fragment = $result['slot_'.($i + 1)] + ['accepted' => []];
+            $fragment['translation'] = trim(str_replace(['[[', ']]'], '', $fragment['translation']));
             $gaps = preg_match_all('/_{3,}/', $fragment['fragment']);
-            $marked = preg_match('/\[\[.+?\]\]/', $fragment['fragment']) === 1;
 
-            $valid = trim($fragment['translation']) !== '' && match ($slot['fragment_type']) {
-                'Ia' => $gaps > 0 && count($fragment['distractors']) === $slot['distractors_needed'],
-                'Ib' => $marked && count($fragment['distractors']) === $slot['distractors_needed'],
-                'II' => $gaps > 0 && count($fragment['accepted']) === $gaps && ! in_array([], $fragment['accepted'], true),
-                'III' => $marked,
-            };
+            $valid = $fragment['translation'] !== '' && ($slot['fragment_type'] === 'II'
+                ? ($slot['part_of_speech'] === 'fixed expression' ? $gaps > 0 : $gaps === 1)
+                    && count($fragment['accepted']) === $gaps && ! in_array([], $fragment['accepted'], true)
+                : preg_match('/\[\[.+?\]\]/', $fragment['fragment']) === 1);
 
             if (! $valid) {
                 Log::error("generate_fragments returned an invalid {$slot['fragment_type']} fragment: ".json_encode($fragment));
 
                 return null;
             }
+
+            $fragments[] = $fragment;
         }
 
         return $fragments;
+    }
+
+    /**
+     * A strict-schema object whose properties are all required.
+     */
+    private static function object(array $properties): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => $properties,
+            'required' => array_keys($properties),
+            'additionalProperties' => false,
+        ];
     }
 
     /**

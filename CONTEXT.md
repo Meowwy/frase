@@ -322,7 +322,7 @@ no term of its own: write "the base word or fixed expression a fragment tests".
 _Avoid_: snippet, exercise, question, item
 
 **Tier**:
-How a fragment tests its word (I recognition, II cloze, III full write), and how far a base word or
+How a fragment tests its word (II cloze, III full write; I recognition is discontinued), and how far a base word or
 fixed expression has got.
 _Avoid_: level (that is a card's), stage, difficulty
 

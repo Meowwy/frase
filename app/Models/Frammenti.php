@@ -15,9 +15,8 @@ class Frammenti
     public const BATCH = 5;
 
     /**
-     * The lowest tier an item starts at or can be demoted to. Tier I (recognition, Ia/Ib)
-     * is disabled for now but its code is kept: lowering this to 1, together with the
-     * column default, switches it back on.
+     * The lowest tier an item starts at or can be demoted to. Tier I (recognition) is
+     * discontinued: nothing deals or generates it any more.
      */
     public const FIRST_TIER = 2;
 
@@ -144,7 +143,7 @@ class Frammenti
 
         $level = $user->levelForLanguage($language);
         $baseBuilt = in_array($level, self::BASE_BUILT_LEVELS, true);
-        $slots = array_map(fn ($item) => self::slot($item, $all, $baseBuilt), $chosen);
+        $slots = array_map(self::slot(...), $chosen);
         $hasTierThree = in_array('III', array_column($slots, 'fragment_type'), true);
 
         $fragments = AI::generateFragments(
@@ -163,60 +162,33 @@ class Frammenti
             return null;
         }
 
-        return array_map(function ($slot, $fragment) {
-            $options = in_array($slot['fragment_type'], ['Ia', 'Ib'], true)
-                ? collect([$slot['answer']])->concat($slot['distractors'])->concat($fragment['distractors'])->shuffle()->all()
-                : [];
-
-            return [
-                'type' => $slot['type'],
-                'id' => $slot['id'],
-                'fragment_type' => $slot['fragment_type'],
-                'item' => $slot['item'],
-                'part_of_speech' => $slot['part_of_speech'],
-                'answer' => $slot['answer'],
-                'fragment' => $fragment['fragment'],
-                'translation' => $fragment['translation'],
-                'options' => $options,
-                'accepted' => $fragment['accepted'],
-            ];
-        }, $slots, $fragments);
+        return array_map(fn ($slot, $fragment) => [
+            'type' => $slot['type'],
+            'id' => $slot['id'],
+            'fragment_type' => $slot['fragment_type'],
+            'item' => $slot['item'],
+            'part_of_speech' => $slot['part_of_speech'],
+            'fragment' => $fragment['fragment'],
+            'translation' => $fragment['translation'],
+            'accepted' => $fragment['accepted'],
+        ], $slots, $fragments);
     }
 
     /**
-     * One slot of the batch, as the AI call takes it. A tier I slot is Ia or Ib at
-     * random. Below B1, its wrong options are taken from the learner's own base — same
-     * part of speech, or fixed expressions for a fixed expression — and the AI only
-     * writes the shortfall.
+     * One slot of the batch, as the AI call takes it: II below tier III, III from it
+     * (mastered is dealt as III).
      */
-    private static function slot(BaseWord|FixedExpression $item, Collection $all, bool $baseBuilt): array
+    private static function slot(BaseWord|FixedExpression $item): array
     {
-        $tier = min($item->frammenti_tier, 3);
-        $fragmentType = [1 => random_int(0, 1) ? 'Ia' : 'Ib', 2 => 'II', 3 => 'III'][$tier];
         $isWord = $item instanceof BaseWord;
-        $form = fn ($i) => $i instanceof BaseWord ? $i->displayForm() : $i->form;
-
-        $distractors = [];
-        if ($tier === 1 && $baseBuilt) {
-            $distractors = $all
-                ->filter(fn ($other) => $other::class === $item::class && $other->id !== $item->id
-                    && (! $isWord || $other->part_of_speech === $item->part_of_speech))
-                ->shuffle()->take(2)
-                ->map(fn ($other) => $fragmentType === 'Ia' ? $form($other) : $other->translation)
-                ->values()->all();
-        }
 
         return [
             'type' => self::type($item),
             'id' => $item->id,
-            'fragment_type' => $fragmentType,
-            'item' => $form($item),
+            'fragment_type' => $item->frammenti_tier >= 3 ? 'III' : 'II',
+            'item' => $isWord ? $item->displayForm() : $item->form,
             'part_of_speech' => $isWord ? $item->part_of_speech : 'fixed expression',
             'translation' => $item->translation,
-            // The correct option of Ia and Ib.
-            'answer' => $fragmentType === 'Ib' ? $item->translation : $form($item),
-            'distractors' => $distractors,
-            'distractors_needed' => $tier === 1 ? 2 - count($distractors) : 0,
         ];
     }
 }

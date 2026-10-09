@@ -53,8 +53,6 @@
                 <p id="translation" class="mb-3 text-white/60"></p>
                 <p id="fragment" class="mb-6 text-2xl leading-relaxed"></p>
 
-                <div id="options" class="grid gap-2"></div>
-
                 <div id="write" class="hidden">
                     <textarea id="attempt" rows="2" class="w-full rounded-lg bg-white/5 border border-white/10 p-3"></textarea>
                 </div>
@@ -130,17 +128,11 @@
                         const f = batch[index];
                         retried = false;
                         $('#position').text(index + 1);
-                        $('#options').empty();
                         $('#feedback').text('').removeClass('text-red-400 text-green-400');
                         $('#write, #compare, #gradeNote, #checkBtn, #revealBtn, #hadBtn, #missedBtn, #nextBtn').addClass('hidden');
                         $('#translation').text('');
 
-                        if (f.fragment_type === 'Ia' || f.fragment_type === 'Ib') {
-                            $('#cue').text(f.fragment_type === 'Ia' ? 'pick the missing word' : 'pick the meaning of the highlighted word');
-                            $('#fragment').html(gapped(f.fragment, '<span class="text-white/40">_____</span>'));
-                            f.options.forEach(option => $('<button type="button" class="option rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-left hover:bg-white/10">')
-                                .text(option).appendTo('#options').on('click', () => pick(option)));
-                        } else if (f.fragment_type === 'II') {
+                        if (f.fragment_type === 'II') {
                             $('#cue').text('type the missing ' + f.part_of_speech);
                             $('#translation').text(f.translation);
                             $('#fragment').html(gapped(f.fragment, '<input type="text" class="gap mx-1 w-32 rounded bg-white/10 border border-white/20 px-2 text-xl" autocomplete="off">'));
@@ -160,15 +152,6 @@
                         $('#feedback').text(message).removeClass('text-red-400').addClass(correct ? 'text-green-400' : 'text-red-400');
                         $('#checkBtn, #revealBtn, #hadBtn, #missedBtn, #gradeNote').addClass('hidden');
                         $('#nextBtn').removeClass('hidden');
-                    }
-
-                    function pick(option) {
-                        const f = batch[index];
-                        $('.option').prop('disabled', true).each(function () {
-                            if ($(this).text() === f.answer) $(this).addClass('ring-2 ring-green-500');
-                            else if ($(this).text() === option) $(this).addClass('ring-2 ring-red-500');
-                        });
-                        grade(option === f.answer, option === f.answer ? 'Correct!' : 'The answer is ' + f.answer + '.');
                     }
 
                     // Case, extra spaces and surrounding punctuation never count.

@@ -258,9 +258,15 @@ negatives plus a worked `schön` example each.
 
 One strict-schema call (`requestCardJson`, default reasoning effort) per batch of 5 slots chosen
 by `Frammenti::deal()`. Shapes, validation and the client side are in [frammenti](frammenti.md).
-Its prompt rules, and why each one is there. The distractor rule only matters for tier I, which is
-disabled for now (see [frammenti](frammenti.md)) but kept in the prompt:
+One call per fragment, sent in parallel, was tried and dropped: it sent the shared context (level,
+word samples) five times for a shorter wait.
 
+- **The exercise type is carried by the schema, never explained in prose.** Each slot is its own
+  required property (`slot_1`…) with its type's shape: a gapped phrase plus `accepted` for II, a
+  phrase with the item marked for III, each field's rule in its own `description`. The model is
+  never told what a fragment or a tier is, so it can't mix the types up, drop a slot or reorder
+  them. An earlier version described every type in the system prompt and returned one generic
+  array, which needed the model to read the type off each line.
 - **One phrase or one sentence, natural.** A fragment exists to show the item in a fresh, real
   context. A paragraph would bury it, and a stilted textbook sentence teaches the wrong usage.
 - **Difficulty is capped by the CEFR level, never length** (`levelInstruction()`, rule 2 above).
@@ -268,28 +274,27 @@ disabled for now (see [frammenti](frammenti.md)) but kept in the prompt:
 - **The item is used in a sense that fits its part of speech and translation.** Base words carry
   no sense finer than part of speech, so this is the only thing keeping *run* the noun from being
   tested as a verb.
-- **Exactly one item per fragment: one gap or one highlight, never another item of the batch.** A
-  fragment with two of the batch's items in it would give one away or test two at once.
+- **No slot uses another slot's item.** A fragment with two of the batch's items in it would give
+  one away or test two at once.
 - **Below B1, other content words come from the supplied sample of the learner's lemmas, or are
   too basic to collect.** Otherwise a beginner can't understand the context the item sits in, and
   the fragment also revises more of their own words at once. At B1 and above, any vocabulary
   within the level is allowed, which makes the contexts richer.
-- **Distractors are plausible but clearly wrong in the fragment, in the same written shape as the
-  item** (same article or dictionary-style notation). A distractor that also fits makes a correct
-  answer marked wrong, and one in a different shape (*bil* beside *ett hus*) gives the answer away
-  by form alone. Only distractors are asked for: the correct option is the stored display form or
-  translation, added by PHP, so the model can't mis-spell the answer.
-- **At tier II, the surrounding words must make the gap's form recoverable**, and `accepted` lists
+- **At II, a base word is a single gap, article included**, and only a fixed expression whose
+  parts stand apart may get one gap per part — said in the `fragment` description, which differs
+  for base words and expressions, and checked in PHP. Without it the model split *en skola* into
+  two gaps.
+- **At II, the surrounding words must make the gap's form recoverable**, and `accepted` lists
   every form that fits. The learner is typing an inflected form, so the sentence has to say which
   one, and any other correct form must not be marked wrong.
-- **At tier III, the item's counterpart in the native translation is marked too**, so the learner
-  knows which word the sentence is testing and self-grading has a clear target.
-- **A tier III fragment's only content words are the learner's tier III items** (tier III and
-  mastered, sent as a sample of up to 80; everything else is a function word). The learner writes
-  the whole sentence, so it should only ask for words they have already produced in a cloze, and
-  self-grading stays about the tested item rather than vocabulary they never learned. With few
-  tier III items that makes for short phrases, which is fine. It is a prompt rule, not checked in
-  PHP: inflection makes a word-by-word check unreliable.
+- **The native translation is plain text** at both tiers, and PHP strips any `[[ ]]` the model
+  still adds: it did mark translations, and the learner should see just the translation.
+- **A III fragment's only content words are the learner's "practised words"** (tier III and
+  mastered items, sent as a sample of up to 80; everything else is a function word). The learner
+  writes the whole sentence, so it should only ask for words they have already produced in a
+  cloze, and self-grading stays about the tested item rather than vocabulary they never learned.
+  With few such items that makes for short phrases, which is fine. It is a schema-description
+  rule, not checked in PHP: inflection makes a word-by-word check unreliable.
 
 ## Conversation & challenge chat methods
 

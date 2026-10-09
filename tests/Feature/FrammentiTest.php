@@ -69,21 +69,18 @@ class FrammentiTest extends TestCase
     }
 
     /**
-     * Answer every slot of the request with a valid fragment of its type.
+     * Answer every slot of the request with a valid fragment of the shape its schema
+     * asks, or with $cloze for a cloze.
      */
-    private function fakeAi(): void
+    private function fakeAi(array $cloze = ['fragment' => 'Jag ser ___ här.', 'translation' => 'I see it here.', 'accepted' => [['det']]]): void
     {
-        Http::fake(['api.openai.com/v1/chat/completions' => function ($request) {
-            preg_match_all('/^\d+\. (Ia|Ib|II|III) .*?(?:write (\d)|no distractors)/m', $request['messages'][1]['content'], $slots, PREG_SET_ORDER);
+        Http::fake(['api.openai.com/v1/chat/completions' => function ($request) use ($cloze) {
+            $fragments = array_map(fn ($slot) => isset($slot['properties']['accepted'])
+                ? $cloze
+                : ['fragment' => 'Jag ser [[det]] här.', 'translation' => 'I see [[it]] here.'],
+                $request['response_format']['json_schema']['schema']['properties']);
 
-            $fragments = array_map(fn ($slot) => [
-                'fragment' => in_array($slot[1], ['Ia', 'II'], true) ? 'Jag ser ___ här.' : 'Jag ser [[det]] här.',
-                'translation' => 'I see it here.',
-                'distractors' => array_fill(0, (int) ($slot[2] ?? 0), 'fel'),
-                'accepted' => $slot[1] === 'II' ? [['det']] : [],
-            ], $slots);
-
-            return Http::response(['choices' => [['message' => ['content' => json_encode(['fragments' => $fragments])]]]]);
+            return Http::response(['choices' => [['message' => ['content' => json_encode($fragments)]]]]);
         }]);
     }
 
@@ -212,6 +209,34 @@ class FrammentiTest extends TestCase
         // Every item starts at tier II, so a fresh base deals only cloze fragments.
         $this->assertSame(['II'], array_values(array_unique(array_column($fragments, 'fragment_type'))));
         $this->assertSame([['det']], $fragments[0]['accepted']);
+        // One call for the whole batch.
+        Http::assertSentCount(1);
+    }
+
+    public function test_the_native_translation_is_plain_text(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->unlock($user, $language);
+        BaseWord::query()->update(['frammenti_tier' => 3]);
+        $this->fakeAi();
+
+        $fragments = $this->batch($user, $language)->assertOk()->json('fragments');
+
+        $this->assertSame('I see it here.', $fragments[0]['translation']);
+        $this->assertSame('Jag ser [[det]] här.', $fragments[0]['fragment']);
+    }
+
+    /**
+     * Only a fixed expression whose parts stand apart may take more than one gap; a
+     * base word with its article ("en skola") is one.
+     */
+    public function test_a_base_word_split_into_two_gaps_fails_the_batch(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->unlock($user, $language);
+        $this->fakeAi(['fragment' => 'Jag går till ___ ___.', 'translation' => 'I go to a school.', 'accepted' => [['en'], ['skola']]]);
+
+        $this->batch($user, $language)->assertStatus(503);
     }
 
     public function test_ready_items_come_before_resting_ones_and_excluded_ones_stay_out(): void
@@ -245,35 +270,6 @@ class FrammentiTest extends TestCase
         $this->assertSame('III', $fragments[$soon->id]['fragment_type']);
     }
 
-    /**
-     * Tier I is unreachable for now; this keeps its dormant dealing code honest.
-     */
-    public function test_below_b1_tier_one_options_come_from_the_base_with_the_same_part_of_speech(): void
-    {
-        [$user, $language] = $this->learner('A2');
-        $this->unlock($user, $language);
-        $tierOne = ['frammenti_tier' => 1];
-        $this->words($user, $language, 3, $tierOne);
-        $this->word($user, $language, 'springa', ['part_of_speech' => 'verb'] + $tierOne);
-        $this->word($user, $language, 'läsa', ['part_of_speech' => 'verb'] + $tierOne);
-        $this->word($user, $language, 'stor', ['part_of_speech' => 'adjective'] + $tierOne);
-        $this->fakeAi();
-
-        $fragments = $this->batch($user, $language)->json('fragments');
-
-        foreach ($fragments as $fragment) {
-            $this->assertContains($fragment['fragment_type'], ['Ia', 'Ib']);
-            $this->assertCount(3, $fragment['options']);
-            $this->assertContains($fragment['answer'], $fragment['options']);
-            $item = BaseWord::find($fragment['id']);
-            $others = collect($fragment['options'])->reject(fn ($o) => $o === $fragment['answer'] || $o === 'fel');
-            $sameKind = BaseWord::where('part_of_speech', $item->part_of_speech)->whereKeyNot($item->id)->get()
-                ->flatMap(fn ($w) => [$w->displayForm(), $w->translation]);
-
-            $this->assertTrue($others->every(fn ($o) => $sameKind->contains($o)), $item->lemma);
-        }
-    }
-
     public function test_fewer_than_five_nouns_or_verbs_show_the_info_and_make_no_ai_call(): void
     {
         [$user, $language] = $this->learner();
@@ -302,11 +298,10 @@ class FrammentiTest extends TestCase
         $this->batch($user, $language)->assertOk();
 
         Http::assertSent(function ($request) {
-            preg_match('/tier III words: (.*)$/m', $request['messages'][1]['content'], $list);
+            preg_match('/practised words: (.*)$/m', $request['messages'][1]['content'], $list);
             $words = explode(', ', $list[1] ?? '');
 
-            return str_contains($request['messages'][0]['content'], 'A III fragment is stricter')
-                && count($words) === 2 && ! array_diff(['hus', 'bil'], $words);
+            return count($words) === 2 && ! array_diff(['hus', 'bil'], $words);
         });
     }
 
@@ -327,7 +322,7 @@ class FrammentiTest extends TestCase
     {
         [$user, $language] = $this->learner();
         $this->unlock($user, $language);
-        Http::fake(['api.openai.com/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode(['fragments' => []])]]]])]);
+        Http::fake(['api.openai.com/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode([])]]]])]);
 
         $this->batch($user, $language)->assertStatus(503)->assertJsonMissingPath('fragments');
     }
