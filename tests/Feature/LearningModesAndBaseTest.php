@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\BaseWord;
 use App\Models\Card;
+use App\Models\FixedExpression;
 use App\Models\Language;
 use App\Models\Learning;
 use App\Models\Theme;
@@ -195,20 +196,27 @@ class LearningModesAndBaseTest extends TestCase
             ['hus', 'noun', ['gender' => 'neuter']],
             ['stor', 'adjective', []],
         ]);
+        // Fixed expressions share the list, with nothing setting them apart.
+        FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'tycka om', 'translation' => 'to like']);
 
         $rows = fn (array $query) => $this->actingAs($user)
             ->getJson('/base?'.http_build_query($query), ['X-Requested-With' => 'XMLHttpRequest'])
             ->json('rows');
 
         $this->assertStringContainsString('ett hus', $rows(['search' => 'hu']));
-        $this->assertStringNotContainsString('adjective', $rows(['search' => 'hu']));
-        $this->assertStringContainsString('adjective', $rows(['translation' => 'en: st']));
+        $this->assertStringNotContainsString('en: stor', $rows(['search' => 'hu']));
+        $this->assertStringNotContainsString('tycka om', $rows(['search' => 'hu']));
+        $this->assertStringContainsString('en: stor', $rows(['translation' => 'en: st']));
+        $this->assertStringContainsString('tycka om', $rows(['search' => 'ty']));
         $this->assertStringNotContainsString('ett hus', $rows(['part_of_speech' => 'adjective']));
-        $this->assertStringContainsString('No words match.', $rows(['search' => 'xyz']));
+        $this->assertStringContainsString('tycka om', $rows(['part_of_speech' => 'expression']));
+        $this->assertStringNotContainsString('en: stor', $rows(['part_of_speech' => 'expression']));
+        $this->assertStringContainsString('Nothing matches.', $rows(['search' => 'xyz']));
 
-        // The filter offers only the parts of speech the base has.
+        // The filter offers only the parts of speech the base has, expressions included.
         $this->actingAs($user)->get('/base')
             ->assertSee('<option value="adjective"', false)
+            ->assertSee('<option value="expression"', false)
             ->assertDontSee('<option value="verb"', false);
     }
 
@@ -226,7 +234,7 @@ class LearningModesAndBaseTest extends TestCase
             ]);
         }
 
-        $response = $this->actingAs($user)->get('/base?selected='.$last->id);
+        $response = $this->actingAs($user)->get('/base?selected=word:'.$last->id);
 
         $response->assertSee('ord55');
         $response->assertDontSee('ord01');

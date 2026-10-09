@@ -61,17 +61,17 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 ## The vocabulary base
 
 `/base` — every word you have met in one language, one entry per word **and part of speech**
-(*run* the verb and *run* the noun are two different things to know). Each entry shows the word the
-way you are meant to learn it — a Swedish noun with its article, *"ett hus"*, not bare *"hus"*,
-a Swedish verb in dictionary form, *"komm|a -er"* —
-its part of speech, its translation and how many of your cards use it. Search by word or
-translation as you type, or filter by part of speech. Click a row and the panel on the right lists
-those cards' terms; clicking a word on a card's page brings you here with that word already picked.
+(*run* the verb and *run* the noun are two different things to know), and your **fixed
+expressions** — multi-word units you learn as a whole, like *tycka om* or *either … or …* — all in
+one list, where an expression's part of speech reads *expression*. Each entry shows the word the way you are meant to
+learn it — a Swedish noun with its article, *"ett hus"*, not bare *"hus"*, a Swedish verb in
+dictionary form, *"komm|a -er"* — its part of speech, its translation and how many of your cards use it. Search by
+word or translation as you type, or filter by part of speech (*expression* shows just the
+expressions). Click a row and the panel on the right lists those cards' terms;
+clicking a word or expression on a card's page brings you here with it already picked.
 
-An **Expressions** tab lists your **fixed expressions** — multi-word units you learn as a whole,
-like *tycka om* or *either … or …* — the same way: translation, card count, search, and the
-cards' terms in the side panel. They are picked out of the terms you capture and shown in staging as their
-own chips (strike one to skip it for that capture); a card's page lists them next to its words.
+Fixed expressions are picked out of the terms you capture and shown in staging as their own chips
+(strike one to skip it for that capture).
 
 It is not a second review queue: it has no review schedule. Its jobs are to stop the same word being
 collected twice and to show you which words run through many of your phrases without belonging to

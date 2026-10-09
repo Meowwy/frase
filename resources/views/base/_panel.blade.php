@@ -1,4 +1,4 @@
-{{-- Shared by both /base tabs: the side panel, and the live search over the table. The panel is
+{{-- /base's side panel, and the live search over the table. The panel is
      empty until a row is clicked, then it shows the Terms of the cards that word or expression
      is part of. Each row carries its own list in a template (the cards are eager-loaded with the
      page), so a click costs no request. --}}
@@ -17,14 +17,14 @@
             $('#basePanel').html($(this).find('.js-row-cards').html());
         });
 
-        // Arrived from a card's word or expression chip: that row is already picked.
+        // Arrived from a card's base-word chip: that row is already picked.
         const $selected = $('.js-base-row.js-selected').trigger('click');
         if ($selected.length) { $selected[0].scrollIntoView({ block: 'center' }); }
 
         // Pass a url to follow a pagination link (it already carries the filters);
         // otherwise build the query from the header inputs.
         function fetchRows(url) {
-            const params = { language_id: '{{ $activeLanguageId }}', tab: '{{ $tab }}' };
+            const params = { language_id: '{{ $activeLanguageId }}' };
             $('.js-base-filter').each(function () { params[this.name] = $(this).val(); });
 
             $.get(url || '{{ route('base') }}', url ? {} : params, function (data) {

@@ -1,4 +1,4 @@
-{{-- Shared by both /base tabs: title, Frammenti, the tab switch and the language filter. --}}
+{{-- /base's title, Frammenti and the language filter. --}}
 <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
     <div>
         <h1 class="text-2xl font-bold">Vocabulary base</h1>
@@ -13,22 +13,10 @@
     </a>
 </div>
 
-{{-- The two bases: words, and fixed expressions learnt as wholes. --}}
-<div class="mb-4 flex gap-4 border-b border-white/10 text-sm">
-    @foreach(['words' => 'Words', 'expressions' => 'Expressions'] as $key => $label)
-        <a href="{{ route('base', ['language_id' => $activeLanguageId, 'tab' => $key]) }}"
-           @class([
-               'pb-2 -mb-px border-b-2',
-               'border-blue-500 text-white' => $tab === $key,
-               'border-transparent text-white/50 hover:text-white' => $tab !== $key,
-           ])>{{ $label }}</a>
-    @endforeach
-</div>
-
 @if($targetLanguages->count() > 1)
     <div class="mb-4 flex flex-wrap gap-2">
         @foreach($targetLanguages as $language)
-            <a href="{{ route('base', ['language_id' => $language->id, 'tab' => $tab]) }}"
+            <a href="{{ route('base', ['language_id' => $language->id]) }}"
                @class([
                    'rounded-lg border border-white/10 px-3 py-1 text-sm transition-colors',
                    'bg-blue-600/30 ring-1 ring-blue-500' => (int) $activeLanguageId === $language->id,

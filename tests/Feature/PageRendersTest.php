@@ -71,13 +71,13 @@ class PageRendersTest extends TestCase
         $this->actingAs($this->user)->get('/cards/edit/'.$card->id)->assertStatus(200);
     }
 
-    public function test_the_expression_base_tab_and_card_detail_show_fixed_expressions(): void
+    public function test_the_base_list_and_card_detail_show_fixed_expressions(): void
     {
         $card = Card::factory()->create(['user_id' => $this->user->id, 'language_id' => $this->language->id, 'term' => 'jag tycker om dig']);
         $expression = FixedExpression::create(['user_id' => $this->user->id, 'language_id' => $this->language->id, 'form' => 'tycka om', 'translation' => 'to like']);
         $card->fixedExpressions()->attach($expression->id);
 
-        $this->actingAs($this->user)->get('/base?tab=expressions')
+        $this->actingAs($this->user)->get('/base')
             ->assertStatus(200)
             ->assertSee('tycka om')
             ->assertSee('to like')

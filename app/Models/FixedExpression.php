@@ -28,4 +28,13 @@ class FixedExpression extends Model
     {
         return $this->belongsToMany(Card::class, 'card_fixed_expression');
     }
+
+    /**
+     * The form as shown — the counterpart of BaseWord::displayForm(), so the /base list can
+     * render both bases' entries alike.
+     */
+    public function displayForm(): string
+    {
+        return $this->form;
+    }
 }

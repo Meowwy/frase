@@ -146,30 +146,36 @@ any word that occurs in the Term only inside one, so *tycka om* is never split i
 `card_fixed_expression` — the pivot, unique on `(card_id, fixed_expression_id)`.
 
 Fixed expressions are practised in [Frammenti](frammenti.md), like base words. They don't enter
-Gap-fill. They are shown on the card detail page and on the **Expressions** tab of `/base`
-(`/base?tab=expressions`).
+Gap-fill. They are shown on the card detail page and in the `/base` list, alongside base words.
 
 ## The `/base` page (`BaseWordController@index`)
 
-Two tabs, words and expressions, laid out alike: a table (display form or form, part of speech
-for words, translation, card count) and a **side panel** on the right, empty until a row is
-clicked, then listing the Terms of the cards that word or expression is part of — coverage is
-half of why the base exists, and the panel shows it without making every row as tall as its card
-list. Each row's cards are eager-loaded (`cards:id,term`) and carried in a `<template>` inside
-the row (`base/_row-cards`), so a click is a client-side swap with no request
-(`base/_panel`). Last recall and Frammenti progress are not shown on the page. The header's
-**Frammenti** button opens Frammenti in the page's language.
+One list of both bases — base words and fixed expressions — in **one table, not one per base**:
+both are learnt the same way (no schedule, coverage, Frammenti), so the learner shouldn't have to
+think about which table an entry lives in. The controller `UNION ALL`s the two (`kind`, `id`,
+`lower(lemma|form)` as `sort_key` — `lower()` matching the expressions' NOCASE `form` — and
+`part_of_speech`, the literal `expression` for expressions, which have none), sorts by `sort_key`,
+`kind`, `id`, paginates, then hydrates that page's models. `FixedExpression::displayForm()` (just
+`form`) lets the rows render both kinds alike.
 
-The column headers are live filters, the same way as on `/cards`: search inputs for the word
-(`search`, on `lemma`) or expression (`search`, on `form`) and for the translation, and on the
-words tab a part-of-speech select offering only the parts of speech that language's base has. An
-AJAX request to `/base` returns just the rows (`base/_word-rows`, `base/_expression-rows`) and the
-pagination, which the panel script swaps in.
+A table (display form, part of speech, translation, card count) and a **side panel** on the right, empty until a
+row is clicked, then listing the Terms of the cards that entry is part of — coverage is half of why
+the base exists, and the panel shows it without making every row as tall as its card list. Each
+row's cards are eager-loaded (`cards:id,term`) and carried in a `<template>` inside the row
+(`base/_row-cards`), so a click is a client-side swap with no request (`base/_panel`). Last recall
+and Frammenti progress are not shown on the page. The header's **Frammenti** button opens
+Frammenti in the page's language.
 
-`?selected=<id>` (on either tab) opens with that row picked and its cards in the panel. The base
-runs to many pages, so the controller works out which page the row is on — by counting the rows
-that sort before it (`lemma`/`form`, then `id`) — rather than leaving it to whatever page was
-open. The card detail page's word and expression chips link here this way.
+The column headers are live filters, the same way as on `/cards`: search inputs for the entry
+(`search`, on `lemma`/`form`) and for the translation, and a part-of-speech select offering only
+the parts of speech that language's base has — plus `expression` when it has any. An AJAX request to `/base` returns just the
+rows (`base/_rows`) and the pagination, which the panel script swaps in.
+
+`?selected=word:<id>` or `?selected=expression:<id>` (ids collide across the two tables) opens
+with that row picked and its cards in the panel. The base runs to many pages, so the controller
+works out which page the row is on — by counting the entries that sort before it — rather than
+leaving it to whatever page was open. The card detail page's word and expression chips link here
+this way.
 
 ## The lexicon
 
@@ -428,8 +434,7 @@ not whatever view the learner arrived from. At either end the missing arrow is s
 dimmed and non-clickable, so the row doesn't shift as the learner walks the list.
 
 Renders: the card's **base words** as chips, each in its display form with its
-part of speech, linking to `/base` with that word selected (fixed expressions the same, to the
-Expressions tab); the `note` if present; and the "Linked cards" section (below). The term
+part of speech, linking to `/base` with that word selected (fixed expressions the same); the `note` if present; and the "Linked cards" section (below). The term
 heading is `font-medium`, not `font-bold` — there is no focus word left to emphasize against it, so
 the Term itself is what's shown. Because a whole-sentence Term can be much longer than a single
 word, the heading wraps (`flex-wrap` + `break-words`).

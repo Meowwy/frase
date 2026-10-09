@@ -1,5 +1,5 @@
 <x-html-layout>
-    @include('base._header', ['tab' => 'words'])
+    @include('base._header')
 
     <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div class="min-w-0 flex-1">
@@ -11,7 +11,7 @@
                         <th class="px-6 py-3 text-left">
                             <select name="part_of_speech"
                                     class="js-base-filter w-full border-0 border-b border-white/60 bg-transparent py-1 pl-0 text-xs font-medium text-gray-300 uppercase tracking-wider focus:outline-none focus:ring-0">
-                                <option value="" class="bg-[#111]">Part of speech</option>
+                                <option value="" class="bg-[#111]">All</option>
                                 @foreach($partsOfSpeech as $option)
                                     <option value="{{ $option }}" class="bg-[#111]" @selected($partOfSpeech === $option)>{{ $option }}</option>
                                 @endforeach
@@ -22,14 +22,14 @@
                     </tr>
                     </thead>
                     <tbody id="baseRows" class="divide-y divide-gray-700">
-                    @include('base._word-rows')
+                    @include('base._rows')
                     </tbody>
                 </table>
             </div>
 
-            <div id="basePagination" class="mt-4">{{ $baseWords->links() }}</div>
+            <div id="basePagination" class="mt-4">{{ $entries->links() }}</div>
         </div>
 
-        @include('base._panel', ['tab' => 'words'])
+        @include('base._panel')
     </div>
 </x-html-layout>
