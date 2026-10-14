@@ -50,7 +50,7 @@
                 <a href="/cards" class="hover:text-blue-400 transition-colors">Cards</a>
                 <a href="/base" class="hover:text-blue-400 transition-colors">Base</a>
                 <a href="/filterCardsForLearning/due" class="hover:text-blue-400 transition-colors">Learn</a>
-                <a href="/frammenti" class="hover:text-blue-400 transition-colors">Frammenti</a>
+                <a href="/frammenti" class="hover:text-blue-400 transition-colors" title="Daily active-vocabulary drill">Frammenti</a>
                 <a href="/conversation" class="hover:text-blue-400 transition-colors">Conversation</a>
             </div>
         @endauth
@@ -85,6 +85,15 @@
         {{$slot}}
     </main>
 </div>
+
+@auth
+    @if(! Auth::user()->timezone)
+        {{-- Frammenti's days follow the learner's: record the browser's timezone once. --}}
+        <script>
+            $.post('/profile/timezone', { _token: '{{ csrf_token() }}', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        </script>
+    @endif
+@endauth
 
 </body>
 </html>

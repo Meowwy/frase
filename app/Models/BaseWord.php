@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * and the base carries no sense finer than part of speech.
  *
  * It has no card schedule and no generated content. Its jobs are deduplication and
- * coverage, and it carries its own Frammenti progress (docs/frammenti.md).
+ * coverage, and it carries its own Frammenti schedule (docs/frammenti.md).
  * See docs/cards.md "The vocabulary base".
  */
 class BaseWord extends Model
@@ -29,9 +29,8 @@ class BaseWord extends Model
         'grammar_attributes' => 'array',
         'last_recalled_at' => 'datetime',
         'frammenti_tier' => 'integer',
-        'frammenti_correct_streak' => 'integer',
-        'frammenti_wrong_streak' => 'integer',
-        'frammenti_rest_until' => 'datetime',
+        'frammenti_interval' => 'integer',
+        'frammenti_miss_streak' => 'integer',
     ];
 
     public function user(): BelongsTo

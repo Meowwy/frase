@@ -55,6 +55,39 @@
             @endif
         </section>
 
+        @if($frammenti->isNotEmpty())
+            <section class="mt-8">
+                <div class="bg-white/5 rounded-xl border border-white/10 p-4">
+                    <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
+                        <div>
+                            <h2 class="text-lg font-bold">Today's Frammenti</h2>
+                            <p class="text-sm text-white/50">Daily active-vocabulary drill</p>
+                        </div>
+                        <p class="text-sm text-white/70">
+                            <span class="font-bold text-white">{{ $streak }}</span>-day streak ·
+                            <span class="font-bold text-white">{{ $activeWords }}</span> active words
+                        </p>
+                    </div>
+                    <ul class="divide-y divide-white/10">
+                        @foreach($frammenti as $row)
+                            <li class="flex flex-wrap items-center gap-3 py-2">
+                                <span class="w-40">{{ $row['language']->flag }} {{ $row['language']->name }}</span>
+                                <span class="flex-1 text-sm text-white/70">
+                                    <x-frammenti-today :enough="$row['enough']" :session="$row['session']" :plan="$row['plan']" />
+                                    <span class="ml-2 text-white/40">{{ $row['activeWords'] }} active</span>
+                                </span>
+                                @if($row['enough'])
+                                    <a href="{{ route('frammenti', ['language_id' => $row['language']->id]) }}">
+                                        <x-forms.button-small>{{ $row['session']?->finished_at ? 'Done' : ($row['session'] ? 'Continue' : 'Start') }}</x-forms.button-small>
+                                    </a>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </section>
+        @endif
+
         <section class="my-8 mb-12">
             <div class="bg-white/5 rounded-xl border border-white/10 p-4">
                 @if($dueLanguages->isNotEmpty())

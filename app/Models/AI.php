@@ -494,68 +494,73 @@ class AI
     }
 
     /**
-     * One Frammenti batch: a short phrase or sentence per slot, each using one base word
-     * or fixed expression (see docs/frammenti.md). Slots come from Frammenti::slot().
+     * One Frammenti batch: one fragment per slot, each using one base word or fixed
+     * expression (see docs/frammenti.md). Slots come from Frammenti::slot().
      *
-     * The two exercise kinds are told apart by the response SCHEMA, never by prose: each
-     * slot is its own required property, `slot_1`…, whose shape is the one its kind needs
-     * — a gapped phrase with its answers for II, a phrase with its item marked for III.
-     * So the model can't swap kinds, drop a slot or reorder them, and the prompt only
-     * says what a good phrase is. The result is still validated here, so a fragment the
-     * client can't render is a failed call, never a broken screen.
+     * The three slot types are told apart by the response SCHEMA, never by prose: each
+     * slot is its own required property, `slot_1`…, whose shape is the one its type needs
+     * — a gapped phrase with its answers for I, a phrase with its item marked for II, a
+     * task with an answer for III. So the model can't swap types, drop a slot or reorder
+     * them, and the prompt only says what a good fragment is. The result is still
+     * validated here, so a fragment the client can't render is a failed call, never a
+     * broken screen.
      *
-     * $baseLemmas (below B1 only) are the learner's own words to build fragments from.
-     * $tierThreeWords (when a slot is III) are the only content words a III fragment may use.
+     * Context words are the learner's proven words, strongest first: $clozeWords (I, below
+     * B1) and $sentenceWords (III, below B1) are base-word lemmas, $translateWords (II) are
+     * base words and expressions. Each is null when no slot needs it.
      *
-     * Returns one ['fragment', 'translation', 'accepted'] per slot, in slot order
-     * (`accepted` is empty for III), or null on failure.
+     * Returns per slot, in slot order, ['fragment', 'translation', 'accepted'] for I,
+     * ['fragment', 'translation'] for II and ['task', 'answer'] for III, or null on failure.
      */
-    public static function generateFragments(array $slots, string $targetLanguage, string $nativeLanguage, ?string $level, ?array $baseLemmas, ?array $tierThreeWords = null): ?array
+    public static function generateFragments(array $slots, string $targetLanguage, string $nativeLanguage, ?string $level, ?array $clozeWords, ?array $translateWords, ?array $sentenceWords): ?array
     {
         $system = "You are a language tutor. Write short {$targetLanguage} phrases or sentences for a learner whose native language is {$nativeLanguage}, "
             .'one per slot, each natural, as a native speaker would really say it. '
             .'Each uses its own item in a sense that fits the item\'s part of speech and translation, and none of the other slots\' items.'
             .self::levelInstruction($level);
 
-        if ($baseLemmas) {
-            $system .= ' Besides the item, use only the learner\'s own words (in any form) and words too basic to be worth learning.';
-        }
-
         // The native translation is shown as plain text, so it never carries markup.
         $translation = ['type' => 'string', 'description' => "Natural {$nativeLanguage} translation of the whole phrase, as plain text."];
+        // Below B1 a cloze carries exactly one unknown: the item.
+        $clozeRule = $clozeWords === null ? '' : ' Besides the item, its only content words are the learner\'s own words (in any form) or words too basic to be worth learning.';
+        $taskRule = $sentenceWords === null ? '' : ' It asks only for what can be said with the item, the learner\'s own nouns and verbs, and words too basic to be worth learning.';
 
         $properties = [];
         $lines = [];
         foreach ($slots as $i => $slot) {
             $key = 'slot_'.($i + 1);
-            $lines[] = "{$key}: \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['translation']}\"";
+            $lines[] = "{$key}: \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['item_translation']}\"";
 
-            if ($slot['fragment_type'] === 'II') {
-                // A base word is one gap even with its article ("en skola"); only an expression
-                // whose parts end up apart in the phrase gets one gap per part.
-                $gap = $slot['part_of_speech'] === 'fixed expression'
-                    ? 'replaced by one "___" — or one "___" per part, only if other words of the phrase stand between its parts'
-                    : 'replaced by a single "___" (article included, never a gap of its own)';
+            // A base word is one gap even with its article ("en skola"); only an expression
+            // whose parts end up apart in the phrase gets one gap per part.
+            $gap = $slot['part_of_speech'] === 'fixed expression'
+                ? 'replaced by one "___" — or one "___" per part, only if other words of the phrase stand between its parts'
+                : 'replaced by a single "___" (article included, never a gap of its own)';
 
-                $properties[$key] = self::object([
-                    'fragment' => ['type' => 'string', 'description' => "The phrase / short sentence with the item, in whatever form the phrase needs, {$gap}. The words around it make the missing form unambiguous."],
+            $properties[$key] = self::object(match ($slot['fragment_type']) {
+                'I' => [
+                    'fragment' => ['type' => 'string', 'description' => "The phrase / short sentence with the item, in whatever form the phrase needs, {$gap}. The words around it make the missing form unambiguous.{$clozeRule}"],
                     'translation' => $translation,
                     'accepted' => ['type' => 'array', 'items' => ['type' => 'array', 'items' => ['type' => 'string']], 'description' => 'For each "___" in order, every form that correctly fills it in this phrase.'],
-                ]);
-            } else {
-                $properties[$key] = self::object([
+                ],
+                'II' => [
                     'fragment' => ['type' => 'string', 'description' => 'The phrase / short sentence with the item wrapped in [[ ]]. Besides the item, its only content words are the learner\'s practised words (in any form); everything else is a function word. As short as that needs — a phrase is fine.'],
                     'translation' => $translation,
-                ]);
-            }
+                ],
+                'III' => [
+                    'task' => ['type' => 'string', 'description' => "A short instruction in {$nativeLanguage}, as plain text, to say something to someone, whose natural {$targetLanguage} rendering uses the item — e.g. \"Tell your friend she should be reading more books\".{$taskRule}"],
+                    'answer' => ['type' => 'string', 'description' => "One natural {$targetLanguage} sentence that carries out the task, with the item wrapped in [[ ]]."],
+                ],
+            });
         }
 
         $user = 'Items:'."\n".implode("\n", $lines);
-        if ($baseLemmas) {
-            $user .= "\n\nThe learner's own words: ".implode(', ', $baseLemmas);
+        if ($clozeWords !== null || $sentenceWords !== null) {
+            $own = array_unique(array_merge($clozeWords ?? [], $sentenceWords ?? []));
+            $user .= "\n\nThe learner's own words: ".($own ? implode(', ', $own) : 'none yet');
         }
-        if ($tierThreeWords) {
-            $user .= "\n\nThe learner's practised words: ".implode(', ', $tierThreeWords);
+        if ($translateWords !== null) {
+            $user .= "\n\nThe learner's practised words: ".implode(', ', $translateWords);
         }
 
         $result = self::requestCardJson(
@@ -573,17 +578,23 @@ class AI
 
         $fragments = [];
         foreach ($slots as $i => $slot) {
-            $fragment = $result['slot_'.($i + 1)] + ['accepted' => []];
-            $fragment['translation'] = trim(str_replace(['[[', ']]'], '', $fragment['translation']));
-            $gaps = preg_match_all('/_{3,}/', $fragment['fragment']);
+            $fragment = $result['slot_'.($i + 1)];
+            $type = $slot['fragment_type'];
 
-            $valid = $fragment['translation'] !== '' && ($slot['fragment_type'] === 'II'
-                ? ($slot['part_of_speech'] === 'fixed expression' ? $gaps > 0 : $gaps === 1)
-                    && count($fragment['accepted']) === $gaps && ! in_array([], $fragment['accepted'], true)
-                : preg_match('/\[\[.+?\]\]/', $fragment['fragment']) === 1);
+            if ($type === 'III') {
+                $fragment['task'] = trim(str_replace(['[[', ']]'], '', $fragment['task']));
+                $valid = $fragment['task'] !== '' && preg_match('/\[\[.+?\]\]/', $fragment['answer']) === 1;
+            } else {
+                $fragment['translation'] = trim(str_replace(['[[', ']]'], '', $fragment['translation']));
+                $gaps = preg_match_all('/_{3,}/', $fragment['fragment']);
+                $valid = $fragment['translation'] !== '' && ($type === 'I'
+                    ? ($slot['part_of_speech'] === 'fixed expression' ? $gaps > 0 : $gaps === 1)
+                        && count($fragment['accepted']) === $gaps && ! in_array([], $fragment['accepted'], true)
+                    : preg_match('/\[\[.+?\]\]/', $fragment['fragment']) === 1);
+            }
 
             if (! $valid) {
-                Log::error("generate_fragments returned an invalid {$slot['fragment_type']} fragment: ".json_encode($fragment));
+                Log::error("generate_fragments returned an invalid {$type} fragment: ".json_encode($fragment));
 
                 return null;
             }
@@ -592,6 +603,36 @@ class AI
         }
 
         return $fragments;
+    }
+
+    /**
+     * Grade one Frammenti tier III sentence (docs/frammenti.md "Tier III"). The verdict is
+     * about the item only — used in a correct form, in a sense that fits its translation —
+     * so a mistake elsewhere never fails it; the other mistakes still come back fixed in
+     * `corrected` and explained in `note`. Like the generator, the prompt describes the
+     * data, never the exercise.
+     *
+     * Returns ['correct' => bool, 'corrected' => string, 'note' => string] or null on failure.
+     */
+    public static function evaluateSentence(string $item, string $itemTranslation, string $partOfSpeech, string $task, string $sentence, string $targetLanguage, string $nativeLanguage, ?string $level): ?array
+    {
+        $user = "Item: \"{$item}\" ({$partOfSpeech}) = \"{$itemTranslation}\"\n"
+            ."Task ({$nativeLanguage}): {$task}\n"
+            ."Sentence ({$targetLanguage}): {$sentence}"
+            .($level ? "\nThe writer is CEFR level {$level}." : '');
+
+        return self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => "You are a {$targetLanguage} teacher checking a sentence written by a learner whose native language is {$nativeLanguage}."],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'evaluate_sentence',
+            [
+                'correct' => ['type' => 'boolean', 'description' => 'True when the sentence uses the item in a correct form, in a sense that fits its translation. Mistakes elsewhere in the sentence do not make it false.'],
+                'corrected' => ['type' => 'string', 'description' => 'The sentence with every mistake fixed and nothing else changed. Identical to the sentence when it has no mistakes.'],
+                'note' => ['type' => 'string', 'description' => "One short explanation in {$nativeLanguage} of the main mistake, about the item or anything else. Empty when there are no mistakes."],
+            ],
+        );
     }
 
     /**

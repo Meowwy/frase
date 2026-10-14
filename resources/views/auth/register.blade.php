@@ -19,6 +19,8 @@
         <x-forms.input label="What is your native language? (or a language, that you are fluent enough)" name="nativeLanguage" placeholder="For example: Czech"/>
         <x-forms.input label="Password" name="password" type="password"/>
         <x-forms.input label="Password Confirmation" name="password_confirmation" type="password"/>
+        <input type="hidden" name="timezone" id="timezone">
+        <script>document.getElementById('timezone').value = Intl.DateTimeFormat().resolvedOptions().timeZone;</script>
 
         <x-forms.divider></x-forms.divider>
         <x-forms.button>Create account</x-forms.button>

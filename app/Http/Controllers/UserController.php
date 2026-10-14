@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Frammenti;
 use App\Models\Language;
 use App\Models\Theme;
 use Illuminate\Http\Request;
@@ -108,6 +109,7 @@ class UserController extends Controller
             'nativeLanguageId' => $user->native_language_id,
             'nativeSaveEnabled' => $nativeSaveEnabled,
             'termCounts' => $termCounts,
+            'timezones' => timezone_identifiers_list(),
         ]);
     }
 
@@ -158,6 +160,46 @@ class UserController extends Controller
     }
 
     /**
+     * Frammenti settings: new items per day, per target language.
+     */
+    public function frammenti()
+    {
+        return view('user.frammenti', ['languages' => Frammenti::languages(Auth::user())]);
+    }
+
+    /**
+     * Expects `new_per_day[languageId] = n`; only the learner's target languages are saved.
+     */
+    public function updateFrammenti(Request $request)
+    {
+        $validated = $request->validate([
+            'new_per_day' => ['array'],
+            'new_per_day.*' => ['integer', 'min:0', 'max:50'],
+        ]);
+
+        $user = Auth::user();
+        foreach (Frammenti::languages($user) as $language) {
+            if (isset($validated['new_per_day'][$language->id])) {
+                $user->languages()->updateExistingPivot($language->id, ['frammenti_new_per_day' => $validated['new_per_day'][$language->id]]);
+            }
+        }
+
+        return redirect()->route('profile.frammenti')->with('saved', true);
+    }
+
+    /**
+     * Set the timezone the browser detected, once, for a user who has none yet.
+     */
+    public function timezone(Request $request)
+    {
+        $validated = $request->validate(['timezone' => ['required', 'timezone:all']]);
+
+        Auth::user()->update(['timezone' => Auth::user()->timezone ?? $validated['timezone']]);
+
+        return response()->noContent();
+    }
+
+    /**
      * Update the specified resource in storage.
      */
     public function update(Request $request)
@@ -167,6 +209,7 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'username' => ['required', 'string', 'max:50'],
+            'timezone' => ['nullable', 'timezone:all'],
             'native_language_id' => ['required', 'integer', 'exists:languages,id'],
             'native_save' => ['nullable', 'boolean'],
             'target_language_ids' => ['required', 'array', 'max:5'],
@@ -177,6 +220,7 @@ class UserController extends Controller
 
         $user = Auth::user();
         $user->username = $validated['username'];
+        $user->timezone = $validated['timezone'] ?? null;
         $user->native_language_id = $validated['native_language_id'];
         $user->save();
 

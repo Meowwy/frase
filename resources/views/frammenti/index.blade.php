@@ -3,9 +3,9 @@
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
                 <h1 class="text-2xl font-bold">Frammenti</h1>
-                <p class="text-sm text-white/50">Short fragments built around your words and fixed expressions, five at a time.</p>
+                <p class="text-sm text-white/50">Daily active-vocabulary drill: your words and fixed expressions in fresh sentences, five at a time.</p>
             </div>
-            <button id="quitBtn" type="button" class="hidden text-white/70 hover:text-white transition-colors">Save and quit</button>
+            <button id="quitBtn" type="button" class="hidden text-white/70 hover:text-white transition-colors">Quit</button>
         </div>
 
         {{-- Target languages only: native-language vocabulary is never dealt. --}}
@@ -37,8 +37,11 @@
         @else
             {{-- Nothing is generated until the learner has picked a language and started. --}}
             <x-panel id="intro" class="flex-col items-center text-center gap-3 py-6">
-                <p>Practise your {{ $language->name }} words, five fragments at a time.</p>
-                <x-forms.button id="startBtn" type="button">Start</x-forms.button>
+                <p><x-frammenti-today :enough="true" :session="$session" :plan="$plan" /></p>
+                <p class="text-sm text-white/50">{{ $activeWords }} active words in {{ $language->name }} · {{ $streak }}-day streak</p>
+                <x-forms.button id="startBtn" type="button">
+                    {{ $session?->finished_at || (! $session && ! $plan['batches']) ? 'Extra drill' : ($session ? 'Continue' : 'Start') }}
+                </x-forms.button>
             </x-panel>
 
             <div id="loading" class="hidden py-16 text-center text-white/60 animate-pulse">Writing your fragments…</div>
@@ -49,7 +52,7 @@
             </div>
 
             <div id="play" class="hidden">
-                <p class="mb-2 text-sm text-white/50"><span id="position"></span> / 5 · <span id="cue"></span></p>
+                <p class="mb-2 text-sm text-white/50"><span id="batchLabel"></span> · <span id="position"></span> / 5 · <span id="cue"></span></p>
                 <p id="translation" class="mb-3 text-white/60"></p>
                 <p id="fragment" class="mb-6 text-2xl leading-relaxed"></p>
 
@@ -60,7 +63,12 @@
                 <div id="compare" class="hidden mb-4">
                     <p class="text-sm text-white/50">You wrote</p>
                     <p id="yours" class="mb-3 text-xl"></p>
-                    <p class="text-sm text-white/50">One correct version</p>
+                    <div id="correctedBox" class="hidden">
+                        <p class="text-sm text-white/50">Corrected</p>
+                        <p id="corrected" class="mb-3 text-xl"></p>
+                    </div>
+                    <p id="note" class="hidden mb-3 text-white/70"></p>
+                    <p id="correctLabel" class="text-sm text-white/50"></p>
                     <p id="correct" class="text-xl"></p>
                 </div>
 
@@ -69,6 +77,8 @@
                 <div class="flex flex-wrap gap-2">
                     <x-forms.button id="checkBtn" type="button" class="hidden">Check</x-forms.button>
                     <x-forms.button id="revealBtn" type="button" class="hidden">Show answer</x-forms.button>
+                    <x-forms.button id="evalBtn" type="button" class="hidden">Evaluate</x-forms.button>
+                    <x-forms.button id="passBtn" type="button" class="hidden">I pass</x-forms.button>
                     <x-forms.button id="hadBtn" type="button" class="hidden">I had it</x-forms.button>
                     <x-forms.button id="missedBtn" type="button" class="hidden">I didn't</x-forms.button>
                     <x-forms.button id="nextBtn" type="button" class="hidden">Next</x-forms.button>
@@ -77,10 +87,11 @@
             </div>
 
             <div id="recap" class="hidden">
-                <x-section-heading>Batch done</x-section-heading>
+                <h3 id="recapTitle" class="mt-6 text-center text-2xl font-bold"></h3>
                 <ul id="recapList" class="my-4 space-y-2"></ul>
+                <div id="summary" class="hidden mb-6 space-y-2 rounded-xl bg-white/5 border border-white/10 p-4"></div>
                 <div class="flex gap-2">
-                    <x-forms.button id="nextBatchBtn" type="button">Next batch</x-forms.button>
+                    <x-forms.button id="nextBatchBtn" type="button"></x-forms.button>
                     <a href="/"><x-forms.button type="button">Done</x-forms.button></a>
                 </div>
             </div>
@@ -89,12 +100,21 @@
                 $(function () {
                     const csrf = '{{ csrf_token() }}';
                     const languageId = {{ $language->id }};
+                    const tiers = { I: 1, II: 2, III: 3 };
 
-                    let batch = [], index = 0, answers = [], prefetch = null, retried = false;
+                    let batch = [], index = 0, results = [], prefetch = null, retried = false;
+                    let drill = false, planned = 0, done = 0, recapData = null;
+                    // Every item answered since the page opened: its tier before the first
+                    // answer, after the latest, and whether it's back tomorrow.
+                    const seen = new Map();
+                    // Answers are posted one by one, in order, so each lands on the state the
+                    // previous one left. This chain never rejects.
+                    let saving = $.Deferred().resolve().promise();
 
                     const esc = s => $('<div>').text(s).html();
+                    const mark = s => '<mark class="bg-orange-700/60 text-white rounded px-1">' + s + '</mark>';
                     // [[…]] marks the tested item; ___ is a gap.
-                    const marked = s => esc(s).replace(/\[\[(.+?)\]\]/g, '<mark class="bg-orange-700/60 text-white rounded px-1">$1</mark>');
+                    const marked = s => esc(s).replace(/\[\[(.+?)\]\]/g, (m, item) => mark(item));
                     const gapped = (s, html) => marked(s).replace(/_{3,}/g, () => html);
                     const key = f => ({ type: f.type, id: f.id });
 
@@ -102,8 +122,7 @@
                         url, method: 'POST', contentType: 'application/json',
                         headers: { 'X-CSRF-TOKEN': csrf }, data: JSON.stringify(data),
                     });
-                    const fetchBatch = exclude => post('/frammenti/batch', { language_id: languageId, exclude })
-                        .then(data => data.fragments);
+                    const fetchBatch = onScreen => post('/frammenti/batch', { language_id: languageId, on_screen: onScreen });
 
                     function show(id) {
                         $('#intro, #languages, #loading, #error, #play, #recap').addClass('hidden');
@@ -113,12 +132,12 @@
 
                     function start(request) {
                         show('loading');
-                        request.then(fragments => {
-                            batch = fragments; index = 0; answers = [];
-                            // The next batch is chosen now, without this batch's items, so
-                            // it is ready the moment the recap is.
-                            prefetch = fetchBatch(batch.map(key));
-                            prefetch.catch(() => {});
+                        prefetch = null;
+                        request.then(data => {
+                            batch = data.fragments; index = 0; results = [];
+                            drill = data.drill; planned = data.planned_batches;
+                            // A prefetched batch was dealt before the last batch was done.
+                            done = Math.max(done, data.batches_done || 0);
                             show('play');
                             render();
                         }, () => show('error'));
@@ -127,31 +146,63 @@
                     function render() {
                         const f = batch[index];
                         retried = false;
+                        $('#batchLabel').text(drill ? 'Extra drill' : 'Batch ' + (done + 1) + ' of ' + planned);
                         $('#position').text(index + 1);
                         $('#feedback').text('').removeClass('text-red-400 text-green-400');
-                        $('#write, #compare, #gradeNote, #checkBtn, #revealBtn, #hadBtn, #missedBtn, #nextBtn').addClass('hidden');
+                        $('#write, #compare, #correctedBox, #note, #gradeNote, #checkBtn, #revealBtn, #evalBtn, #passBtn, #hadBtn, #missedBtn, #nextBtn').addClass('hidden');
+                        $('#evalBtn, #passBtn').prop('disabled', false);
                         $('#translation').text('');
 
-                        if (f.fragment_type === 'II') {
+                        // Prefetch at fragment 4, when answers 1–3 are in, so the next batch
+                        // is dealt knowing them. Never after the last planned batch: Extra
+                        // drill is fetched on demand.
+                        if (index === 3 && ! drill && done + 1 < planned) {
+                            prefetch = saving.then(() => fetchBatch(batch.map(key)));
+                            prefetch.catch(() => {});
+                        }
+
+                        if (f.fragment_type === 'I') {
                             $('#cue').text('type the missing ' + f.part_of_speech);
                             $('#translation').text(f.translation);
                             $('#fragment').html(gapped(f.fragment, '<input type="text" class="gap mx-1 w-32 rounded bg-white/10 border border-white/20 px-2 text-xl" autocomplete="off">'));
                             $('#checkBtn').removeClass('hidden');
                             $('.gap').first().trigger('focus');
                         } else {
-                            $('#cue').text('write this in ' + @json($language->name));
-                            $('#fragment').html(marked(f.translation));
+                            if (f.fragment_type === 'II') {
+                                $('#cue').text('write this in ' + @json($language->name));
+                                $('#fragment').text(f.translation);
+                                $('#revealBtn').removeClass('hidden');
+                            } else {
+                                $('#cue').text('your sentence in ' + @json($language->name));
+                                $('#translation').text(f.item_translation + ' · ' + f.part_of_speech);
+                                $('#fragment').text(f.task);
+                                $('#evalBtn, #passBtn').removeClass('hidden');
+                            }
                             $('#attempt').val('');
-                            $('#write, #revealBtn').removeClass('hidden');
+                            $('#write').removeClass('hidden');
                             $('#attempt').trigger('focus');
                         }
                     }
 
+                    // Each answer is posted as it's given; the last one of a batch says so,
+                    // which counts the batch done on the server.
                     function grade(correct, message) {
-                        answers.push({ ...key(batch[index]), result: correct });
-                        $('#feedback').text(message).removeClass('text-red-400').addClass(correct ? 'text-green-400' : 'text-red-400');
-                        $('#checkBtn, #revealBtn, #hadBtn, #missedBtn, #gradeNote').addClass('hidden');
+                        const f = batch[index], i = index;
+                        results[i] = { f, correct, change: null };
+                        saving = saving.then(() => post('/frammenti/answer', { ...key(f), result: correct, last: i === batch.length - 1 })
+                            .then(r => record(f, i, r), () => toastr.error('Could not save your answer.')));
+
+                        $('#feedback').text(message).removeClass('text-red-400 text-green-400').addClass(correct ? 'text-green-400' : 'text-red-400');
+                        $('#checkBtn, #revealBtn, #evalBtn, #passBtn, #hadBtn, #missedBtn, #gradeNote').addClass('hidden');
                         $('#nextBtn').removeClass('hidden');
+                    }
+
+                    function record(f, i, r) {
+                        results[i].change = r;
+                        const k = f.type + ':' + f.id;
+                        seen.set(k, { item: f.item, from: seen.has(k) ? seen.get(k).from : r.tier_before, to: r.tier_after, tomorrow: r.back_tomorrow });
+                        if (r.batches_done !== null) done = r.batches_done;
+                        if (r.recap) recapData = r.recap;
                     }
 
                     // Case, extra spaces and surrounding punctuation never count.
@@ -169,7 +220,7 @@
                         return row[b.length];
                     }
 
-                    // Tier II: each gap is right, a near miss (one character or one accent
+                    // Tier I: each gap is right, a near miss (one character or one accent
                     // off), or wrong. Any near miss earns one retry; the second check is final.
                     function check() {
                         const f = batch[index];
@@ -192,53 +243,89 @@
                         grade(false, 'The answer is ' + f.accepted.map(a => a[0]).join(' … ') + '.');
                     }
 
-                    // Tier III: the learner's attempt above the correct fragment, then they
-                    // grade themselves.
-                    function reveal() {
+                    // The learner's attempt, with the item highlighted wherever it appears.
+                    function showAttempt() {
                         const f = batch[index];
-                        const item = (f.fragment.match(/\[\[(.+?)\]\]/) || [])[1];
+                        const target = f.fragment_type === 'III' ? f.answer : f.fragment;
+                        const item = (target.match(/\[\[(.+?)\]\]/) || [])[1];
                         let yours = esc($('#attempt').val());
                         if (item) {
                             const pattern = new RegExp(esc(item).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-                            yours = yours.replace(pattern, m => '<mark class="bg-orange-700/60 text-white rounded px-1">' + m + '</mark>');
+                            yours = yours.replace(pattern, mark);
                         }
                         $('#yours').html(yours || '<span class="text-white/40">(nothing)</span>');
-                        $('#correct').html(marked(f.fragment));
-                        $('#write, #revealBtn').addClass('hidden');
-                        $('#compare, #hadBtn, #missedBtn, #gradeNote').removeClass('hidden');
+                        $('#correctLabel').text(f.fragment_type === 'III' ? 'One way to say it' : 'One correct version');
+                        $('#correct').html(marked(target));
+                        $('#write').addClass('hidden');
+                        $('#compare').removeClass('hidden');
                     }
 
-                    // Answers are saved once per batch: at its end, or on Save and quit.
-                    function save() {
-                        return answers.length ? post('/frammenti/results', { results: answers }) : $.Deferred().resolve([]);
+                    // Tier II, and tier III when its evaluation fails: compare, then grade
+                    // yourself.
+                    function reveal() {
+                        showAttempt();
+                        $('#revealBtn, #evalBtn, #passBtn').addClass('hidden');
+                        $('#hadBtn, #missedBtn, #gradeNote').removeClass('hidden');
                     }
 
-                    function recap(changes) {
+                    // Tier III: the AI judges the item only; other mistakes are corrected and
+                    // explained but don't fail it.
+                    function evaluate() {
+                        const f = batch[index];
+                        const sentence = $('#attempt').val().trim();
+                        if (! sentence) return $('#attempt').trigger('focus');
+
+                        $('#evalBtn, #passBtn').prop('disabled', true);
+                        $('#feedback').text('Checking…').removeClass('text-red-400 text-green-400');
+                        post('/frammenti/evaluate', { ...key(f), task: f.task, sentence }).then(e => {
+                            showAttempt();
+                            if (e.corrected.trim() !== sentence) {
+                                $('#corrected').text(e.corrected);
+                                $('#correctedBox').removeClass('hidden');
+                            }
+                            if (e.note) $('#note').text(e.note).removeClass('hidden');
+                            grade(e.correct, e.correct ? 'You used it correctly!' : 'Not quite — see the correction.');
+                        }, () => {
+                            $('#feedback').text('');
+                            reveal();
+                        });
+                    }
+
+                    function recap() {
                         $('#recapList').empty();
-                        batch.forEach((f, i) => {
-                            const change = changes.find(c => c.type === f.type && c.id === f.id);
+                        results.forEach(({ f, correct, change }) => {
                             const arrow = ! change || change.tier_after === change.tier_before ? ''
                                 : change.tier_after > change.tier_before ? ' <span class="text-green-400">↑</span>' : ' <span class="text-red-400">↓</span>';
-                            const ok = answers[i].result;
-                            $('<li>').html((ok ? '<span class="text-green-400">✓</span> ' : '<span class="text-red-400">✗</span> ')
+                            $('<li>').html((correct ? '<span class="text-green-400">✓</span> ' : '<span class="text-red-400">✗</span> ')
                                 + esc(f.item) + arrow).appendTo('#recapList');
                         });
+
+                        $('#summary').toggleClass('hidden', ! recapData);
+                        if (recapData) {
+                            const items = [...seen.values()];
+                            const list = rows => rows.map(r => esc(r.item)).join(', ');
+                            const up = items.filter(r => r.to > r.from), down = items.filter(r => r.to < r.from);
+                            const gained = items.filter(r => r.from < 2 && r.to >= 2).length - items.filter(r => r.from >= 2 && r.to < 2).length;
+                            const back = items.filter(r => r.tomorrow);
+                            $('#summary').html(
+                                '<p class="text-lg font-bold">' + (gained >= 0 ? '+' : '') + gained + ' active words today · '
+                                    + recapData.active_words + ' in total · ' + recapData.streak + '-day streak</p>'
+                                + (up.length ? '<p><span class="text-green-400">Promoted:</span> ' + list(up) + '</p>' : '')
+                                + (down.length ? '<p><span class="text-red-400">Demoted:</span> ' + list(down) + '</p>' : '')
+                                + (back.length ? '<p class="text-white/70">Back tomorrow: ' + list(back) + '</p>' : '')
+                            );
+                        }
+
+                        $('#recapTitle').text(recapData ? "Today's session is done" : 'Batch done');
+                        $('#nextBatchBtn').text(drill || recapData ? 'Extra drill' : 'Next batch');
                         show('recap');
                     }
 
-                    function finish() {
-                        show('loading');
-                        save().then(recap, () => {
-                            toastr.error('Could not save your answers.');
-                            recap([]);
-                        });
-                    }
-
-                    // Enter takes the step on screen: check (or show the answer), then next,
-                    // then, on the recap, the next batch. Shift+Enter still breaks a line.
+                    // Enter takes the step on screen: check, show the answer or evaluate, then
+                    // next, then, on the recap, the next batch. Shift+Enter still breaks a line.
                     $(document).on('keydown', e => {
                         if (e.key !== 'Enter' || e.shiftKey || e.repeat) return;
-                        const button = ['#nextBtn', '#checkBtn', '#revealBtn', '#nextBatchBtn'].find(id => $(id).is(':visible'));
+                        const button = ['#nextBtn', '#checkBtn', '#revealBtn', '#evalBtn', '#nextBatchBtn'].find(id => $(id).is(':visible:enabled'));
                         if (! button) return;
                         e.preventDefault();
                         $(button).trigger('click');
@@ -246,12 +333,21 @@
 
                     $('#checkBtn').on('click', check);
                     $('#revealBtn').on('click', reveal);
+                    $('#evalBtn').on('click', evaluate);
+                    $('#passBtn').on('click', () => { showAttempt(); grade(false, ''); });
                     $('#hadBtn').on('click', () => grade(true, ''));
                     $('#missedBtn').on('click', () => grade(false, ''));
-                    $('#nextBtn').on('click', () => ++index < batch.length ? render() : finish());
-                    $('#retryBtn').on('click', () => start(fetchBatch([])));
-                    $('#nextBatchBtn').on('click', () => start(prefetch.then(null, () => fetchBatch([]))));
-                    $('#quitBtn').on('click', () => save().always(() => window.location = '/'));
+                    $('#nextBtn').on('click', () => {
+                        if (++index < batch.length) return render();
+                        show('loading');
+                        saving.then(recap);
+                    });
+                    $('#retryBtn').on('click', () => start(fetchBatch(batch.map(key))));
+                    $('#nextBatchBtn').on('click', () => {
+                        recapData = null;
+                        start(prefetch ? prefetch.then(null, () => fetchBatch(batch.map(key))) : fetchBatch(batch.map(key)));
+                    });
+                    $('#quitBtn').on('click', () => saving.then(() => window.location = '/'));
                     $('#startBtn').on('click', () => start(fetchBatch([])));
                 });
             </script>

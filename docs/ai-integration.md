@@ -249,52 +249,80 @@ negatives plus a worked `schön` example each.
   `[n]` placeholder, and returns `{text, title, answers}` where `answers` maps each index to the
   exact text that belongs in that gap. Runs on the queue (`GenerateGapFillJob`), not
   synchronously — see [gap-fill](gap-fill.md).
-- **`AI::generateFragments($slots, $targetLanguage, $nativeLanguage, $level, $baseLemmas)`** — one
-  Frammenti batch; see "Frammenti" below.
+- **`AI::generateFragments($slots, $targetLanguage, $nativeLanguage, $level, $clozeWords,
+  $translateWords, $sentenceWords)`** — one Frammenti batch, and **`AI::evaluateSentence()`** — one
+  Frammenti tier III verdict; see "Frammenti" below.
 - **`AI::getEmbedding($text)`** / **`AI::cosineSimilarity($a, $b)`** — embedding + similarity
   helpers used for (currently paused) automatic card linking. See [search-and-linking](search-and-linking.md).
 
-### Frammenti — `AI::generateFragments()`
+### Frammenti — `AI::generateFragments()` and `AI::evaluateSentence()`
 
 One strict-schema call (`requestCardJson`, default reasoning effort) per batch of 5 slots chosen
 by `Frammenti::deal()`. Shapes, validation and the client side are in [frammenti](frammenti.md).
 One call per fragment, sent in parallel, was tried and dropped: it sent the shared context (level,
-word samples) five times for a shorter wait.
+word lists) five times for a shorter wait.
 
 - **The exercise type is carried by the schema, never explained in prose.** Each slot is its own
-  required property (`slot_1`…) with its type's shape: a gapped phrase plus `accepted` for II, a
-  phrase with the item marked for III, each field's rule in its own `description`. The model is
-  never told what a fragment or a tier is, so it can't mix the types up, drop a slot or reorder
-  them. An earlier version described every type in the system prompt and returned one generic
-  array, which needed the model to read the type off each line.
+  required property (`slot_1`…) with its type's shape: a gapped phrase plus `accepted` for I, a
+  phrase with the item marked for II, a `task` plus `answer` for III, each field's rule in its own
+  `description`. The model is never told what a fragment, a tier or the learner's exercise is, so
+  it can't mix the types up, drop a slot or reorder them. An earlier version described every type
+  in the system prompt and returned one generic array, which needed the model to read the type off
+  each line.
 - **One phrase or one sentence, natural.** A fragment exists to show the item in a fresh, real
   context. A paragraph would bury it, and a stilted textbook sentence teaches the wrong usage.
-- **Difficulty is capped by the CEFR level, never length** (`levelInstruction()`, rule 2 above).
-  A beginner still gets a whole sentence.
+- **Difficulty is capped by the CEFR level, never length** (`levelInstruction()`, rule 2 above),
+  at every tier including III's task and answer. A beginner still gets a whole sentence.
 - **The item is used in a sense that fits its part of speech and translation.** Base words carry
   no sense finer than part of speech, so this is the only thing keeping *run* the noun from being
   tested as a verb.
 - **No slot uses another slot's item.** A fragment with two of the batch's items in it would give
   one away or test two at once.
-- **Below B1, other content words come from the supplied sample of the learner's lemmas, or are
-  too basic to collect.** Otherwise a beginner can't understand the context the item sits in, and
-  the fragment also revises more of their own words at once. At B1 and above, any vocabulary
-  within the level is allowed, which makes the contexts richer.
-- **At II, a base word is a single gap, article included**, and only a fixed expression whose
+- **Context words are the learner's proven words** (last recall set), strongest first, sent only
+  for the slot types that need them. "Proven" because a word the learner has never produced is a
+  second unknown in the fragment.
+  - **Tier I below B1**: besides the item, only "the learner's own words" (up to 80 proven
+    lemmas) or words too basic to collect, so every cloze has exactly one unknown, the tested item.
+    A brand-new learner's list reads "none yet", and the fragment is built from basic words. From B1
+    any vocabulary within the level is allowed, which makes the contexts richer.
+  - **Tier II at any level**: the only content words besides the item are "the learner's practised
+    words" (up to 80 proven items); everything else is a function word. The learner writes the whole
+    sentence, so it should only ask for words they have already produced, and self-grading stays
+    about the tested item. With few such items that makes for short phrases, which is fine.
+  - **Tier III below B1**: the task asks only for what can be said with the item, the learner's own
+    nouns and verbs (up to 15 of each) and basic words, so the learner is never asked to say what
+    they can't. From B1 the level instruction alone is enough.
+
+  These are schema-description rules, not checked in PHP: inflection makes a word-by-word check
+  unreliable.
+- **At I, a base word is a single gap, article included**, and only a fixed expression whose
   parts stand apart may get one gap per part — said in the `fragment` description, which differs
   for base words and expressions, and checked in PHP. Without it the model split *en skola* into
   two gaps.
-- **At II, the surrounding words must make the gap's form recoverable**, and `accepted` lists
+- **At I, the surrounding words must make the gap's form recoverable**, and `accepted` lists
   every form that fits. The learner is typing an inflected form, so the sentence has to say which
   one, and any other correct form must not be marked wrong.
-- **The native translation is plain text** at both tiers, and PHP strips any `[[ ]]` the model
-  still adds: it did mark translations, and the learner should see just the translation.
-- **A III fragment's only content words are the learner's "practised words"** (tier III and
-  mastered items, sent as a sample of up to 80; everything else is a function word). The learner
-  writes the whole sentence, so it should only ask for words they have already produced in a
-  cloze, and self-grading stays about the tested item rather than vocabulary they never learned.
-  With few such items that makes for short phrases, which is fine. It is a schema-description
-  rule, not checked in PHP: inflection makes a word-by-word check unreliable.
+- **The native translation (I, II) and the task (III) are plain text**, and PHP strips any `[[ ]]`
+  the model still adds: it did mark translations, and the learner should see just the text.
+- **At III, the task is an instruction to say something to someone** ("Tell your friend she should
+  be reading more books"), in the native language, whose natural rendering uses the item. A
+  situation rather than a sentence to translate is what makes the learner build the sentence. The
+  `answer` is one natural sentence carrying it out, with the item marked, shown as "one way to say
+  it".
+
+**`AI::evaluateSentence()`** grades one tier III sentence: strict schema, default reasoning effort
+(a fair verdict matters more than a second saved). Input: the item with its part of speech and
+translation, the task, the sentence, both languages and the level. Like the generator, the prompt
+describes the data, never the exercise.
+
+- **`correct` is about the item only**: true when it's used in a correct form, in a sense that fits
+  its translation. Mistakes elsewhere don't make it false. Frammenti schedules that one item, so a
+  wrong article on another word must not fail it.
+- **`corrected` fixes every mistake and changes nothing else**, identical when there are none, so
+  the learner sees their own sentence repaired rather than a rewrite.
+- **`note` is one short native-language explanation of the main mistake**, about the item or
+  anything else, empty when there's nothing to say. One, because a list of every slip buries the
+  one that matters.
 
 ## Conversation & challenge chat methods
 

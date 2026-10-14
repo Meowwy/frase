@@ -4,8 +4,8 @@
         <h1 class="text-2xl font-bold">Vocabulary base</h1>
         <p class="text-sm text-white/50">
             The words you are learning in this language, one entry per lemma and part of
-            speech, and the fixed expressions you learn as wholes. Neither carries a review
-            schedule — that lives on your cards — but both are what Frammenti practises.
+            speech, and the fixed expressions you learn as wholes. Card reviews don't schedule
+            them; Frammenti, your daily drill, does, word by word.
         </p>
     </div>
     <a href="{{ route('frammenti', ['language_id' => $activeLanguageId]) }}">

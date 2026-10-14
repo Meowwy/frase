@@ -15,7 +15,8 @@ Standard Laravel session auth, not Breeze/Jetstream scaffolding — hand-rolled 
   system). Creates the user with the **legacy free-text** `target_language`/`native_language`
   columns and `currency_amount: 100` (an unused early monetization concept — see
   [overview](overview.md)/[ai-integration](ai-integration.md) for other leftovers from that idea, like `CreateCardJob`
-  decrementing it). Does **not** set `native_language_id` or attach any language via the
+  decrementing it), and the `timezone` a hidden field picks up from the browser (see "Timezone"
+  below). Does **not** set `native_language_id` or attach any language via the
   `language_user` pivot — a freshly registered user must visit `/profile/edit` and configure
   languages there before word capture will work (`ProposalController@store` refuses with a 422 if
   `currentSaveLanguage()` returns null). Logs the user in immediately after creating them.
@@ -45,10 +46,27 @@ Key relations/helpers (documented in depth where they're actually used):
 
 The account landing page: the user's themes, a short preview (up to 5) of their wordboxes
 (`orderBy('position')`), a total wordbox count, and the flags of their languages
-(`$user->languages()->get(['languages.id', 'flag'])`) for a quick-glance language row.
+(`$user->languages()->get(['languages.id', 'flag'])`) for a quick-glance language row. It links
+to `/profile/edit`, the wordbox ordering page and `/profile/frammenti`.
+
+## `/profile/frammenti`
+
+`UserController@frammenti` / `@updateFrammenti`: one number per target language, **new items per
+day** for [Frammenti](frammenti.md) (`language_user.frammenti_new_per_day`, 0–50, default 12). It is
+the only Frammenti setting on purpose; the rest are constants.
 
 ## `/profile/edit`
 
 Covered in full in [multi-language](multi-language.md) (native-language picker, native-save checkbox, up-to-5
 target-language picker with per-language CEFR level, hidden-language handling). The account-level
-fields it also submits are just `username` and `native_language_id`.
+fields it also submits are `username`, `native_language_id` and `timezone`.
+
+## Timezone
+
+`users.timezone` (nullable IANA name) is what `User::today()` uses — the user's local date, falling
+back to the app timezone (UTC). Every Frammenti date goes through it (due dates, the daily session,
+the intake, the streak), so "today" ends at the learner's midnight, not the server's: a streak
+that breaks at the wrong hour feels like a bug. The browser detects it
+(`Intl.DateTimeFormat().resolvedOptions().timeZone`): a hidden field at registration, and for a user
+who still has none, a one-off `POST /profile/timezone` from the layout on any authenticated page,
+which only ever fills an empty value. It is editable on `/profile/edit`.

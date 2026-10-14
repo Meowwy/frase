@@ -71,7 +71,7 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `grammar_attributes` | nullable JSON (`array` cast) — the extra grammatical facts this language's guideline defines for this part of speech (e.g. Swedish noun `{"gender": "neuter"}`); null for a part-of-speech/language pair with nothing to say. See [ai-integration](ai-integration.md) "Language guidelines". **Not** named plain `attributes`: that collides with Eloquent's own internal attribute bag, which would make the column unreadable as `$this->attributes` from inside the model |
 | `translation` | set once at creation from CALL 1, never revised — sense lives on cards, not here |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
-| `frammenti_tier`, `frammenti_correct_streak`, `frammenti_wrong_streak`, `frammenti_rest_until` | Frammenti progress, defaulting to tier II and ready — see [frammenti](frammenti.md) |
+| `frammenti_tier`, `frammenti_interval`, `frammenti_due_on`, `frammenti_miss_streak` | the Frammenti schedule, defaulting to tier I and new (no due date) — see [frammenti](frammenti.md) |
 
 Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key, not
 `lemma` alone. `grammar_attributes`, `translation` and `dictionary_form` are set once, at creation,
@@ -82,7 +82,7 @@ to remember.
 **`BaseWord::displayForm()`** renders the lemma the way the learner is expected to learn it
 (*"ett hus"*, *"komm|a -er"*), reading the language's guideline. A correct whole-Term answer
 stamps `last_recalled_at` through **`Card::stampRecall()`** (its base words and fixed expressions
-together); a correct tier II/III answer in [Frammenti](frammenti.md) stamps that one word.
+together); any correct answer in [Frammenti](frammenti.md) stamps that one word.
 
 `card_base_word` — the pivot linking a card to the base entries for its Term's words, just
 `card_id` and `base_word_id`. Unique on `(card_id, base_word_id)` — one link per base entry per card, even when the Term repeats
@@ -140,8 +140,8 @@ any word that occurs in the Term only inside one, so *tycka om* is never split i
 | `user_id`, `language_id` | owner + language |
 | `form` | canonical form (base form of each word, `…` for a gap, a bracketed target-language placeholder for a slot it takes — `tycka om [någon]`; `translation` marks the same slot in the native language). `NOCASE` collation, so the unique key `(user_id, language_id, form)` and every lookup are case-insensitive |
 | `translation` | set once at creation from CALL 1, never revised — mirrors base words |
-| `last_recalled_at` | nullable, stamped by `Card::stampRecall()` when a card linking it is cleared, or by a correct tier II/III answer in Frammenti |
-| `frammenti_*` | Frammenti progress — tier, streaks, rest; same four columns as on `base_words` (see [frammenti](frammenti.md)) |
+| `last_recalled_at` | nullable, stamped by `Card::stampRecall()` when a card linking it is cleared, or by any correct answer in Frammenti |
+| `frammenti_*` | the Frammenti schedule; same four columns as on `base_words` (see [frammenti](frammenti.md)) |
 
 `card_fixed_expression` — the pivot, unique on `(card_id, fixed_expression_id)`.
 
@@ -151,7 +151,7 @@ Gap-fill. They are shown on the card detail page and in the `/base` list, alongs
 ## The `/base` page (`BaseWordController@index`)
 
 One list of both bases — base words and fixed expressions — in **one table, not one per base**:
-both are learnt the same way (no schedule, coverage, Frammenti), so the learner shouldn't have to
+both are learnt the same way (no card schedule, coverage, Frammenti), so the learner shouldn't have to
 think about which table an entry lives in. The controller `UNION ALL`s the two (`kind`, `id`,
 `lower(lemma|form)` as `sort_key` — `lower()` matching the expressions' NOCASE `form` — and
 `part_of_speech`, the literal `expression` for expressions, which have none), sorts by `sort_key`,
@@ -163,7 +163,7 @@ row is clicked, then listing the Terms of the cards that entry is part of — co
 the base exists, and the panel shows it without making every row as tall as its card list. Each
 row's cards are eager-loaded (`cards:id,term`) and carried in a `<template>` inside the row
 (`base/_row-cards`), so a click is a client-side swap with no request (`base/_panel`). Last recall
-and Frammenti progress are not shown on the page. The header's **Frammenti** button opens
+and the Frammenti schedule are not shown on the page. The header's **Frammenti** button opens
 Frammenti in the page's language.
 
 The column headers are live filters, the same way as on `/cards`: search inputs for the entry

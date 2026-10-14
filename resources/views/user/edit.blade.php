@@ -2,6 +2,16 @@
     <x-forms.form method="post" action="/profile/edit">
         <x-forms.input value="{{ Auth::user()->username }}" label="Username" name="username"/>
 
+        {{-- Frammenti's days (due dates, the daily session, the streak) follow this. --}}
+        <div class="mb-6 max-w-md">
+            <x-forms.select label="Timezone" name="timezone">
+                <option value="" class="bg-black/50">Not set (UTC)</option>
+                @foreach($timezones as $timezone)
+                    <option value="{{ $timezone }}" class="bg-black/50" @selected(Auth::user()->timezone === $timezone)>{{ $timezone }}</option>
+                @endforeach
+            </x-forms.select>
+        </div>
+
         <div class="mb-6">
             <label class="block mb-1 text-white/70">Native language</label>
             <div id="nativeCombo" class="combo relative max-w-md">

@@ -91,11 +91,21 @@ class User extends Authenticatable
 
     /**
      * The languages the user is currently learning (target-language set, up to 5).
-     * The pivot carries the user's proficiency in each language (CEFR: A1..C2).
+     * The pivot carries the user's proficiency in each language (CEFR: A1..C2) and how many
+     * new items Frammenti introduces in it per day.
      */
     public function languages()
     {
-        return $this->belongsToMany(Language::class)->withPivot('users_level');
+        return $this->belongsToMany(Language::class)->withPivot('users_level', 'frammenti_new_per_day');
+    }
+
+    /**
+     * Today's date (Y-m-d) in the user's timezone, falling back to the app's. Every
+     * Frammenti date uses it, so "due today" and the streak follow the learner's day.
+     */
+    public function today(): string
+    {
+        return now($this->timezone ?? config('app.timezone'))->toDateString();
     }
 
     /**

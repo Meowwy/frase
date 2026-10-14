@@ -177,8 +177,7 @@ One entry in the vocabulary base: a lemma, its **part of speech**, its native tr
 **grammatical attributes** (if its language and part of speech carry any), and when it was last
 recalled. Two base words may share a lemma when they differ in part of speech — *run* the verb and
 *run* the noun are different base words, not one. It carries no sense finer than part of speech, no
-card schedule and no generated content — those live on cards — only its Frammenti progress (tier
-and rest).
+card schedule and no generated content — those live on cards — only its Frammenti schedule.
 _Avoid_: focus word, headword, root, stem, vocabulary item
 
 **Lemma**:
@@ -243,14 +242,14 @@ _Avoid_: idiom, collocation, phrase
 
 **Expression base**:
 The learner's inventory of fixed expressions in one language, alongside the vocabulary base. Like
-it, it has no card schedule, only Frammenti progress; its entries are linked to the cards whose Terms contain them. *Expression*
+it, it has no card schedule, only a Frammenti schedule; its entries are linked to the cards whose Terms contain them. *Expression*
 on its own always means this, never a kind of card.
 _Avoid_: phrasebook, idiom list
 
 **Last recall**:
 The datetime a base word or fixed expression was last produced correctly — by clearing a card that
-contains it, or at tier II or III in Frammenti. It is set only on a correct answer, and it schedules
-nothing.
+contains it, or by any correct answer in Frammenti. It is set only on a correct answer, and it
+schedules nothing.
 _Avoid_: last studied, last seen, reviewed at, due date
 
 ### ORGANIZE — collections
@@ -286,7 +285,8 @@ out; answering wrong resets it.
 _Avoid_: box, stage, streak, score, difficulty
 
 **Due**:
-A card whose next review date has arrived. Also the default session scope: due cards only.
+A card whose next review date has arrived. Also the default session scope: due cards only. In
+Frammenti, a base word or fixed expression whose due date has arrived.
 _Avoid_: pending, scheduled, ready
 
 **Cram**:
@@ -312,28 +312,47 @@ _Avoid_: reverse mode, recall mode, flashcards
 See [docs/frammenti.md](docs/frammenti.md).
 
 **Frammenti**:
-Unscheduled practice over the vocabulary base and expression base, in batches of fragments. Not a
-learning mode, and it never clears a card.
-_Avoid_: snippets, drill, practice mode
+The daily active-vocabulary drill over the vocabulary base and expression base, in batches of
+fragments, on its own word-level schedule. Not a learning mode, and it never clears a card.
+_Avoid_: snippets, practice mode
 
 **Fragment**:
-One sentence or phrase that tests one base word or fixed expression at one tier. What it tests gets
-no term of its own: write "the base word or fixed expression a fragment tests".
+One sentence, phrase or task that tests one base word or fixed expression at one tier. What it
+tests gets no term of its own: write "the base word or fixed expression a fragment tests".
 _Avoid_: snippet, exercise, question, item
 
 **Tier**:
-How a fragment tests its word (II cloze, III full write; I recognition is discontinued), and how far a base word or
-fixed expression has got.
+How a fragment tests its word (I fill the gap, II translate, III your sentence), and how far a base
+word or fixed expression has got.
 _Avoid_: level (that is a card's), stage, difficulty
 
-**Mastered**:
-A base word or fixed expression past tier III, still checked at long rests.
-_Avoid_: known (that is a struck word), learned
+**New item**:
+A base word or fixed expression Frammenti has never introduced (no due date yet). The **daily
+intake** is how many new items it introduces per day and language, set by the learner.
+_Avoid_: unseen, fresh, unlearned
 
-**Rest**:
-How long a base word or fixed expression sits out of Frammenti after a correct answer. A priority,
-never a gate.
-_Avoid_: due, cooldown
+**Frammenti session**:
+One day's planned batches for one language: finite, fixed when first started, continued on return
+the same day.
+_Avoid_: lesson, round, workout
+
+**Repetition**:
+An extra production a new or missed item owes in today's Frammenti session, each in a fresh
+fragment. It doesn't move the schedule.
+_Avoid_: rep, retry, review
+
+**Early answer**:
+An answer to an item that is neither new, due nor owing a repetition — Extra drill and filler. It
+doesn't move the schedule.
+_Avoid_: bonus, practice answer
+
+**Active words**:
+The base words and fixed expressions at tier II or above: the ones the learner can produce.
+_Avoid_: known words (that is struck words), mastered, learned
+
+**Streak**:
+Days in a row with a finished Frammenti session in any language, forgiving one missed day per week.
+_Avoid_: chain, run (and never a card's level)
 
 ### LEARN — conversation practice
 

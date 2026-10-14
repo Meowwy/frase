@@ -30,6 +30,7 @@ class RegisteredUserController extends Controller
             'targetLanguage' => ['required', 'string', 'different:nativeLanguage'],
             'nativeLanguage' => ['required', 'string'],
             'code' => ['required', 'string', 'in:delina'],
+            'timezone' => ['nullable', 'timezone:all'],
         ]);
 
         $user = User::create([
@@ -39,6 +40,7 @@ class RegisteredUserController extends Controller
             'target_language' => request('targetLanguage'),
             'native_language' => request('nativeLanguage'),
             'currency_amount' => 100,
+            'timezone' => request('timezone'),
         ]);
 
         Auth::login($user);

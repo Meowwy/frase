@@ -1,8 +1,8 @@
 # Learning Flow (SRS flashcards)
 
 The card-set builder, the spaced-repetition scheduling algorithm and the flashcard-style learning
-modes. Unscheduled practice over the vocabulary base is [Frammenti](frammenti.md), which is not a
-learning mode and touches no card. The last learning mode, live AI conversation, is only bootstrapped here — its actual chat logic is
+modes. The daily drill over the vocabulary base, on its own word-level schedule, is
+[Frammenti](frammenti.md), which is not a learning mode and touches no card. The last learning mode, live AI conversation, is only bootstrapped here — its actual chat logic is
 in [conversation-challenge](conversation-challenge.md)'s sibling doc, the SRS-specific one: see
 "Conversation mode" below, which hands off to `ChatController`.
 

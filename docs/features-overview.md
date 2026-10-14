@@ -73,9 +73,9 @@ clicking a word or expression on a card's page brings you here with it already p
 Fixed expressions are picked out of the terms you capture and shown in staging as their own chips
 (strike one to skip it for that capture).
 
-It is not a second review queue: it has no review schedule. Its jobs are to stop the same word being
-collected twice and to show you which words run through many of your phrases without belonging to
-any one card, and it is what Frammenti practises (below). See [cards](cards.md) "The vocabulary base".
+It is not a second card review queue. Its jobs are to stop the same word being collected twice and
+to show you which words run through many of your phrases without belonging to any one card, and it
+is what Frammenti drills (below), word by word on its own schedule. See [cards](cards.md) "The vocabulary base".
 
 ## Cards list (nav: "Cards")
 
@@ -107,21 +107,27 @@ a mode:
   (doubling each time), getting it wrong resets it to "review again tomorrow."
 - See [learning-flow](learning-flow.md).
 
-## Frammenti (nav: "Frammenti")
+## Frammenti (nav: "Frammenti") — daily active-vocabulary drill
 
-- Unscheduled practice with your words and fixed expressions, five short AI-written sentences at a
-  time, each built around one of them. Always playable, and it never changes a card's review date.
-- Opens for a language once you've saved at least 5 nouns and 5 verbs in it. Pick the language (if
-  you learn several) and press **Start**; Enter checks, moves on, and starts the next batch.
-- Each word moves through two **tiers**: type it into a gap in the form the sentence needs, then
-  write a whole sentence from your native language, built only from words you've reached that tier
-  with, and mark yourself. Two right in a row move a word
-  up, two wrong move it back down, and two right at the top make it **mastered**, checked again only
-  every few weeks.
-- A word you get right rests for a while (longer at higher tiers), so you meet the ones you struggle
-  with more often. After each batch you see what you got right and which words went up or down.
-- Reached from the nav, from the vocabulary base, and from the end of a review session. See
-  [frammenti](frammenti.md).
+- Your daily drill with your own words and fixed expressions, in short AI-written sentences, five
+  at a time. Each word has its own schedule, separate from your cards: get it right and it comes
+  back after longer and longer gaps, miss it and it's back tomorrow. It never changes a card's
+  review date.
+- Each day it plans a finite session per language and tells you up front: "Today: 14 due · 6 new →
+  4 batches · ~8 min". Leave and come back the same day and you continue where you were.
+- A new word, or one you just missed, comes back two or three more times in the same session (more
+  for beginners), each time in a different sentence, until it sticks.
+- Each word climbs three **tiers**: type it into a gap, then translate a whole sentence into the
+  language you're learning, then write your own sentence for a situation ("Tell your friend…"),
+  which the AI checks (other mistakes are corrected but don't count against the word). Two misses
+  in a row move it back down. Words at tier II and up are your **Active words** — the ones you can
+  produce.
+- A **streak** counts the days you finish a session (one missed day a week is forgiven). Done for
+  the day? **Extra drill** keeps going without changing any schedule.
+- Opens for a language once you've saved at least 5 nouns and 5 verbs in it. Set how many new
+  words it introduces per day in **Frammenti settings** on your profile (default 12).
+- Reached from the dashboard's **Today's Frammenti** section, the nav, the vocabulary base, and the
+  end of a review session. See [frammenti](frammenti.md).
 
 ## Conversation practice (three ways)
 

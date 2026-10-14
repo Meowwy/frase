@@ -16,6 +16,7 @@ use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WordboxController;
 use App\Models\Card;
+use App\Models\Frammenti;
 use App\Models\Learning;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -55,7 +56,23 @@ Route::get('/', function () {
         ->take(5)
         ->get(['id', 'term', 'translation']);
 
+    // Today's Frammenti, one row per target language.
+    $frammenti = Frammenti::languages($user)->map(function ($language) use ($user) {
+        $session = Frammenti::session($user, $language->id);
+
+        return [
+            'language' => $language,
+            'enough' => Frammenti::enough($user, $language),
+            'session' => $session,
+            'plan' => $session ? null : Frammenti::plan($user, $language),
+            'activeWords' => Frammenti::activeWords($user, $language),
+        ];
+    });
+
     return view('index', [
+        'frammenti' => $frammenti,
+        'activeWords' => Frammenti::activeWords($user),
+        'streak' => Frammenti::streak($user),
         'wordboxes' => $wordboxes,
         'targetLanguages' => $targetLanguages,
         'activeLanguageId' => $user->currentSaveLanguage()?->id,
@@ -78,6 +95,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/edit', [UserController::class, 'update']);
     Route::get('/profile/wordboxes', [UserController::class, 'wordboxesOrder'])->name('wordboxes.order');
     Route::post('/profile/wordboxes', [UserController::class, 'updateWordboxesOrder'])->name('wordboxes.order.update');
+    Route::get('/profile/frammenti', [UserController::class, 'frammenti'])->name('profile.frammenti');
+    Route::post('/profile/frammenti', [UserController::class, 'updateFrammenti']);
+    Route::post('/profile/timezone', [UserController::class, 'timezone']);
 
     Route::get('/learning', function () {
         return view('learning.index');
@@ -153,10 +173,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/startLearningSet/{mode}', [Learning::class, 'startLearningSet']);
     Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
 
-    // Frammenti: unscheduled fragment practice over the vocabulary and expression bases.
+    // Frammenti: the daily active-vocabulary drill over the vocabulary and expression bases.
     Route::get('/frammenti', [FrammentiController::class, 'index'])->name('frammenti');
     Route::post('/frammenti/batch', [FrammentiController::class, 'batch']);
-    Route::post('/frammenti/results', [FrammentiController::class, 'results']);
+    Route::post('/frammenti/answer', [FrammentiController::class, 'answer']);
+    Route::post('/frammenti/evaluate', [FrammentiController::class, 'evaluate']);
 
     // Conversation learning mode (live AI roleplay chat; state lives in the session).
     Route::post('/chat/message', [ChatController::class, 'message']);

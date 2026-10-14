@@ -10,8 +10,9 @@ the shared UI component that switches between languages/wordboxes everywhere.
   `code`, ~42 languages). Add a language there, not ad hoc.
 - **`language_user` pivot** (`$user->languages()`) — the user's **target-language set, up to 5**.
   Carries `users_level` (nullable CEFR string `A1`..`C2`, allowed values + AI-facing descriptions
-  in `config/proficiency.php`) via `->withPivot('users_level')`. `User::levelForLanguage($language)`
-  reads it for a given language.
+  in `config/proficiency.php`) and `frammenti_new_per_day` (Frammenti's daily intake of new items,
+  default 12, set on `/profile/frammenti` — see [frammenti](frammenti.md)) via `->withPivot()`.
+  `User::levelForLanguage($language)` reads the level for a given language.
 - **`users.native_language_id`**, **`users.active_language_id`** — single-value FKs.
   `native_language_id` is the user's own language (used for translations/definitions, see
   [ai-integration](ai-integration.md)). `active_language_id` is the language single-language screens

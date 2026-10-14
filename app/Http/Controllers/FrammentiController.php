@@ -2,105 +2,152 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AI;
+use App\Models\BaseWord;
+use App\Models\FixedExpression;
 use App\Models\Frammenti;
 use App\Models\Language;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * LEARN: Frammenti, unscheduled practice over the vocabulary base and expression base.
- * The page plays batches client-side; this controller deals them and saves their answers.
+ * LEARN: Frammenti, the daily active-vocabulary drill over the vocabulary base and
+ * expression base. The page plays batches client-side; this controller plans the day,
+ * deals the batches, grades tier III sentences and saves each answer as it's given.
  * See docs/frammenti.md.
  */
 class FrammentiController extends Controller
 {
     public function index(Request $request)
     {
-        $languages = $this->targetLanguages();
+        $user = Auth::user();
+        $languages = Frammenti::languages($user);
         $language = $languages->firstWhere('id', (int) $request->query('language_id'))
-            ?? $languages->firstWhere('id', Auth::user()->currentSaveLanguage()?->id)
+            ?? $languages->firstWhere('id', $user->currentSaveLanguage()?->id)
             ?? $languages->first();
+        $session = $language ? Frammenti::session($user, $language->id) : null;
 
         return view('frammenti.index', [
             'targetLanguages' => $languages,
             'language' => $language,
-            'enough' => $language && Frammenti::enough(Auth::user(), $language),
+            'enough' => $language && Frammenti::enough($user, $language),
+            'session' => $session,
+            'plan' => $language && ! $session ? Frammenti::plan($user, $language) : null,
+            'activeWords' => $language ? Frammenti::activeWords($user, $language) : 0,
+            'streak' => Frammenti::streak($user),
         ]);
     }
 
+    /**
+     * Deal one batch. The first request of the day plans and stores today's session;
+     * after it is finished (or when there was nothing to plan) batches are Extra drill.
+     */
     public function batch(Request $request)
     {
         $data = $request->validate([
             'language_id' => 'required|integer',
-            'exclude' => 'array',
-            'exclude.*.type' => 'required|in:base_word,fixed_expression',
-            'exclude.*.id' => 'required|integer',
+            'on_screen' => 'array',
+            'on_screen.*.type' => 'required|in:base_word,fixed_expression',
+            'on_screen.*.id' => 'required|integer',
         ]);
+        $user = Auth::user();
         $language = $this->targetLanguage($data['language_id']);
 
-        if (! Frammenti::enough(Auth::user(), $language)) {
+        if (! Frammenti::enough($user, $language)) {
             return response()->json(['message' => 'Frammenti needs at least 5 nouns and 5 verbs in this language.'], 422);
         }
 
-        $exclude = array_map(fn ($e) => $e['type'].':'.$e['id'], $data['exclude'] ?? []);
-        $fragments = Frammenti::deal(Auth::user(), $language, $exclude);
+        $session = Frammenti::startSession($user, $language);
+        $onScreen = array_map(fn ($e) => $e['type'].':'.$e['id'], $data['on_screen'] ?? []);
+        $fragments = Frammenti::deal($user, $language, $session, $onScreen);
 
         if (! $fragments) {
             return response()->json(['message' => 'Could not generate a batch.'], 503);
         }
 
-        return response()->json(['fragments' => $fragments]);
+        return response()->json([
+            'fragments' => $fragments,
+            'drill' => ! $session || $session->finished_at !== null,
+            'planned_batches' => $session?->planned_batches,
+            'batches_done' => $session?->batches_done,
+        ]);
     }
 
     /**
-     * Apply a batch's answers, once per batch. Items load through the learner's own
-     * relations, so an id they don't own is silently skipped, as on /saveLearning.
+     * Apply one answer, as it's given. The client is trusted with right/wrong, as on
+     * /saveLearning; everything else comes from the item's stored state.
      */
-    public function results(Request $request)
+    public function answer(Request $request)
     {
         $data = $request->validate([
-            'results' => 'required|array',
-            'results.*.type' => 'required|in:base_word,fixed_expression',
-            'results.*.id' => 'required|integer',
-            'results.*.result' => 'required|boolean',
+            'type' => 'required|in:base_word,fixed_expression',
+            'id' => 'required|integer',
+            'result' => 'required|boolean',
+            'last' => 'boolean',
         ]);
-        $results = collect($data['results'])->unique(fn ($r) => $r['type'].':'.$r['id']);
-        $ids = fn ($type) => $results->where('type', $type)->pluck('id');
-        $items = [
-            'base_word' => Auth::user()->baseWords()->whereIn('id', $ids('base_word'))->get()->keyBy('id'),
-            'fixed_expression' => Auth::user()->fixedExpressions()->whereIn('id', $ids('fixed_expression'))->get()->keyBy('id'),
-        ];
+        $user = Auth::user();
+        $item = $this->item($data['type'], $data['id']);
+        $before = $item->frammenti_tier;
 
-        $changes = [];
-        foreach ($results as $r) {
-            if (! $item = $items[$r['type']]->get($r['id'])) {
-                continue;
-            }
+        $session = Frammenti::answer($user, $item, $data['result'], $data['last'] ?? false);
 
-            $before = $item->frammenti_tier;
-            Frammenti::answer($item, (bool) $r['result']);
-            $changes[] = ['type' => $r['type'], 'id' => $item->id, 'tier_before' => $before, 'tier_after' => $item->frammenti_tier];
-        }
-
-        return response()->json($changes);
+        return response()->json([
+            'tier_before' => $before,
+            'tier_after' => $item->frammenti_tier,
+            'back_tomorrow' => $item->frammenti_due_on === Carbon::parse($user->today())->addDay()->toDateString(),
+            'batches_done' => $session?->batches_done,
+            // Only on the answer that finishes today's planned session.
+            'recap' => $session?->wasChanged('finished_at') ? [
+                'streak' => Frammenti::streak($user),
+                'active_words' => Frammenti::activeWords($user),
+            ] : null,
+        ]);
     }
 
     /**
-     * The learner's target languages — never their native one, even when they collect
-     * native-language vocabulary.
+     * Grade a tier III sentence. A 503 makes the client fall back to self-grading.
      */
-    private function targetLanguages(): Collection
+    public function evaluate(Request $request)
     {
+        $data = $request->validate([
+            'type' => 'required|in:base_word,fixed_expression',
+            'id' => 'required|integer',
+            'task' => 'required|string|max:500',
+            'sentence' => 'required|string|max:1000',
+        ]);
         $user = Auth::user();
+        $item = $this->item($data['type'], $data['id']);
+        $isWord = $item instanceof BaseWord;
 
-        return $user->languages()->orderBy('name')
-            ->when($user->native_language_id, fn ($q, $native) => $q->whereKeyNot($native))
-            ->get();
+        $evaluation = AI::evaluateSentence(
+            $isWord ? $item->displayForm() : $item->form,
+            $item->translation,
+            $isWord ? $item->part_of_speech : 'fixed expression',
+            $data['task'],
+            $data['sentence'],
+            $item->language->name,
+            Frammenti::nativeLanguageName($user),
+            $user->levelForLanguage($item->language),
+        );
+
+        return $evaluation
+            ? response()->json($evaluation)
+            : response()->json(['message' => 'Could not evaluate the sentence.'], 503);
+    }
+
+    /**
+     * One of the learner's own items; another learner's id is a 404.
+     */
+    private function item(string $type, int $id): BaseWord|FixedExpression
+    {
+        $relation = $type === 'base_word' ? Auth::user()->baseWords() : Auth::user()->fixedExpressions();
+
+        return $relation->findOrFail($id);
     }
 
     private function targetLanguage(int $id): Language
     {
-        return $this->targetLanguages()->firstWhere('id', $id) ?? abort(403, 'Unauthorized action.');
+        return Frammenti::languages(Auth::user())->firstWhere('id', $id) ?? abort(403, 'Unauthorized action.');
     }
 }
