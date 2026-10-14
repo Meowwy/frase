@@ -78,9 +78,16 @@
                 <span class="text-xs uppercase tracking-wider text-white/40">base words</span>
                 @foreach($card->baseWords as $baseWord)
                     <a href="{{ route('base', ['language_id' => $card->language_id, 'selected' => 'word:'.$baseWord->id]) }}"
-                       class="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm hover:bg-white/10 transition-colors">
+                       class="group relative rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm hover:bg-white/10 transition-colors">
                         {{ $baseWord->displayForm() }}
                         <span class="ml-1 text-xs text-white/40">{{ $baseWord->part_of_speech }}</span>
+                        @if($baseWord->translation)
+                            <span role="tooltip"
+                                  class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-700 px-3 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                                {{ $baseWord->translation }}
+                                <span class="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-gray-700"></span>
+                            </span>
+                        @endif
                     </a>
                 @endforeach
                 @foreach($card->fixedExpressions as $expression)

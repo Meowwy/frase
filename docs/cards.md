@@ -434,7 +434,9 @@ not whatever view the learner arrived from. At either end the missing arrow is s
 dimmed and non-clickable, so the row doesn't shift as the learner walks the list.
 
 Renders: the card's **base words** as chips, each in its display form with its
-part of speech, linking to `/base` with that word selected (fixed expressions the same); the `note` if present; and the "Linked cards" section (below). The term
+part of speech, linking to `/base` with that word selected (fixed expressions the same); the `note` if present; and the "Linked cards" section
+(below). Hovering a base-word chip shows its `translation` in a small tooltip above it. The tooltip is a
+pure-CSS `group-hover` overlay with no JS, because the app has no tooltip library. The term
 heading is `font-medium`, not `font-bold` — there is no focus word left to emphasize against it, so
 the Term itself is what's shown. Because a whole-sentence Term can be much longer than a single
 word, the heading wraps (`flex-wrap` + `break-words`).
