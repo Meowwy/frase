@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\BaseWord;
 use App\Models\Card;
 use App\Models\FixedExpression;
+use App\Models\KnownWord;
 use App\Models\Language;
 use App\Models\Learning;
 use App\Models\Theme;
@@ -239,5 +240,49 @@ class LearningModesAndBaseTest extends TestCase
         $response->assertSee('ord55');
         $response->assertDontSee('ord01');
         $this->assertSame(1, substr_count($response->getContent(), 'js-selected"'));
+    }
+
+    /**
+     * Deleting only flags the entry: it leaves the base page and the card's chips, but the
+     * card link stays in the pivot for when it comes back.
+     */
+    public function test_deleting_a_word_hides_it_and_keeps_its_card_links(): void
+    {
+        [$user, $language] = $this->learner();
+        $card = $this->cardWithWords($user, $language, 'ett stort hus', [['hus', 'noun', ['gender' => 'neuter']]]);
+        $word = $user->baseWords()->sole();
+
+        $this->actingAs($user)->deleteJson("/base/word/{$word->id}")->assertNoContent();
+
+        $this->actingAs($user)->get('/base')->assertDontSee('ett hus');
+        $this->assertNull(BaseWord::find($word->id));
+        $this->assertTrue($word->fresh()->deleted);
+        $this->assertTrue($card->fresh()->baseWords->isEmpty());
+        $this->assertDatabaseHas('card_base_word', ['card_id' => $card->id, 'base_word_id' => $word->id]);
+        $this->assertSame(0, KnownWord::count());
+    }
+
+    public function test_deleting_a_word_as_known_records_it_as_known(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->cardWithWords($user, $language, 'ett stort hus', [['hus', 'noun', ['gender' => 'neuter']]]);
+        $word = $user->baseWords()->sole();
+
+        $this->actingAs($user)->deleteJson("/base/word/{$word->id}", ['known' => 1])->assertNoContent();
+
+        $this->assertDatabaseHas('known_words', ['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'hus', 'part_of_speech' => 'noun']);
+        $this->assertSame(0, $user->baseWords()->count());
+    }
+
+    public function test_an_expression_is_deleted_but_never_marked_known_and_only_by_its_owner(): void
+    {
+        [$user, $language] = $this->learner();
+        $expression = FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'tycka om', 'translation' => 'to like']);
+
+        $this->actingAs(User::factory()->create())->deleteJson("/base/expression/{$expression->id}")->assertNotFound();
+        $this->actingAs($user)->deleteJson("/base/expression/{$expression->id}", ['known' => 1])->assertNoContent();
+
+        $this->assertSame(0, $user->fixedExpressions()->count());
+        $this->assertSame(0, KnownWord::count());
     }
 }

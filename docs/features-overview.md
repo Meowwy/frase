@@ -74,6 +74,11 @@ word or translation as you type, or filter by part of speech (*expression* shows
 expressions). Click a row and the panel on the right lists those cards' terms;
 clicking a word or expression on a card's page brings you here with it already picked.
 
+The panel's bin **deletes** the entry. A word can be deleted on its own, or also **marked as
+known**, so staging never proposes it again; an expression can only be deleted. A deleted entry
+disappears from the base, from your cards' pages and from Frammenti, but nothing is lost: save it
+in a new card and it comes back with its old cards and its Frammenti progress.
+
 Fixed expressions are picked out of the terms you capture and shown in staging as their own chips
 (strike one to skip it for that capture).
 

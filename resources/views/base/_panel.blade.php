@@ -1,20 +1,70 @@
 {{-- /base's side panel, and the live search over the table. The panel is
      empty until a row is clicked, then it shows the Terms of the cards that word or expression
      is part of. Each row carries its own list in a template (the cards are eager-loaded with the
-     page), so a click costs no request. --}}
+     page), so a click costs no request. The panel's bin deletes the entry, after a dialog that
+     for a base word also offers marking it known. --}}
 <aside id="basePanel" class="rounded-xl border border-white/10 bg-white/5 p-4 text-sm lg:sticky lg:top-24 lg:w-72 lg:shrink-0">
     <p class="text-white/40">Select a row to see the cards it is part of.</p>
 </aside>
 
+<x-modal name="confirm-delete-base" title="Delete from the base?">
+    <div class="mb-6 space-y-2 text-white/60">
+        <p>
+            <span id="baseDeleteTitle" class="font-bold text-white"></span> leaves the base, its cards and Frammenti.
+            Saving it in a new card brings it back, with its old cards and progress.
+        </p>
+        <p id="baseDeleteKnownHint"><span class="font-bold text-white">Mark as known</span> also stops staging from proposing it again.</p>
+    </div>
+    <div class="flex flex-wrap justify-end gap-3">
+        <button type="button" onclick="closeModal('confirm-delete-base')"
+                class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+            Cancel
+        </button>
+        <button type="button" id="baseDeleteKnown" data-known="1"
+                class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+            Mark as known
+        </button>
+        <button type="button" data-known="0"
+                class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all">
+            Delete
+        </button>
+    </div>
+</x-modal>
+
 <script>
     $(function () {
         let debounce;
+        let pendingKey = null;
+        const emptyPanel = $('#basePanel').html();
 
         // Rows are swapped on every search, so the click is delegated.
         $('#baseRows').on('click', '.js-base-row', function () {
             $('.js-base-row').removeClass('bg-blue-600/20');
             $(this).addClass('bg-blue-600/20');
             $('#basePanel').html($(this).find('.js-row-cards').html());
+        });
+
+        // An expression can't be known, so its dialog offers plain delete only.
+        $('#basePanel').on('click', '.js-base-delete', function () {
+            pendingKey = $(this).data('key');
+            const isWord = pendingKey.startsWith('word:');
+            $('#baseDeleteTitle').text($(this).data('title'));
+            $('#baseDeleteKnown, #baseDeleteKnownHint').toggle(isWord);
+            openModal('confirm-delete-base');
+        });
+
+        $('.js-base-delete-confirm').on('click', function () {
+            $.ajax({
+                url: '/base/' + pendingKey.replace(':', '/'),
+                type: 'DELETE',
+                data: { _token: '{{ csrf_token() }}', known: $(this).data('known') },
+            }).done(function () {
+                closeModal('confirm-delete-base');
+                $('.js-base-row').filter((i, row) => $(row).data('key') === pendingKey).remove();
+                $('#basePanel').html(emptyPanel);
+            }).fail(function () {
+                if (window.toastr) { toastr.error('Could not delete it.'); }
+            });
         });
 
         // Arrived from a card's base-word chip: that row is already picked.

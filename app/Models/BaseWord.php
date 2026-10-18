@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\LanguageGuideline;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -19,7 +20,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  *
  * It has no card schedule and no generated content. Its jobs are deduplication and
  * coverage, and it carries its own Frammenti schedule (docs/frammenti.md).
- * See docs/cards.md "The vocabulary base".
+ *
+ * A `deleted` entry is hidden by a global scope from every query — the base, Frammenti, card
+ * chips, staging — while its card links and schedule stay; resolve() brings it back.
+ * See docs/cards.md "The vocabulary base" and "Deleting an entry".
  */
 class BaseWord extends Model
 {
@@ -31,7 +35,13 @@ class BaseWord extends Model
         'frammenti_tier' => 'integer',
         'frammenti_interval' => 'integer',
         'frammenti_miss_streak' => 'integer',
+        'deleted' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('notDeleted', fn (Builder $query) => $query->where($query->qualifyColumn('deleted'), false));
+    }
 
     public function user(): BelongsTo
     {
@@ -67,11 +77,12 @@ class BaseWord extends Model
      * Find or create the base entry for one proposed word. The dedup key is
      * lemma + part of speech, so two proposals for the same word approved in either order
      * both land on one row; `translation`/`grammar_attributes`/`dictionary_form` are only
-     * written when the row is new, which is what makes them never-revised.
+     * written when the row is new, which is what makes them never-revised. A deleted row is
+     * found too and comes back as it was, card links and Frammenti progress included.
      */
     public static function resolve(User $user, Language $language, string $lemma, string $partOfSpeech, ?array $grammarAttributes, string $translation, ?string $dictionaryForm = null): self
     {
-        return self::firstOrCreate(
+        $baseWord = self::withoutGlobalScope('notDeleted')->firstOrCreate(
             [
                 'user_id' => $user->id,
                 'language_id' => $language->id,
@@ -84,5 +95,11 @@ class BaseWord extends Model
                 'dictionary_form' => $dictionaryForm,
             ]
         );
+
+        if ($baseWord->deleted) {
+            $baseWord->update(['deleted' => false]);
+        }
+
+        return $baseWord;
     }
 }

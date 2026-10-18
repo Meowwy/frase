@@ -408,6 +408,36 @@ class CaptureStagingTest extends TestCase
         $this->assertTrue(Card::sole()->baseWords->contains($existing));
     }
 
+    /**
+     * A deleted word isn't in the base any more, so a new proposal offers it as new, and
+     * approving brings the same row back — its old card links and Frammenti progress with it.
+     */
+    public function test_a_deleted_word_is_proposed_as_new_and_comes_back_on_approval(): void
+    {
+        [$user, $language] = $this->learner();
+        Queue::fake();
+        $deleted = BaseWord::create([
+            'user_id' => $user->id, 'language_id' => $language->id,
+            'lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'frammenti_tier' => 3, 'deleted' => true,
+        ]);
+        $oldCard = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => 'det kostar']);
+        $oldCard->baseWords()->attach($deleted->id);
+        $proposal = $this->completedProposal($user, $language);
+        $word = $proposal->baseWords->firstWhere('lemma', 'kosta');
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('data-word-id="'.$word->id.'"', $rows);
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $revived = $deleted->fresh();
+        $this->assertFalse($revived->deleted);
+        $this->assertSame(3, $revived->frammenti_tier);
+        $this->assertSame(1, BaseWord::where('lemma', 'kosta')->count());
+        $this->assertTrue($oldCard->fresh()->baseWords->contains($revived));
+    }
+
     private function ambiguousAnalysis(): array
     {
         return $this->analysis([

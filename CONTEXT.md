@@ -141,8 +141,8 @@ bases only — it never rewrites the Term.
 _Avoid_: exclude, skip, drop, delete, unlink
 
 **Known word**:
-A word the learner struck, remembered per language by lemma and part of speech so that no inflected
-form of it is ever proposed again. Staging shows it aside, labelled *known*; tapping it **un-knows**
+A word the learner struck, or marked as known when deleting it from the vocabulary base, remembered
+per language by lemma and part of speech so that no inflected form of it is ever proposed again. Staging shows it aside, labelled *known*; tapping it **un-knows**
 it and the chip becomes proposable again.
 _Avoid_: ignored word, blacklist, excluded word, struck word
 
@@ -184,6 +184,12 @@ recalled. Two base words may share a lemma when they differ in part of speech �
 *run* the noun are different base words, not one. It carries no sense finer than part of speech, no
 card schedule and no generated content — those live on cards — only its Frammenti schedule.
 _Avoid_: focus word, headword, root, stem, vocabulary item
+
+**Delete (a base entry)**:
+Taking a base word or fixed expression out of its base, from `/base`. It disappears everywhere but
+keeps its card links and Frammenti progress, and comes back with them when a proposal with it is
+approved. A word can be deleted and marked as known at once; an expression can't be known.
+_Avoid_: remove, archive, hide, unlink, strike (striking happens in staging)
 
 **Lemma**:
 The canonical spelling a base word is stored under, which is what makes deduplication work —

@@ -457,10 +457,7 @@ class Proposal extends Model
             }
 
             foreach ($this->linkedExpressions($presentExpressions) as $candidate) {
-                $expression = FixedExpression::firstOrCreate(
-                    ['user_id' => $user->id, 'language_id' => $language->id, 'form' => $candidate->form],
-                    ['translation' => $candidate->translation],
-                );
+                $expression = FixedExpression::resolve($user, $language, $candidate->form, $candidate->translation);
 
                 $card->fixedExpressions()->attach($expression->id);
             }

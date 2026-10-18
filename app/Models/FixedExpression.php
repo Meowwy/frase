@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * också*, *på grund av*, *tycka om*) in its canonical form, with its native translation and
  * when it was last recalled. Like a base word, its translation is set once at creation and
  * never revised; it has no card schedule, only its Frammenti schedule (docs/frammenti.md).
+ * Deleting it works as for a base word (see BaseWord), except it can't be marked known.
  * See docs/cards.md "The expression base".
  */
 class FixedExpression extends Model
@@ -22,7 +24,32 @@ class FixedExpression extends Model
         'frammenti_tier' => 'integer',
         'frammenti_interval' => 'integer',
         'frammenti_miss_streak' => 'integer',
+        'deleted' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('notDeleted', fn (Builder $query) => $query->where($query->qualifyColumn('deleted'), false));
+    }
+
+    /**
+     * Find or create the expression-base entry for one proposed fixed expression, bringing a
+     * deleted one back — the counterpart of BaseWord::resolve(). `form` is NOCASE, so the
+     * match is case-insensitive.
+     */
+    public static function resolve(User $user, Language $language, string $form, string $translation): self
+    {
+        $expression = self::withoutGlobalScope('notDeleted')->firstOrCreate(
+            ['user_id' => $user->id, 'language_id' => $language->id, 'form' => $form],
+            ['translation' => $translation],
+        );
+
+        if ($expression->deleted) {
+            $expression->update(['deleted' => false]);
+        }
+
+        return $expression;
+    }
 
     public function language(): BelongsTo
     {

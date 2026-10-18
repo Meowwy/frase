@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BaseWord;
 use App\Models\FixedExpression;
+use App\Models\KnownWord;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -89,6 +90,25 @@ class BaseWordController extends Controller
         }
 
         return view('base.index', $view);
+    }
+
+    /**
+     * Delete one entry from the base by flagging it: its card links and Frammenti progress
+     * stay, and approving a proposal with it again brings it back (BaseWord::resolve). A word
+     * can also be marked `known`, so staging stops proposing it; an expression can't be known.
+     */
+    public function destroy(Request $request, string $kind, int $id)
+    {
+        $user = Auth::user();
+        $entry = ($kind === 'word' ? $user->baseWords() : $user->fixedExpressions())->findOrFail($id);
+
+        if ($kind === 'word' && $request->boolean('known')) {
+            KnownWord::firstOrCreate($entry->only('user_id', 'language_id', 'lemma', 'part_of_speech'));
+        }
+
+        $entry->update(['deleted' => true]);
+
+        return response()->noContent();
     }
 
     /**

@@ -215,6 +215,7 @@ Route::middleware('auth')->group(function () {
 
     // ORGANIZE: the vocabulary base.
     Route::get('/base', [BaseWordController::class, 'index'])->name('base');
+    Route::delete('/base/{kind}/{id}', [BaseWordController::class, 'destroy'])->whereIn('kind', ['word', 'expression'])->whereNumber('id');
 
     Route::get('/search', [SearchController::class, 'index']);
     Route::get('/searchWordbox/{wbid}', [SearchController::class, 'searchWordbox'])->name('searchWordbox');

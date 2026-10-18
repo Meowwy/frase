@@ -72,12 +72,14 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `translation` | set once at creation from CALL 1, never revised — sense lives on cards, not here |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
 | `frammenti_tier`, `frammenti_interval`, `frammenti_due_on`, `frammenti_miss_streak` | the Frammenti schedule, defaulting to tier I and new (no due date) — see [frammenti](frammenti.md) |
+| `deleted` | boolean — set by deleting the entry from `/base`; see "Deleting an entry" below |
 
 Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key, not
 `lemma` alone. `grammar_attributes`, `translation` and `dictionary_form` are set once, at creation,
 and never revised: **`BaseWord::resolve()`** is a `firstOrCreate` whose second argument holds
 exactly those three, so "never revised" is a property of the write rather than a rule someone has
-to remember. 
+to remember. It looks past the `deleted` scope, so a deleted row is reused and brought back
+rather than colliding with the unique key.
 
 **`BaseWord::displayForm()`** renders the lemma the way the learner is expected to learn it
 (*"ett hus"*, *"komm|a -er"*), reading the language's guideline. A correct whole-Term answer
@@ -142,6 +144,7 @@ any word that occurs in the Term only inside one, so *tycka om* is never split i
 | `translation` | set once at creation from CALL 1, never revised — mirrors base words |
 | `last_recalled_at` | nullable, stamped by `Card::stampRecall()` when a card linking it is cleared, or by any correct answer in Frammenti |
 | `frammenti_*` | the Frammenti schedule; same four columns as on `base_words` (see [frammenti](frammenti.md)) |
+| `deleted` | as on `base_words` |
 
 `card_fixed_expression` — the pivot, unique on `(card_id, fixed_expression_id)`.
 
@@ -176,6 +179,28 @@ with that row picked and its cards in the panel. The base runs to many pages, so
 works out which page the row is on — by counting the entries that sort before it — rather than
 leaving it to whatever page was open. The card detail page's word and expression chips link here
 this way.
+
+### Deleting an entry
+
+The panel's bin (`DELETE /base/{word|expression}/{id}`, `BaseWordController@destroy`) deletes the
+entry it shows, after a dialog. A **word** offers two ways: plain delete, or delete and **mark as
+known** (`known=1`), which also inserts its `known_words` row exactly as striking it in staging
+does, so it is never proposed again. An **expression** offers plain delete only, since a fixed
+expression is never remembered as known.
+
+Deleting never removes the row. It sets `deleted`, and a **global scope** (`notDeleted`, on
+`BaseWord` and `FixedExpression`) hides the row from every query, so it leaves the base page, the
+card detail page's chips, Frammenti (items, counts, the open threshold), staging (presence, related
+cards, covered, replace) and recall stamping with no per-feature check. A scope rather than a
+`where` in each consumer because "deleted means gone everywhere" was the whole requirement, and
+one missed consumer would show it again. Its `card_base_word` / `card_fixed_expression` links
+and Frammenti schedule stay.
+
+It comes back the only way an entry is made: a proposal with that lemma and part of speech (or
+that form) is approved. Since the deleted row no longer counts as present, staging shows the word
+as a **new** chip (or *known*, if it was marked so, until un-known), and `BaseWord::resolve()` /
+`FixedExpression::resolve()` find it past the scope and clear the flag. It returns with its old
+card links and its Frammenti progress, not as a new item.
 
 ## The lexicon
 
