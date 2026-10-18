@@ -99,6 +99,12 @@
                     .done(window.stagingRefresh);
             });
 
+            // Switch an existing card this one contains on to be replaced on approval, or off.
+            $list.on('click', '.js-replace', function () {
+                post(this, '/replace/' + $(this).data('card-id'), { replace: $(this).data('replace') })
+                    .done(window.stagingRefresh);
+            });
+
             // Correcting the detected language and answering the language picker are the
             // same call: the language is pinned and CALL 1 runs again.
             $list.on('change', '.js-language, .js-language-option', function () {

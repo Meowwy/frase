@@ -9,9 +9,9 @@
         $duplicates = $pending || $failed ? collect() : $proposal->duplicateCards();
         $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
         // Only once the language and sense are settled: either can change the words.
-        $covering = $pending || $failed || $proposal->language_options || $proposal->senses
-            ? null
-            : $proposal->coveringCard($alreadyInBase, $knownWords, $expressionsInBase);
+        $settled = ! ($pending || $failed || $proposal->language_options || $proposal->senses);
+        $covering = $settled ? $proposal->coveringCard($alreadyInBase, $knownWords, $expressionsInBase) : null;
+        $replaceable = $settled ? $proposal->replaceableCards($alreadyInBase, $knownWords, $expressionsInBase) : collect();
     @endphp
 
     {{-- The raw input and Context ride along so a discarded row can capture them again. --}}
@@ -191,8 +191,9 @@
                 </div>
             @endif
 
-            {{-- Related cards: what this card overlaps with, most shared words first. --}}
-            @php $related = $proposal->relatedCards($alreadyInBase); @endphp
+            {{-- Related cards: what this card overlaps with, most shared words first. The
+                 replaceable ones are listed below instead. --}}
+            @php $related = $proposal->relatedCards($alreadyInBase, $replaceable); @endphp
             @if($related->isNotEmpty())
                 <div class="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
                     <span class="text-white/60">Related cards</span>
@@ -201,6 +202,30 @@
                     @endforeach
                 </div>
             @endif
+
+            {{-- Cards this one contains entirely (every word and expression), so it makes them
+                 redundant. A switch, off by default: nothing happens to the card until approval. --}}
+            @foreach($replaceable as $card)
+                @php $marked = $proposal->isMarkedForReplace($card); @endphp
+                <div @class([
+                    'mt-3 rounded-lg border px-3 py-2 text-sm',
+                    'border-red-500/40 bg-red-500/10' => $marked,
+                    'border-white/10' => ! $marked,
+                ])>
+                    <p class="text-white/60">
+                        <a href="/cards/{{ $card->id }}" class="font-bold text-white hover:underline">{{ $card->term }}</a>
+                        — all its words are in this card
+                    </p>
+                    <button type="button" role="switch" aria-checked="{{ $marked ? 'true' : 'false' }}"
+                            class="js-replace mt-1 inline-flex items-center gap-2 text-white/60 hover:text-white"
+                            data-card-id="{{ $card->id }}" data-replace="{{ $marked ? 0 : 1 }}">
+                        <span @class(['relative inline-block h-4 w-7 shrink-0 rounded-full transition-colors', 'bg-red-500/70' => $marked, 'bg-white/20' => ! $marked])>
+                            <span @class(['absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all', 'left-3.5' => $marked, 'left-0.5' => ! $marked])></span>
+                        </span>
+                        Replace it on approve{{ filled($card->note) ? ' (its note moves here)' : '' }}
+                    </button>
+                </div>
+            @endforeach
 
             <div class="mt-4 flex items-center gap-2">
                 <x-forms.button class="js-approve" :disabled="$proposal->isApprovable() ? 'false' : 'true'">Approve</x-forms.button>

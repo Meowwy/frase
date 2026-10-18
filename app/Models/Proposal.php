@@ -42,6 +42,7 @@ class Proposal extends Model
     protected $casts = [
         'language_options' => 'array',
         'senses' => 'array',
+        'replace_card_ids' => 'array',
     ];
 
     /** How many related cards staging lists per proposal. */
@@ -107,6 +108,22 @@ class Proposal extends Model
             || ($this->status !== self::STATUS_COMPLETED && ! $this->isAwaitingAnalysis());
     }
 
+    public function isMarkedForReplace(Card $card): bool
+    {
+        return in_array($card->id, $this->replace_card_ids ?? [], true);
+    }
+
+    /**
+     * Switch an existing card on to be replaced by this one when it is approved, or off.
+     * Nothing happens to the card until then, and discarding the proposal leaves it.
+     */
+    public function markForReplace(Card $card, bool $replace): void
+    {
+        $ids = collect($this->replace_card_ids)->reject(fn (int $id) => $id === $card->id);
+
+        $this->update(['replace_card_ids' => ($replace ? $ids->push($card->id) : $ids)->values()->all()]);
+    }
+
     /**
      * Send the proposal back through CALL 1, after the learner picked or corrected its
      * language or edited its Context, or asked to try a failed one again. Everything CALL 1 produced was extracted for the old input, so it is
@@ -164,7 +181,7 @@ class Proposal extends Model
     public static function presenceIndex(Collection|SupportCollection $proposals): SupportCollection
     {
         // Related cards are read off the cards each present word is already used in.
-        return self::indexCandidates(BaseWord::with('cards:id,term'), $proposals);
+        return self::indexCandidates(BaseWord::with(self::indexedCards()), $proposals);
     }
 
     /**
@@ -205,11 +222,21 @@ class Proposal extends Model
 
         // `form` is a NOCASE column, so this match is case-insensitive.
         // Like presenceIndex(), each entry carries its cards, for coveringCard().
-        return FixedExpression::with('cards:id,term')->whereIn('user_id', $proposals->pluck('user_id')->unique())
+        return FixedExpression::with(self::indexedCards())->whereIn('user_id', $proposals->pluck('user_id')->unique())
             ->whereIn('language_id', $proposals->pluck('language_id')->filter()->unique())
             ->whereIn('form', $forms)
             ->get()
             ->keyBy(fn (FixedExpression $expression) => $expression->language_id.'|'.mb_strtolower($expression->form));
+    }
+
+    /**
+     * How both presence indexes load their entries' cards: enough to name and link them, the
+     * note a replacement carries over, and how many words and expressions each card has, which
+     * is what tells replaceableCards() whether all of them are on this proposal.
+     */
+    private static function indexedCards(): array
+    {
+        return ['cards' => fn ($cards) => $cards->select('cards.id', 'cards.term', 'cards.note')->withCount(['baseWords', 'fixedExpressions'])];
     }
 
     /**
@@ -240,18 +267,20 @@ class Proposal extends Model
      *
      * Built from the presence index, whose base words already carry their cards, so a whole
      * list costs no query beyond it. Cards with the identical Term are left out: the
-     * duplicate notice shows those.
+     * duplicate notice shows those, and so are $except — the replaceable cards, which staging
+     * lists on their own.
      *
      * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
+     * @param  \Illuminate\Support\Collection<int, Card>  $except
      * @return \Illuminate\Support\Collection<int, array{card: Card, shared: int}>
      */
-    public function relatedCards(SupportCollection $present): SupportCollection
+    public function relatedCards(SupportCollection $present, SupportCollection $except = new SupportCollection): SupportCollection
     {
         return $this->baseWords
             ->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)))
             ->flatMap(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))->cards
                 ->map(fn (Card $card) => ['card' => $card, 'noun' => $word->part_of_speech === 'noun']))
-            ->reject(fn (array $hit) => $this->hasTermOf($hit['card']))
+            ->reject(fn (array $hit) => $this->hasTermOf($hit['card']) || $except->contains('id', $hit['card']->id))
             ->groupBy(fn (array $hit) => $hit['card']->id)
             ->filter(fn (SupportCollection $hits) => $hits->count() >= 2 || $hits->contains('noun', true))
             ->map(fn (SupportCollection $hits) => ['card' => $hits->first()['card'], 'shared' => $hits->count()])
@@ -290,6 +319,43 @@ class Proposal extends Model
             ->reject(fn (Card $card) => $this->hasTermOf($card))
             ->sortByDesc('id')
             ->first();
+    }
+
+    /**
+     * The existing cards whose **every** base word and fixed expression this proposal would
+     * link too — capturing "Jag kommer från Sverige" beside *Sverige*: the reverse of
+     * coveringCard(). The new card makes such a card redundant, so staging offers to replace
+     * it, newest first. A card with no words at all is never among them (nothing reaches it
+     * here), and cards with the identical Term are left out: the duplicate notice shows those.
+     *
+     * Read off the presence indexes like coveringCard(): a card is contained when this
+     * proposal reaches it through as many distinct words and expressions as it has.
+     *
+     * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
+     * @param  \Illuminate\Support\Collection<string, KnownWord>  $known  see knownIndex()
+     * @param  \Illuminate\Support\Collection<string, FixedExpression>  $presentExpressions  see expressionPresenceIndex()
+     * @return \Illuminate\Support\Collection<int, Card>
+     */
+    public function replaceableCards(SupportCollection $present, SupportCollection $known, SupportCollection $presentExpressions): SupportCollection
+    {
+        $words = $this->linkedWords($present, $known)
+            ->map(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word)))
+            ->filter()
+            ->unique('id');
+
+        $expressions = $this->linkedExpressions($presentExpressions)
+            ->map(fn (ProposalFixedExpression $expression) => $presentExpressions->get($this->expressionKeyFor($expression)))
+            ->filter()
+            ->unique('id');
+
+        return $words->flatMap(fn (BaseWord $word) => $word->cards)
+            ->concat($expressions->flatMap(fn (FixedExpression $expression) => $expression->cards))
+            ->groupBy('id')
+            ->filter(fn (SupportCollection $hits) => $hits->count() === $hits->first()->base_words_count + $hits->first()->fixed_expressions_count)
+            ->map(fn (SupportCollection $hits) => $hits->first())
+            ->reject(fn (Card $card) => $this->hasTermOf($card))
+            ->sortByDesc('id')
+            ->values();
     }
 
     /**
@@ -350,7 +416,7 @@ class Proposal extends Model
 
     /**
      * Write the card, its base-word and fixed-expression links and the base entries they
-     * need, then run CALL 2 for its content. Returns the new card, or null when CALL 2 fails — in which case
+     * need, replace the cards switched on for it, then run CALL 2 for its content. Returns the new card, or null when CALL 2 fails — in which case
      * nothing is written and the proposal is still sitting in staging.
      *
      * The base rows are created first and reused rather than inserted blindly, so two
@@ -397,6 +463,17 @@ class Proposal extends Model
                 );
 
                 $card->fixedExpressions()->attach($expression->id);
+            }
+
+            // Replace: only a card that is still contained goes, so a mark left from before the
+            // words changed does nothing. Its note moves to the new card; its review progress,
+            // wordboxes and manual links go with it — deleting cascades every link.
+            $replaced = $this->replaceableCards($present, $known, $presentExpressions)
+                ->filter(fn (Card $old) => $this->isMarkedForReplace($old));
+
+            if ($replaced->isNotEmpty()) {
+                $card->update(['note' => $replaced->pluck('note')->filter()->implode("\n\n") ?: null]);
+                $replaced->each->delete();
             }
 
             $this->delete();

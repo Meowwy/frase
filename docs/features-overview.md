@@ -39,6 +39,10 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   the same staging feed. See [browser-extension](browser-extension.md).
 - **Related cards**: each proposal lists up to 4 of your existing cards that share at least two of
   its words, or one noun, most overlap first.
+- **A term that makes an old card redundant** — all the old card's words and expressions are in it
+  (*Sverige* when you capture *Jag kommer från Sverige*) — shows that card on its own line with a
+  **Replace it on approve** switch, off by default. Switched on, approving deletes the old card and
+  moves its note to the new one; its review progress, wordboxes and links go with it.
 - **A term that adds nothing** — all its words and expressions are already on one of your cards
   (*book* when you have *She is reading a book*) — is refused: staging says so and links that card,
   and you can only clear it.

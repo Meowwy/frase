@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeProposalJob;
+use App\Models\Card;
 use App\Models\KnownWord;
 use App\Models\Proposal;
 use App\Models\ProposalBaseWord;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\Auth;
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
  * with: striking a candidate word as known or a fixed expression, correcting a wrong language detection, editing
  * the Context (or picking a sense, which is the same thing), picking the language of a Term
- * at home in several, and finally approving (which writes the card and runs CALL 2) or discarding.
+ * at home in several, switching on an existing card for it to replace, and finally approving (which writes the card and runs CALL 2) or discarding.
  *
  * See docs/cards.md "Staging" and USERFLOW.md.
  */
@@ -165,6 +166,22 @@ class ProposalController extends Controller
         $proposal->reanalyze();
 
         return response()->json(['reanalyzing' => true]);
+    }
+
+    /**
+     * Switch one of the learner's existing cards on (or off) to be replaced by this proposal
+     * when it is approved. Nothing happens to it until then; approval checks again that the
+     * card is still contained (see Proposal::replaceableCards()).
+     */
+    public function replace(Request $request, Proposal $proposal, Card $card)
+    {
+        $this->authorize('update', $proposal);
+        $this->authorize('delete', $card);
+        abort_unless($card->language_id === $proposal->language_id, 422);
+
+        $proposal->markForReplace($card, $request->boolean('replace'));
+
+        return response()->noContent();
     }
 
     /**

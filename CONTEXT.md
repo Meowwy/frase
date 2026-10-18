@@ -155,6 +155,11 @@ A proposal whose every base word and fixed expression is already on one existing
 refuses it, since it would add nothing to the vocabulary base.
 _Avoid_: redundant, not needed, merge (there is no merging)
 
+**Replace**:
+Switching on, in staging, an existing card whose every base word and fixed expression a proposal
+also has, so that approving the proposal deletes it; only its note moves to the new card.
+_Avoid_: merge, combine, supersede
+
 **Regenerate**:
 Replacing an existing card's generated content while its review progress, note and links stay as
 they are. Capturing a term already saved offers this; otherwise an identical Term is approved only

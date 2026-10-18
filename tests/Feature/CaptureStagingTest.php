@@ -1004,6 +1004,79 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
+     * A card whose every word the proposal carries too is offered for replacing, on its own
+     * line rather than among related cards; one with a word the proposal lacks is not.
+     */
+    public function test_a_card_the_proposal_contains_is_offered_for_replacing(): void
+    {
+        [$user, $language] = $this->learner();
+        $hur = $this->baseWord($user, $language, 'hur', 'adverb');
+        $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
+        $gammal = $this->baseWord($user, $language, 'gammal', 'adjective');
+        $contained = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
+        $wider = $this->cardUsing($user, $language, 'hur gammal är det mycket', $hur, $mycket, $gammal);
+
+        $proposal = $this->completedProposal($user, $language);
+        $replaceable = fn () => $proposal->replaceableCards(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'knownIndex', 'expressionPresenceIndex']));
+
+        $this->assertSame([$contained->id], $replaceable()->pluck('id')->all());
+
+        // An expression the card has and the proposal lacks keeps it out.
+        $expression = FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'hur mycket', 'translation' => 'how much']);
+        $contained->fixedExpressions()->attach($expression->id);
+        $this->assertTrue($replaceable()->isEmpty());
+
+        $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'translation' => 'how much']);
+        $proposal->load('fixedExpressions');
+        $this->assertSame([$contained->id], $replaceable()->pluck('id')->all());
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('all its words are in this card', $rows);
+        $this->assertStringContainsString('data-card-id="'.$contained->id.'"', $rows);
+        $this->assertStringNotContainsString('data-card-id="'.$wider->id.'"', $rows);
+    }
+
+    public function test_approving_replaces_a_switched_on_card_and_carries_its_note(): void
+    {
+        [$user, $language] = $this->learner();
+        $hur = $this->baseWord($user, $language, 'hur', 'adverb');
+        $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
+        $old = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
+        $old->update(['note' => 'asked at the market']);
+        $kept = $this->cardUsing($user, $language, 'mycket', $mycket);
+
+        $proposal = $this->completedProposal($user, $language);
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 1])->assertNoContent();
+
+        $this->fakeOpenAi($this->cardContent());
+        $url = $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200)->json('url');
+
+        $this->assertModelMissing($old);
+        $this->assertModelExists($kept);
+        $this->assertSame('asked at the market', Card::find((int) basename($url))->note);
+    }
+
+    public function test_switching_a_card_off_keeps_it_and_another_learners_card_is_refused(): void
+    {
+        [$user, $language] = $this->learner();
+        $hur = $this->baseWord($user, $language, 'hur', 'adverb');
+        $old = $this->cardUsing($user, $language, 'hur', $hur);
+        $proposal = $this->completedProposal($user, $language);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 1]);
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 0]);
+        $this->assertFalse($proposal->fresh()->isMarkedForReplace($old));
+
+        [$other] = $this->learner();
+        $foreign = Card::factory()->create(['user_id' => $other->id, 'language_id' => $language->id]);
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$foreign->id}", ['replace' => 1])->assertForbidden();
+
+        $this->fakeOpenAi($this->cardContent());
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+        $this->assertModelExists($old);
+    }
+
+    /**
      * A proposal already through CALL 1, built directly so the tests that only care about
      * what happens next don't have to fake the call.
      */

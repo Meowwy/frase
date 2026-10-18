@@ -230,6 +230,7 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `context` | nullable, the learner's own input — editable in staging (see below) |
 | `term` | nullable until CALL 1 resolves |
 | `senses` | nullable JSON (`array` cast) — the sense picker's options, `[{part_of_speech, gloss, translation}, …]`, up to 4. Only ever set for a single-word Term captured without a Context with two or more common senses; `AnalyzeProposalJob::senses()` enforces that in PHP too, since a stray answer would block approval |
+| `replace_card_ids` | nullable JSON (`array` cast) — the existing cards switched on to be replaced on approval (see "Replacing a contained card" below) |
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
 
@@ -255,7 +256,7 @@ query per list: green-bordered, not strikeable, linked) or **new** (strikeable; 
 (reusing an existing one per the check above) and first-or-creates the `fixed_expressions` row for
 every fixed expression that isn't struck (an already-present one is linked even if it was struck
 before it entered the base), writes the card and its `card_base_word` / `card_fixed_expression`
-links, deletes the proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
+links, replaces the cards switched on for it, deletes the proposal, and runs CALL 2 **before** opening the transaction — a failed call then leaves the
 proposal exactly as it was in staging rather than a half-written card.
 
 ### Endpoints (`ProposalController`, `ProposalPolicy` for ownership)
@@ -270,6 +271,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /staging/{proposal}/language` | correct the detected language, or answer the language picker — see below |
 | `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
 | `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
+| `POST /staging/{proposal}/replace/{card}` | `replace=1` / `replace=0` switches one card on or off to be replaced on approval. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
 | `POST /staging/{proposal}/approve` | `409` with `duplicate_card_id` on an identical Term that still blocks (see "The duplicate check") or with `covering_card_id` on a covered proposal (see "Covered proposals"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
 | `DELETE /staging/{proposal}` | discard |
 
@@ -330,11 +332,31 @@ the chips, and the sense is kept as the card's Context so Regenerate stays in it
 of the proposal's already-present base words, **or at least one noun**. A single shared verb,
 adverb or pronoun (*hur*, *kosta*, *det*) links too many unrelated phrases to mean anything, while a
 shared noun is usually a shared topic. They are listed side by side, most shared words first, at most 4
-(`Proposal::MAX_RELATED_CARDS`) so a common word can't flood the panel. They are information only:
-staging never removes or merges an existing card.
+(`Proposal::MAX_RELATED_CARDS`) so a common word can't flood the panel. They are information only;
+a card the proposal wholly contains is left out of them and offered for replacing instead (below).
 Cards with the identical Term are left out; the duplicate notice shows those. Computed live, and
 without a query of its own: the presence index's base words already carry their cards, and the
 2-second poll is why that matters.
+
+### Replacing a contained card
+
+The reverse of a covered proposal: an existing card is **contained** in a proposal
+(`Proposal::replaceableCards()`) when **every** base word and fixed expression on the card is one
+the proposal would link too (*Sverige* beside a new "Jag kommer från Sverige"). The new card makes
+it redundant, so staging gives each such card a line of its own above Approve with a **Replace it
+on approve** switch, **off by default** — replacing deletes a card, so it is only ever the
+learner's choice. The switch writes `replace_card_ids` and does nothing else; discarding the
+proposal leaves the card alone.
+
+On approve, inside the transaction that writes the new card, each switched-on card that is
+**still** contained goes (a switch left on from before the words changed does nothing). Only its
+**note** is carried over (several are joined by a blank line); its review progress, wordboxes and
+manual links are deleted with it by the FK cascades — the learner should actually review the longer
+Term, so it starts fresh. Containment is read off the presence indexes, whose cards carry their
+word and expression counts: a card is contained when the proposal reaches it through as many
+distinct words and expressions as it has. A card with no words is never offered, and an identical
+Term is left to the duplicate notice. A card with exactly the proposal's words would make it
+covered, which is refused first.
 
 ### Covered proposals
 
