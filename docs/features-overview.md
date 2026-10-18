@@ -89,8 +89,8 @@ is what Frammenti drills (below), word by word on its own schedule. See [cards](
 ## Cards list (nav: "Cards")
 
 `/cards` — every saved term in one searchable, filterable table: filter by language, by wordbox
-(or "general vocabulary" = no wordbox), and search by term or definition text as you type. Each row shows the term, its translation, its definition and
-its wordbox. Select multiple cards to bulk-delete or bulk-move them into a wordbox. Opening a card
+(or "general vocabulary" = no wordbox), and search by term as you type. Each row shows the term, its translation, the date you saved it
+and its wordbox, newest first. Select multiple cards to bulk-delete or bulk-move them into a wordbox. Opening a card
 gives you **previous/next** arrows to walk that language's terms in the same order the list shows
 them, without going back to the list each time. See [cards](cards.md).
 

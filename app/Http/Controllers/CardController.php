@@ -17,7 +17,7 @@ class CardController extends Controller
      *
      * One endpoint serves both the full page and the live updates: a normal request
      * renders the page, an AJAX request returns just the rows + pagination so the
-     * shared <x-wordbox-picker> and the header search inputs can refresh in place.
+     * shared <x-wordbox-picker> and the header search input can refresh in place.
      */
     public function index(\Illuminate\Http\Request $request)
     {
@@ -25,7 +25,6 @@ class CardController extends Controller
 
         $wordbox = $request->query('wordbox', 'all'); // 'all' | 'general' | <wordbox id>
         $term = trim((string) $request->query('term', ''));
-        $definition = trim((string) $request->query('definition', ''));
 
         // Legacy entry: dashboard theme card links here with ?theme=<name>. Pre-filter
         // by that theme and open the picker on the theme's language.
@@ -58,9 +57,6 @@ class CardController extends Controller
         if ($term !== '') {
             $query->where('term', 'like', '%'.$term.'%');
         }
-        if ($definition !== '') {
-            $query->where('definition', 'like', '%'.$definition.'%');
-        }
 
         $cards = $query->orderBy('created_at', 'desc')
             ->paginate(20)
@@ -87,7 +83,6 @@ class CardController extends Controller
             'wordboxesByLanguage' => $wordboxesByLanguage,
             'activeLanguageId' => $languageId,
             'term' => $term,
-            'definition' => $definition,
         ]);
     }
 

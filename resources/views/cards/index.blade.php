@@ -46,18 +46,9 @@
                                class="w-full bg-transparent py-1 text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
                     </div>
                 </th>
-                {{-- Translation has no backend filter, so it is a plain header. --}}
+                {{-- Only the Term has a backend filter; the other headers are plain. --}}
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Translation</th>
-                <th class="px-6 py-3 text-left">
-                    <div class="flex items-center gap-2 border-b border-white/60">
-                        <svg class="w-4 h-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                        <input type="text" id="cardSearchDefinition" placeholder="Definition" autocomplete="off"
-                               value="{{ $definition }}"
-                               class="w-full bg-transparent py-1 text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
-                    </div>
-                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Saved</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Wordbox</th>
                 <th class="w-10 px-4 py-3"></th>
             </tr>
@@ -88,7 +79,7 @@
 
     <script>
         // Live vocabulary list: the shared picker supplies language + wordbox, the two
-        // header inputs supply the term/definition search. Every change re-fetches the
+        // header input supplies the term search. Every change re-fetches the
         // filtered rows from /cards (AJAX) and swaps the table body + pagination.
         $(document).ready(function () {
             const init = window.WordboxPicker ? window.WordboxPicker.current() : { languageId: '{{ $activeLanguageId }}', wordbox: 'all' };
@@ -109,7 +100,7 @@
             }
 
             // Pass a url to follow a paginate link (it already carries the params);
-            // otherwise build the query from the current filter + search inputs.
+            // otherwise build the query from the current filter + search input.
             // Every fetch resets the selection — it is scoped to the current view.
             function fetchCards(url) {
                 selected.clear();
@@ -118,7 +109,6 @@
                     language_id: filter.languageId,
                     wordbox: filter.wordbox,
                     term: $('#cardSearchTerm').val(),
-                    definition: $('#cardSearchDefinition').val(),
                 }, render);
             }
 
@@ -147,7 +137,7 @@
                 fetchCards();
             });
 
-            $('#cardSearchTerm, #cardSearchDefinition').on('input', function () {
+            $('#cardSearchTerm').on('input', function () {
                 clearTimeout(debounce);
                 debounce = setTimeout(() => fetchCards(), 250);
             });

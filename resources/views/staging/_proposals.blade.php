@@ -196,7 +196,7 @@
             @php $related = $proposal->relatedCards($alreadyInBase, $replaceable); @endphp
             @if($related->isNotEmpty())
                 <div class="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-                    <span class="text-white/60">Related cards</span>
+                    <span class="text-white/60">Similar cards</span>
                     @foreach($related as $item)
                         <a href="/cards/{{ $item['card']->id }}" class="hover:underline">{{ $item['card']->term }}</a>
                     @endforeach

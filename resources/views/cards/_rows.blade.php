@@ -8,9 +8,8 @@
         {{-- No nowrap: an expression frame ("can you hand me the ...") would stretch the column. --}}
         <td class="px-6 py-2 text-sm text-white">{{ $card->term }}</td>
         <td class="px-6 py-2 text-sm text-gray-300">{{ $card->translation }}</td>
-        <td class="px-6 py-2 text-sm text-gray-300">
-            <div class="max-w-[14rem] truncate" title="{{ $card->definition }}">{{ $card->definition }}</div>
-        </td>
+        {{-- In the learner's timezone, so a card saved late at night shows the day they saved it. --}}
+        <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300">{{ $card->created_at->timezone(Auth::user()->timezone ?? config('app.timezone'))->format('j M Y') }}</td>
         <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300">{{ $card->wordbox->first()?->name }}</td>
         <td class="w-10 px-4 py-2 text-right relative js-card-actions">
             <button type="button"

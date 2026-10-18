@@ -511,11 +511,12 @@ Endpoints (`CardController`), all authorized through `CardPolicy` (see [overview
 
 A single endpoint serves **both** the full page and its live updates: a normal request renders
 `cards/index.blade.php` (the shared `<x-wordbox-picker>` — see [multi-language](multi-language.md) — plus a table
-whose **Term**/**Definition** column headers are themselves live search `<input>`s, plus plain
-**Translation** and **Wordbox** headers); an AJAX request (`$request->ajax()`) returns JSON `{rows, pagination}`
+whose **Term** column header is itself a live search `<input>`, plus plain **Translation**,
+**Saved** and **Wordbox** headers); an AJAX request (`$request->ajax()`) returns JSON `{rows, pagination}`
 rendered from the `cards/_rows.blade.php` partial, which the page swaps into `#cardsTableBody` /
-`#cardsPagination` — the header inputs stay in the DOM the whole time, so focus is preserved
-while typing.
+`#cardsPagination` — the header input stays in the DOM the whole time, so focus is preserved
+while typing. **Saved** is the card's `created_at` date in the learner's timezone; the list is
+already newest-first, so it is what the order means.
 
 Filters, all combinable and all preserved across pagination via `->appends($request->query())`:
 
@@ -523,10 +524,9 @@ Filters, all combinable and all preserved across pagination via `->appends($requ
   id is passed.
 - `wordbox` — `all` (default) \| `general` (no wordbox) \| a wordbox id.
 - `term` — substring match (`LIKE %…%`) against `term`.
-- `definition` — substring match against `definition`.
-- Search inputs are debounced ~250ms client-side before firing the AJAX request.
+- The search input is debounced ~250ms client-side before firing the AJAX request.
 
-`cards/_rows.blade.php` has a fixed 6 columns (checkbox, Term, Translation, Definition, Wordbox,
+`cards/_rows.blade.php` has a fixed 6 columns (checkbox, Term, Translation, Saved, Wordbox,
 row menu), and its `@empty` row's hardcoded `colspan="6"` has to be kept in step with them.
 
 Legacy entry: the old dashboard theme card still links here as `GET /cards?theme=<name>`, which
