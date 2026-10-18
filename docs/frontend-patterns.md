@@ -32,7 +32,8 @@ covers the patterns shared across all of them.
 - Reusable UI: `<x-panel>`, `<x-card>` / `<x-card-small>` / `<x-card-text>` / `<x-card-wordbox>`
   (different card-rendering contexts — list row, small preview, plain text, wordbox-page tile),
   `<x-section-heading>`, `<x-page-heading>`, `<x-modal>`, `<x-tag>`, `<x-theme-card>`,
-  `<x-number-display>`, `<x-learning-due-card>`.
+  `<x-number-display>`, `<x-learning-due-card>`, `<x-kbd>` (a keyboard-shortcut badge, styled
+  translucent-white to sit inside a coloured button).
 - `<x-wordbox-picker>` is the one component that owns significant client-side behaviour of its
   own rather than just rendering markup — see [multi-language](multi-language.md) for its full contract
   (`window.WordboxPicker.current()` + the `wordboxpicker:change` event). It's the model to follow

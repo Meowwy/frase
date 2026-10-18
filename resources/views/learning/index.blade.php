@@ -29,11 +29,11 @@
                 </x-panel>
             </div>
             <div class="navigationStyle flex justify-center">
-                <button class="w-[300px]" id="flipBtn">Flip</button>
+                <button class="w-[300px]" id="flipBtn">Flip<x-kbd>Space</x-kbd><x-kbd class="ml-1">2</x-kbd></button>
             </div>
             <div class="navigationStyle">
-                <button class="hidden" id="wrongBtn">Wrong</button>
-                <button class="hidden" id="correctBtn">Correct</button>
+                <button class="hidden" id="wrongBtn">Wrong<x-kbd>1</x-kbd></button>
+                <button class="hidden" id="correctBtn">Correct<x-kbd>3</x-kbd></button>
             </div>
         </div>
     </div>
@@ -167,14 +167,23 @@
         wrongBtn.addEventListener('click', () => advance(false));
         correctBtn.addEventListener('click', () => advance(true));
 
-        // Spacebar flips the current card, mirroring a click — but not while the user is
-        // typing in a field (e.g. the nav-bar search).
+        // Space or 2 flips the current card, mirroring a click; 1 / 3 grade it Wrong / Correct,
+        // but only once flipped, i.e. while those buttons are on screen. `e.key` covers both the
+        // number row and the numpad. Ignored while the user is typing in a field (e.g. the
+        // nav-bar search).
         document.addEventListener('keydown', (e) => {
             const el = e.target;
             const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
-            if (e.code === 'Space' && !e.repeat && !typing) {
-                e.preventDefault(); // stop the page from scrolling
+            if (e.repeat || typing || !cards.length) return;
+
+            const flipped = !wrongBtn.classList.contains('hidden');
+            if (e.code === 'Space' || e.key === '2') {
+                e.preventDefault(); // stop Space from scrolling the page
                 flip();
+            } else if (e.key === '1' && flipped) {
+                advance(false);
+            } else if (e.key === '3' && flipped) {
+                advance(true);
             }
         });
 

@@ -125,6 +125,9 @@ a one-pass countdown.
 - The session-complete screen (`learning/complete.blade.php`) offers **Play Frammenti** in the
   finished session's language, so the learner can keep practising once the due cards run out (see
   [frammenti](frammenti.md)).
+- **Keyboard**: Space or `2` flips the card; `1` / `3` grade it Wrong / Correct, only once it is
+  flipped (the grade buttons aren't shown before that). `e.key` matching makes the number row and
+  the numpad both work. Each button shows its key(s) as an `<x-kbd>` badge.
 - The **hint** panel is hidden for any entry whose `hint` is empty, which today is everything but
   Definitions. It is kept, not deleted, so a future hint source only has to fill the field.
 
