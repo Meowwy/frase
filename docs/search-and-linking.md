@@ -4,7 +4,8 @@ Full-text-ish search over a user's cards, and the embedding-based "related terms
 that exists in the schema but is currently switched off in favor of manual linking. For the
 **manual** card-linking feature users actually see today, see [cards](cards.md) "Manual card linking" —
 this doc covers the two `synonyms`/`related_terms` tables' original automatic purpose and how
-embeddings still get generated.
+embeddings still get generated. `synonyms` links cards only; synonym links between base words and
+fixed expressions are a separate table, `entry_synonyms` (see [cards](cards.md) "Synonym links").
 
 ## Search (`SearchController`)
 

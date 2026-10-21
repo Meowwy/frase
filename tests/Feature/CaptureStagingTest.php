@@ -418,7 +418,7 @@ class CaptureStagingTest extends TestCase
         Queue::fake();
         $deleted = BaseWord::create([
             'user_id' => $user->id, 'language_id' => $language->id,
-            'lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'frammenti_tier' => 3, 'deleted' => true,
+            'lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'frammenti_level' => 6, 'deleted' => true,
         ]);
         $oldCard = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => 'det kostar']);
         $oldCard->baseWords()->attach($deleted->id);
@@ -433,7 +433,7 @@ class CaptureStagingTest extends TestCase
 
         $revived = $deleted->fresh();
         $this->assertFalse($revived->deleted);
-        $this->assertSame(3, $revived->frammenti_tier);
+        $this->assertSame(6, $revived->frammenti_level);
         $this->assertSame(1, BaseWord::where('lemma', 'kosta')->count());
         $this->assertTrue($oldCard->fresh()->baseWords->contains($revived));
     }

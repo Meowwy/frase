@@ -76,9 +76,9 @@
                                     <x-frammenti-today :enough="$row['enough']" :session="$row['session']" :plan="$row['plan']" />
                                     <span class="ml-2 text-white/40">{{ $row['activeWords'] }} active</span>
                                 </span>
-                                @if($row['enough'])
+                                @if($row['enough'] && ($row['session'] || $row['plan']['batches']))
                                     <a href="{{ route('frammenti', ['language_id' => $row['language']->id]) }}">
-                                        <x-forms.button-small>{{ $row['session']?->finished_at ? 'Done' : ($row['session'] ? 'Continue' : 'Start') }}</x-forms.button-small>
+                                        <x-forms.button-small>{{ $row['session'] ? 'Continue' : 'Start' }}</x-forms.button-small>
                                     </a>
                                 @endif
                             </li>

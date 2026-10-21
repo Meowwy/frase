@@ -77,7 +77,13 @@ clicking a word or expression on a card's page brings you here with it already p
 The panel's bin **deletes** the entry. A word can be deleted on its own, or also **marked as
 known**, so staging never proposes it again; an expression can only be deleted. A deleted entry
 disappears from the base, from your cards' pages and from Frammenti, but nothing is lost: save it
-in a new card and it comes back with its old cards and its Frammenti progress.
+in a new card and it comes back with its old cards, its synonyms and its Frammenti progress.
+
+**Synonyms**: check two entries of the same language (words, expressions or one of each — the
+checks stay while you search and page, each with its own panel) and press **Mark as synonyms**.
+The panel lists an entry's synonyms, and hovering one shows an X that unlinks it. Frammenti then
+never puts two synonyms in one batch, and when you answer with the synonym instead of the word it
+asks for another way rather than marking you wrong.
 
 Fixed expressions are picked out of the terms you capture and shown in staging as their own chips
 (strike one to skip it for that capture).
@@ -119,22 +125,18 @@ a mode:
 ## Frammenti (nav: "Frammenti") — daily active-vocabulary drill
 
 - Your daily drill with your own words and fixed expressions, in short AI-written sentences, five
-  at a time. Each word has its own schedule, separate from your cards: get it right and it comes
-  back after longer and longer gaps, miss it and it's back tomorrow. It never changes a card's
-  review date.
-- Each day it plans a finite session per language and tells you up front: "Today: 14 due · 6 new →
-  4 batches · ~8 min". Leave and come back the same day and you continue where you were.
-- A new word, or one you just missed, comes back two or three more times in the same session (more
-  for beginners), each time in a different sentence, until it sticks.
-- Each word climbs three **tiers**: type it into a gap, then translate a whole sentence into the
-  language you're learning, then write your own sentence for a situation ("Tell your friend…"),
-  which the AI checks (other mistakes are corrected but don't count against the word). Two misses
-  in a row move it back down. Words at tier II and up are your **Active words** — the ones you can
-  produce.
-- A **streak** counts the days you finish a session (one missed day a week is forgiven). Done for
-  the day? **Extra drill** keeps going without changing any schedule.
-- Opens for a language once you've saved at least 5 nouns and 5 verbs in it. Set how many new
-  words it introduces per day in **Frammenti settings** on your profile (default 12).
+  at a time. Each word has its own schedule, separate from your cards, like an Anki card: get it
+  right and it goes up a level and comes back after 1, 2, 4 … up to 128 days; miss it and it drops
+  to level 0 and comes back later in the same session. It never changes a card's review date.
+- A session takes the words that are due, in random order, and tells you up front: "14 due → 3
+  batches · ~7 min" (at most 10 batches). Leave and come back and you continue where you were;
+  finish and you can start another while words are still due.
+- The level sets the exercise (**tiers**): levels 0–2 type the word into a gap, 3–5 translate a
+  whole sentence into the language you're learning, 6–8 write your own sentence for a situation
+  ("Tell your friend…"), which the AI checks (other mistakes are corrected but don't count against
+  the word). Words at tier II and up are your **Active words** — the ones you can produce.
+- A **streak** counts the days you finish a session (one missed day a week is forgiven).
+- Opens for a language once you've saved at least 5 nouns and 5 verbs in it.
 - Reached from the dashboard's **Today's Frammenti** section, the nav, the vocabulary base, and the
   end of a review session. See [frammenti](frammenti.md).
 

@@ -505,14 +505,18 @@ class AI
      * validated here, so a fragment the client can't render is a failed call, never a
      * broken screen.
      *
-     * Context words are the learner's proven words, strongest first: $clozeWords (I, below
-     * B1) and $sentenceWords (III, below B1) are base-word lemmas, $translateWords (II) are
-     * base words and expressions. Each is null when no slot needs it.
+     * $ownWords are a beginner's proven base-word lemmas and expressions, the only content
+     * words besides the item at every type; null (from B1) leaves vocabulary to the level.
      *
-     * Returns per slot, in slot order, ['fragment', 'translation', 'accepted'] for I,
-     * ['fragment', 'translation'] for II and ['task', 'answer'] for III, or null on failure.
+     * A slot's linked synonyms are named beside its item, and at I the forms of them that
+     * would also fill each gap come back as `synonym_answers`, so the page can ask for
+     * another way instead of failing a synonym. The phrase is not made to exclude them.
+     *
+     * Returns per slot, in slot order, ['fragment', 'translation', 'accepted',
+     * 'synonym_answers'] for I, ['fragment', 'translation'] for II and ['task', 'answer']
+     * for III, or null on failure.
      */
-    public static function generateFragments(array $slots, string $targetLanguage, string $nativeLanguage, ?string $level, ?array $clozeWords, ?array $translateWords, ?array $sentenceWords): ?array
+    public static function generateFragments(array $slots, string $targetLanguage, string $nativeLanguage, ?string $level, ?array $ownWords): ?array
     {
         $system = "You are a language tutor. Write short {$targetLanguage} phrases or sentences for a learner whose native language is {$nativeLanguage}, "
             .'one per slot, each natural, as a native speaker would really say it. '
@@ -521,15 +525,18 @@ class AI
 
         // The native translation is shown as plain text, so it never carries markup.
         $translation = ['type' => 'string', 'description' => "Natural {$nativeLanguage} translation of the whole phrase, as plain text."];
-        // Below B1 a cloze carries exactly one unknown: the item.
-        $clozeRule = $clozeWords === null ? '' : ' Besides the item, its only content words are the learner\'s own words (in any form) or words too basic to be worth learning.';
-        $taskRule = $sentenceWords === null ? '' : ' It asks only for what can be said with the item, the learner\'s own nouns and verbs, and words too basic to be worth learning.';
+        // A beginner's fragment carries exactly one unknown: the item.
+        $phraseRule = $ownWords === null ? '' : ' Besides the item, its only content words are the learner\'s own words (in any form) or words too basic to be worth learning.';
+        $taskRule = $ownWords === null ? '' : ' It asks only for what can be said with the item, the learner\'s own words, and words too basic to be worth learning.';
+        // A tier I list of forms per "___".
+        $perGap = ['type' => 'array', 'items' => ['type' => 'array', 'items' => ['type' => 'string']]];
 
         $properties = [];
         $lines = [];
         foreach ($slots as $i => $slot) {
             $key = 'slot_'.($i + 1);
-            $lines[] = "{$key}: \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['item_translation']}\"";
+            $lines[] = "{$key}: \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['item_translation']}\""
+                .($slot['synonyms'] ? '; linked synonyms: '.self::synonymList($slot['synonyms']) : '');
 
             // A base word is one gap even with its article ("en skola"); only an expression
             // whose parts end up apart in the phrase gets one gap per part.
@@ -539,12 +546,15 @@ class AI
 
             $properties[$key] = self::object(match ($slot['fragment_type']) {
                 'I' => [
-                    'fragment' => ['type' => 'string', 'description' => "The phrase / short sentence with the item, in whatever form the phrase needs, {$gap}. The words around it make the missing form unambiguous.{$clozeRule}"],
+                    'fragment' => ['type' => 'string', 'description' => "The phrase / short sentence with the item, in whatever form the phrase needs, {$gap}. The words around it make the missing form unambiguous.{$phraseRule}"],
                     'translation' => $translation,
-                    'accepted' => ['type' => 'array', 'items' => ['type' => 'array', 'items' => ['type' => 'string']], 'description' => 'For each "___" in order, every form that correctly fills it in this phrase.'],
+                    'accepted' => $perGap + ['description' => 'For each "___" in order, every form that correctly fills it in this phrase.'],
+                    // Asked only for an item with linked synonyms; the rest get empty lists below,
+                    // so the page reads the same shape for every gap.
+                    ...($slot['synonyms'] ? ['synonym_answers' => $perGap + ['description' => 'For each "___" in order, every form of the item\'s linked synonyms that would also correctly fill it in this phrase; an empty list where none fits.']] : []),
                 ],
                 'II' => [
-                    'fragment' => ['type' => 'string', 'description' => 'The phrase / short sentence with the item wrapped in [[ ]]. Besides the item, its only content words are the learner\'s practised words (in any form); everything else is a function word. As short as that needs — a phrase is fine.'],
+                    'fragment' => ['type' => 'string', 'description' => "The phrase / short sentence with the item wrapped in [[ ]].{$phraseRule}"],
                     'translation' => $translation,
                 ],
                 'III' => [
@@ -555,12 +565,8 @@ class AI
         }
 
         $user = 'Items:'."\n".implode("\n", $lines);
-        if ($clozeWords !== null || $sentenceWords !== null) {
-            $own = array_unique(array_merge($clozeWords ?? [], $sentenceWords ?? []));
-            $user .= "\n\nThe learner's own words: ".($own ? implode(', ', $own) : 'none yet');
-        }
-        if ($translateWords !== null) {
-            $user .= "\n\nThe learner's practised words: ".implode(', ', $translateWords);
+        if ($ownWords !== null) {
+            $user .= "\n\nThe learner's own words: ".($ownWords ? implode(', ', $ownWords) : 'none yet');
         }
 
         $result = self::requestCardJson(
@@ -587,9 +593,13 @@ class AI
             } else {
                 $fragment['translation'] = trim(str_replace(['[[', ']]'], '', $fragment['translation']));
                 $gaps = preg_match_all('/_{3,}/', $fragment['fragment']);
+                if ($type === 'I' && ! $slot['synonyms']) {
+                    $fragment['synonym_answers'] = array_fill(0, $gaps, []);
+                }
                 $valid = $fragment['translation'] !== '' && ($type === 'I'
                     ? ($slot['part_of_speech'] === 'fixed expression' ? $gaps > 0 : $gaps === 1)
                         && count($fragment['accepted']) === $gaps && ! in_array([], $fragment['accepted'], true)
+                        && count($fragment['synonym_answers']) === $gaps
                     : preg_match('/\[\[.+?\]\]/', $fragment['fragment']) === 1);
             }
 
@@ -610,13 +620,17 @@ class AI
      * about the item only — used in a correct form, in a sense that fits its translation —
      * so a mistake elsewhere never fails it; the other mistakes still come back fixed in
      * `corrected` and explained in `note`. Like the generator, the prompt describes the
-     * data, never the exercise.
+     * data, never the exercise. `used_synonym` says the sentence used one of the item's
+     * linked $synonyms (Frammenti::synonyms()) in its place, which the page treats as
+     * "say it another way" rather than a miss.
      *
-     * Returns ['correct' => bool, 'corrected' => string, 'note' => string] or null on failure.
+     * Returns ['correct' => bool, 'used_synonym' => bool, 'corrected' => string, 'note' => string]
+     * or null on failure.
      */
-    public static function evaluateSentence(string $item, string $itemTranslation, string $partOfSpeech, string $task, string $sentence, string $targetLanguage, string $nativeLanguage, ?string $level): ?array
+    public static function evaluateSentence(string $item, string $itemTranslation, string $partOfSpeech, array $synonyms, string $task, string $sentence, string $targetLanguage, string $nativeLanguage, ?string $level): ?array
     {
         $user = "Item: \"{$item}\" ({$partOfSpeech}) = \"{$itemTranslation}\"\n"
+            .($synonyms ? 'Linked synonyms of the item: '.self::synonymList($synonyms)."\n" : '')
             ."Task ({$nativeLanguage}): {$task}\n"
             ."Sentence ({$targetLanguage}): {$sentence}"
             .($level ? "\nThe writer is CEFR level {$level}." : '');
@@ -629,10 +643,21 @@ class AI
             'evaluate_sentence',
             [
                 'correct' => ['type' => 'boolean', 'description' => 'True when the sentence uses the item in a correct form, in a sense that fits its translation. Mistakes elsewhere in the sentence do not make it false.'],
+                'used_synonym' => ['type' => 'boolean', 'description' => 'True when the sentence uses one of the item\'s linked synonyms where the item belongs. False when none are listed.'],
                 'corrected' => ['type' => 'string', 'description' => 'The sentence with every mistake fixed and nothing else changed. Identical to the sentence when it has no mistakes.'],
                 'note' => ['type' => 'string', 'description' => "One short explanation in {$nativeLanguage} of the main mistake, about the item or anything else. Empty when there are no mistakes."],
             ],
         );
+    }
+
+    /**
+     * Linked synonyms as a prompt names them: "lycklig" = "happy", ….
+     *
+     * @param  array<int, array{form: string, translation: string}>  $synonyms
+     */
+    private static function synonymList(array $synonyms): string
+    {
+        return implode(', ', array_map(fn ($synonym) => "\"{$synonym['form']}\" = \"{$synonym['translation']}\"", $synonyms));
     }
 
     /**

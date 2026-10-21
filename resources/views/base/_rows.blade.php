@@ -1,13 +1,24 @@
 {{-- The list's rows — base words and fixed expressions alike — rendered with the page and again
      for each live search. --}}
-@forelse($entries as ['key' => $key, 'entry' => $entry, 'partOfSpeech' => $entryPartOfSpeech])
-    <tr data-key="{{ $key }}" @class(['js-base-row cursor-pointer hover:bg-white/10', 'js-selected' => $selectedKey === $key])>
+@forelse($entries as ['key' => $key, 'entry' => $entry, 'partOfSpeech' => $entryPartOfSpeech, 'synonyms' => $synonyms])
+    <tr data-key="{{ $key }}" @class(['group js-base-row cursor-pointer hover:bg-white/10', 'js-selected' => $selectedKey === $key])>
+        {{-- Checking two entries marks them as synonyms (see base._panel). --}}
+        <td class="w-10 px-4 py-2 js-base-check">
+            <input type="checkbox" data-key="{{ $key }}"
+                   class="js-base-checkbox h-4 w-4 rounded border-white/30 bg-transparent align-middle cursor-pointer opacity-0 group-hover:opacity-100 checked:opacity-100 transition-opacity">
+        </td>
         {{-- The display form, not the bare lemma: a Swedish noun's article and a
              Swedish verb's dictionary suffix are part of what the learner is
              expected to learn. --}}
         <td class="px-6 py-2 text-sm text-white">
             {{ $entry->displayForm() }}
-            @include('base._row-cards', ['title' => $entry->displayForm(), 'cards' => $entry->cards, 'key' => $key])
+            @include('base._row-cards', [
+                'title' => $entry->displayForm(),
+                'subtitle' => $entryPartOfSpeech.' · '.$entry->translation,
+                'cards' => $entry->cards,
+                'key' => $key,
+                'synonyms' => $synonyms,
+            ])
         </td>
         <td class="px-6 py-2 text-sm text-gray-400">{{ $entryPartOfSpeech }}</td>
         <td class="px-6 py-2 text-sm text-gray-300">{{ $entry->translation }}</td>
@@ -17,7 +28,7 @@
     </tr>
 @empty
     <tr>
-        <td colspan="4" class="px-6 py-6 text-center text-sm text-gray-400">
+        <td colspan="5"class="px-6 py-6 text-center text-sm text-gray-400">
             @if($search !== '' || $translation !== '' || $partOfSpeech !== '')
                 Nothing matches.
             @else

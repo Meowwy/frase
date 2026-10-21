@@ -5,9 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * One learner's planned Frammenti session for one language on one local date: how many
- * batches were promised, how many are done, the new items introduced so far and the
- * repetitions still owed. See docs/frammenti.md "The daily session".
+ * One learner's planned Frammenti session in one language on one local date: how many
+ * batches were promised and how many are done. A day may hold several, one unfinished at
+ * a time. See docs/frammenti.md "Sessions".
  */
 class FrammentiSession extends Model
 {
@@ -18,8 +18,6 @@ class FrammentiSession extends Model
     protected $casts = [
         'planned_batches' => 'integer',
         'batches_done' => 'integer',
-        'introduced' => 'integer',
-        'owed' => 'array',
         'finished_at' => 'datetime',
     ];
 }

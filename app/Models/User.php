@@ -91,12 +91,11 @@ class User extends Authenticatable
 
     /**
      * The languages the user is currently learning (target-language set, up to 5).
-     * The pivot carries the user's proficiency in each language (CEFR: A1..C2) and how many
-     * new items Frammenti introduces in it per day.
+     * The pivot carries the user's proficiency in each language (CEFR: A1..C2).
      */
     public function languages()
     {
-        return $this->belongsToMany(Language::class)->withPivot('users_level', 'frammenti_new_per_day');
+        return $this->belongsToMany(Language::class)->withPivot('users_level');
     }
 
     /**

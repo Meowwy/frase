@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasSynonyms;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,13 +18,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  */
 class FixedExpression extends Model
 {
+    use HasSynonyms;
+
     protected $guarded = [];
 
     protected $casts = [
         'last_recalled_at' => 'datetime',
-        'frammenti_tier' => 'integer',
-        'frammenti_interval' => 'integer',
-        'frammenti_miss_streak' => 'integer',
+        'frammenti_level' => 'integer',
         'deleted' => 'boolean',
     ];
 

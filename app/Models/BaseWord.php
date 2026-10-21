@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasSynonyms;
 use App\Support\LanguageGuideline;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -22,19 +23,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * coverage, and it carries its own Frammenti schedule (docs/frammenti.md).
  *
  * A `deleted` entry is hidden by a global scope from every query — the base, Frammenti, card
- * chips, staging — while its card links and schedule stay; resolve() brings it back.
- * See docs/cards.md "The vocabulary base" and "Deleting an entry".
+ * chips, staging — while its card links, synonym links and schedule stay; resolve() brings
+ * it back. See docs/cards.md "The vocabulary base" and "Deleting an entry".
  */
 class BaseWord extends Model
 {
+    use HasSynonyms;
+
     protected $guarded = [];
 
     protected $casts = [
         'grammar_attributes' => 'array',
         'last_recalled_at' => 'datetime',
-        'frammenti_tier' => 'integer',
-        'frammenti_interval' => 'integer',
-        'frammenti_miss_streak' => 'integer',
+        'frammenti_level' => 'integer',
         'deleted' => 'boolean',
     ];
 

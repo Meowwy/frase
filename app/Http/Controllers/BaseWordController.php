@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BaseWord;
+use App\Models\EntrySynonym;
 use App\Models\FixedExpression;
 use App\Models\KnownWord;
 use Illuminate\Database\Query\Builder;
@@ -24,8 +25,8 @@ class BaseWordController extends Controller
     /**
      * The vocabulary base and the expression base, one language at a time, as a single list
      * with each entry's coverage — the cards using it, counted in the table and listed in the
-     * side panel. The two are stored apart but learnt the same way, so the page doesn't tell
-     * them apart.
+     * side panel, beside its synonyms. The two are stored apart but learnt the same way, so
+     * the page doesn't tell them apart.
      *
      * Like the /cards list, one endpoint serves both the page and the live search: an AJAX
      * request gets just the rows and pagination back. A `selected` entry (`word:<id>` or
@@ -60,10 +61,12 @@ class BaseWordController extends Controller
 
         $words = BaseWord::with(['language', 'cards:id,term'])->findMany($page->where('kind', 'word')->pluck('id'))->keyBy('id');
         $expressions = FixedExpression::with('cards:id,term')->findMany($page->where('kind', 'expression')->pluck('id'))->keyBy('id');
+        $synonyms = EntrySynonym::of($words->concat($expressions));
         $page->setCollection($page->getCollection()->map(fn ($row) => [
             'key' => $row->kind.':'.$row->id,
             'entry' => $row->kind === 'word' ? $words[$row->id] : $expressions[$row->id],
             'partOfSpeech' => $row->part_of_speech,
+            'synonyms' => $synonyms->get($row->kind.':'.$row->id, collect()),
         ]));
 
         // The filter offers only the parts of speech this language's base actually has.
@@ -99,8 +102,7 @@ class BaseWordController extends Controller
      */
     public function destroy(Request $request, string $kind, int $id)
     {
-        $user = Auth::user();
-        $entry = ($kind === 'word' ? $user->baseWords() : $user->fixedExpressions())->findOrFail($id);
+        $entry = $this->entry($kind, $id);
 
         if ($kind === 'word' && $request->boolean('known')) {
             KnownWord::firstOrCreate($entry->only('user_id', 'language_id', 'lemma', 'part_of_speech'));
@@ -112,6 +114,65 @@ class BaseWordController extends Controller
     }
 
     /**
+     * Mark two entries of one language as synonyms: two base words, two fixed expressions or
+     * one of each, `first` and `second` given by key ("word:12"). Frammenti then never deals
+     * them in one batch, and takes one for the other as "another way", not a miss. Linking a
+     * pair again changes nothing.
+     */
+    public function link(Request $request)
+    {
+        [$first, $second] = $this->pair($request);
+
+        if ($first->language_id !== $second->language_id) {
+            return response()->json(['message' => 'Synonyms have to be in the same language.'], 422);
+        }
+
+        $first->linkSynonym($second);
+
+        return response()->noContent();
+    }
+
+    public function unlink(Request $request)
+    {
+        [$first, $second] = $this->pair($request);
+
+        $first->unlinkSynonym($second);
+
+        return response()->noContent();
+    }
+
+    /**
+     * The two entries a synonym request names, never one entry twice.
+     *
+     * @return array{0: BaseWord|FixedExpression, 1: BaseWord|FixedExpression}
+     */
+    private function pair(Request $request): array
+    {
+        $key = ['required', 'string', 'regex:/^(word|expression):\d+$/'];
+        $data = $request->validate(['first' => $key, 'second' => [...$key, 'different:first']]);
+
+        return [$this->entry(...$this->parse($data['first'])), $this->entry(...$this->parse($data['second']))];
+    }
+
+    /** One of the learner's own entries; another learner's is a 404. */
+    private function entry(string $kind, int $id): BaseWord|FixedExpression
+    {
+        $user = Auth::user();
+
+        return ($kind === 'word' ? $user->baseWords() : $user->fixedExpressions())->findOrFail($id);
+    }
+
+    /**
+     * A row key ("word:12", "expression:7") split into its kind and id.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function parse(string $key): array
+    {
+        return array_pad(explode(':', $key, 2), 2, null);
+    }
+
+    /**
      * The `selected` entry, if it is in this (filtered) list: its key, and the page it falls
      * on — counted from how many entries sort before it — unless a page was asked for.
      *
@@ -119,7 +180,7 @@ class BaseWordController extends Controller
      */
     private function selected(Request $request, Builder $entries): array
     {
-        [$kind, $id] = array_pad(explode(':', (string) $request->query('selected', ''), 2), 2, null);
+        [$kind, $id] = $this->parse((string) $request->query('selected', ''));
         $row = $id ? (clone $entries)->where('kind', $kind)->where('id', $id)->first() : null;
 
         if (! $row) {

@@ -15,7 +15,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The whole-Term learning modes, what clearing a card stamps, and the vocabulary-base page.
+ * The whole-Term learning modes, what clearing a card stamps, the vocabulary-base page and
+ * its synonym links.
  */
 class LearningModesAndBaseTest extends TestCase
 {
@@ -57,6 +58,11 @@ class LearningModesAndBaseTest extends TestCase
         }
 
         return $card;
+    }
+
+    private function entry(User $user, Language $language, string $lemma): BaseWord
+    {
+        return BaseWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => $lemma, 'part_of_speech' => 'adjective', 'translation' => 'en: '.$lemma]);
     }
 
     private function deck(string $html): array
@@ -284,5 +290,86 @@ class LearningModesAndBaseTest extends TestCase
 
         $this->assertSame(0, $user->fixedExpressions()->count());
         $this->assertSame(0, KnownWord::count());
+    }
+
+    /**
+     * A synonym link is two mirrored rows, between base words and fixed expressions alike;
+     * linking a pair twice changes nothing.
+     */
+    public function test_two_entries_are_linked_as_synonyms_both_ways_and_unlinked(): void
+    {
+        [$user, $language] = $this->learner();
+        $word = $this->entry($user, $language, 'glad');
+        $expression = FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'på gott humör', 'translation' => 'in a good mood']);
+        $pair = ['first' => 'word:'.$word->id, 'second' => 'expression:'.$expression->id];
+
+        $this->actingAs($user)->postJson('/base/synonyms', $pair)->assertNoContent();
+        $this->actingAs($user)->postJson('/base/synonyms', $pair)->assertNoContent();
+
+        $this->assertDatabaseCount('entry_synonyms', 2);
+        $this->assertDatabaseHas('entry_synonyms', ['user_id' => $user->id, 'language_id' => $language->id, 'kind' => 'word', 'entry_id' => $word->id, 'other_kind' => 'expression', 'other_id' => $expression->id]);
+        $this->assertDatabaseHas('entry_synonyms', ['kind' => 'expression', 'entry_id' => $expression->id, 'other_kind' => 'word', 'other_id' => $word->id]);
+        $this->assertTrue($word->synonyms()->sole()->is($expression));
+        $this->assertTrue($expression->synonyms()->sole()->is($word));
+
+        // Either side unlinks it.
+        $this->actingAs($user)->deleteJson('/base/synonyms', ['first' => $pair['second'], 'second' => $pair['first']])->assertNoContent();
+
+        $this->assertDatabaseCount('entry_synonyms', 0);
+        $this->assertTrue($word->synonyms()->isEmpty());
+    }
+
+    public function test_synonyms_are_two_of_the_learners_own_entries_in_one_language(): void
+    {
+        [$user, $language] = $this->learner();
+        $english = Language::firstOrCreate(['code' => 'en'], ['name' => 'English', 'native_name' => 'English', 'flag' => '🇬🇧']);
+        $user->languages()->attach($english->id);
+        $word = $this->entry($user, $language, 'glad');
+        $other = $this->entry($user, $english, 'glad');
+        $theirs = $this->entry(User::factory()->create(), $language, 'lycklig');
+        $link = fn (BaseWord $second) => $this->actingAs($user)->postJson('/base/synonyms', ['first' => 'word:'.$word->id, 'second' => 'word:'.$second->id]);
+
+        $link($other)->assertStatus(422)->assertJson(['message' => 'Synonyms have to be in the same language.']);
+        $link($word)->assertStatus(422);
+        $link($theirs)->assertNotFound();
+        $this->assertDatabaseCount('entry_synonyms', 0);
+    }
+
+    /**
+     * A deleted entry drops out of its synonyms' lists but keeps its link, so it comes back
+     * linked.
+     */
+    public function test_a_deleted_synonym_is_hidden_and_returns_with_its_entry(): void
+    {
+        [$user, $language] = $this->learner();
+        $glad = $this->entry($user, $language, 'glad');
+        $lycklig = $this->entry($user, $language, 'lycklig');
+        $glad->linkSynonym($lycklig);
+
+        $this->actingAs($user)->deleteJson("/base/word/{$lycklig->id}")->assertNoContent();
+
+        $this->assertTrue($glad->synonyms()->isEmpty());
+        $this->assertDatabaseCount('entry_synonyms', 2);
+
+        BaseWord::resolve($user, $language, 'lycklig', 'adjective', null, 'en: lycklig');
+
+        $this->assertTrue($glad->synonyms()->sole()->is($lycklig));
+    }
+
+    public function test_the_vocabulary_base_page_has_a_checkbox_per_row_and_lists_each_rows_synonyms(): void
+    {
+        [$user, $language] = $this->learner();
+        $glad = $this->entry($user, $language, 'glad');
+        $lycklig = $this->entry($user, $language, 'lycklig');
+        $this->entry($user, $language, 'ledsen');
+        $glad->linkSynonym($lycklig);
+
+        $html = $this->actingAs($user)->get('/base')->assertOk()->getContent();
+
+        $this->assertSame(3, substr_count($html, 'class="js-base-checkbox'));
+        $this->assertStringContainsString('data-first="word:'.$glad->id.'" data-second="word:'.$lycklig->id.'"', $html);
+        $this->assertStringContainsString('data-first="word:'.$lycklig->id.'" data-second="word:'.$glad->id.'"', $html);
+        $this->assertSame(2, substr_count($html, 'class="js-synonym-unlink'));
+        $this->assertSame(1, substr_count($html, 'No synonyms linked.'));
     }
 }

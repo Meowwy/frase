@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Frammenti;
 use App\Models\Language;
 use App\Models\Theme;
 use Illuminate\Http\Request;
@@ -157,34 +156,6 @@ class UserController extends Controller
         }
 
         return response()->json(['ok' => true]);
-    }
-
-    /**
-     * Frammenti settings: new items per day, per target language.
-     */
-    public function frammenti()
-    {
-        return view('user.frammenti', ['languages' => Frammenti::languages(Auth::user())]);
-    }
-
-    /**
-     * Expects `new_per_day[languageId] = n`; only the learner's target languages are saved.
-     */
-    public function updateFrammenti(Request $request)
-    {
-        $validated = $request->validate([
-            'new_per_day' => ['array'],
-            'new_per_day.*' => ['integer', 'min:0', 'max:50'],
-        ]);
-
-        $user = Auth::user();
-        foreach (Frammenti::languages($user) as $language) {
-            if (isset($validated['new_per_day'][$language->id])) {
-                $user->languages()->updateExistingPivot($language->id, ['frammenti_new_per_day' => $validated['new_per_day'][$language->id]]);
-            }
-        }
-
-        return redirect()->route('profile.frammenti')->with('saved', true);
     }
 
     /**

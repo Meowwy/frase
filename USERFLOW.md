@@ -229,12 +229,11 @@ serves every card, and the answer is always the whole Term.
   the card's translation (its definition, for a native-language card, which has no translation),
   back is the Term. The learner flips the card and grades themselves Wrong or Correct.
 - **Definitions / Conversation** — the target they elicit is always the whole Term.
-- **Frammenti** — unscheduled practice over the vocabulary base and expression base, in batches of
-  five AI-written fragments, each testing one base word or fixed expression at that item's **tier**:
-  type it into a gap (II) or write a whole sentence with it (III); recognition (I) is disabled for
-  now. Each item keeps
-  its own tier and **rest**; a correct answer at tier II or III stamps its last recall. It never
-  touches a card's schedule and is not a learning mode. See `docs/frammenti.md`.
+- **Frammenti** — the daily drill over the vocabulary base and expression base, in batches of
+  five AI-written fragments, each testing one due base word or fixed expression at the **tier** its
+  **level** sets: type it into a gap (I), translate a sentence (II) or write your own (III). Each
+  item keeps its own Anki-style level and due date; any correct answer stamps its last recall. It
+  never touches a card's schedule and is not a learning mode. See `docs/frammenti.md`.
 
 ## Out of scope
 

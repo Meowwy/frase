@@ -2,7 +2,7 @@
     <x-forms.form method="post" action="/profile/edit">
         <x-forms.input value="{{ Auth::user()->username }}" label="Username" name="username"/>
 
-        {{-- Frammenti's days (due dates, the daily session, the streak) follow this. --}}
+        {{-- Frammenti's days (due dates, sessions, the streak) follow this. --}}
         <div class="mb-6 max-w-md">
             <x-forms.select label="Timezone" name="timezone">
                 <option value="" class="bg-black/50">Not set (UTC)</option>

@@ -8,8 +8,8 @@ use Illuminate\Support\Collection;
 /**
  * Frammenti: the daily active-vocabulary drill over the vocabulary base and expression
  * base, in batches of AI-generated fragments. This class owns what lives in PHP — the
- * word-level schedule, the daily session plan and choosing a batch — the same way
- * Learning owns the card SRS. See docs/frammenti.md.
+ * level-based schedule, the session plan and choosing a batch — the same way Learning
+ * owns the card SRS. See docs/frammenti.md.
  */
 class Frammenti
 {
@@ -20,39 +20,18 @@ class Frammenti
 
     public const TIERS = [1 => 'I', 2 => 'II', 3 => 'III'];
 
-    /** A correct answer whose doubled interval reaches this many days promotes the item. */
-    public const PROMOTE_AT_DAYS = 8;
+    public const MAX_LEVEL = 8;
 
-    /** The interval, in days, a promoted item starts its new tier at. */
-    public const PROMOTED_INTERVAL = 2;
-
-    public const MAX_INTERVAL = 180;
-
-    /** Misses in a row that demote an item at tier II or III. */
-    public const MISSES_TO_DEMOTE = 2;
-
-    /** Repetitions a new or missed item owes in today's session, by CEFR level. */
-    public const REPS = ['A1' => 3, 'A2' => 3, 'B1' => 2, 'B2' => 2, 'C1' => 1, 'C2' => 1];
-
-    /** Repetitions owed when the language has no level set. */
-    public const DEFAULT_REPS = 2;
-
-    /** The most batches one day's session plans. */
+    /** The most batches one session plans. */
     public const MAX_BATCHES = 10;
-
-    /** A repetition never comes within this many fragments of its previous appearance. */
-    public const SPACING = 2;
 
     public const SECONDS_PER_FRAGMENT = 25;
 
-    /** Levels whose fragments are built only from words the learner has proven. */
-    private const BEGINNER_LEVELS = ['A1', 'A2'];
+    /** Levels whose fragments are built only from words the learner has proven; no level counts as a beginner. */
+    private const BEGINNER_LEVELS = [null, 'A1', 'A2'];
 
-    /** Proven words sent as context for tiers I and II. */
+    /** Proven words sent as context to a beginner's batch. */
     private const CONTEXT_WORDS = 80;
-
-    /** Proven nouns, and verbs, sent as context for a beginner's tier III task. */
-    private const SENTENCE_WORDS = 15;
 
     /**
      * The learner's target languages — never their native one, even when they collect
@@ -93,7 +72,7 @@ class Frammenti
         return $item instanceof BaseWord ? 'base_word' : 'fixed_expression';
     }
 
-    /** The "type:id" key an item goes by in a session's owed map and the on-screen list. */
+    /** The "type:id" key an item goes by in the on-screen list. */
     public static function key(BaseWord|FixedExpression $item): string
     {
         return self::type($item).':'.$item->id;
@@ -104,23 +83,31 @@ class Frammenti
         return optional($user->nativeLanguage)->name ?? $user->native_language ?? 'English';
     }
 
+    /** The tier a level is tested at: 0–2 I, 3–5 II, 6–8 III. */
+    public static function tier(int $level): int
+    {
+        return intdiv($level, 3) + 1;
+    }
+
     /** Words and fixed expressions the learner can produce: tier II and up. */
     public static function activeWords(User $user, ?Language $language = null): int
     {
-        $count = fn ($relation) => $relation->where('frammenti_tier', '>=', 2)
+        $count = fn ($relation) => $relation->where('frammenti_level', '>=', 3)
             ->when($language, fn ($q) => $q->where('language_id', $language->id))->count();
 
         return $count($user->baseWords()) + $count($user->fixedExpressions());
     }
 
+    /** Today's unfinished session; there is at most one at a time. */
     public static function session(User $user, int $languageId): ?FrammentiSession
     {
-        return FrammentiSession::where(['user_id' => $user->id, 'language_id' => $languageId, 'date' => $user->today()])->first();
+        return FrammentiSession::where(['user_id' => $user->id, 'language_id' => $languageId, 'date' => $user->today()])
+            ->whereNull('finished_at')->first();
     }
 
     /**
-     * Today's session, planned and stored on first start. Null when there is nothing to
-     * plan (nothing due and nothing new): the learner can still do Extra drill.
+     * Today's unfinished session, or a new one planned and stored now. Null when nothing
+     * is due.
      */
     public static function startSession(User $user, Language $language): ?FrammentiSession
     {
@@ -128,98 +115,55 @@ class Frammenti
             return $session;
         }
 
-        $plan = self::plan($user, $language);
+        $batches = self::plan($user, $language)['batches'];
 
-        return $plan['batches'] ? FrammentiSession::create([
+        return $batches ? FrammentiSession::create([
             'user_id' => $user->id,
             'language_id' => $language->id,
             'date' => $user->today(),
-            'planned_batches' => $plan['batches'],
+            'planned_batches' => $batches,
             'batches_done' => 0,
-            'introduced' => 0,
-            'owed' => [],
         ]) : null;
     }
 
     /**
-     * What today holds for a language before it is started: due items, new items and the
-     * batches they need. At most MAX_BATCHES; when that cap bites, new items are cut first,
-     * then the least overdue due items (dealing takes the most overdue first). What's cut
-     * rolls to tomorrow.
+     * What a session started now would hold: the items due and the batches they need, at
+     * most MAX_BATCHES. What doesn't fit stays due for the next session.
      *
-     * @return array{due: int, new: int, batches: int, minutes: int}
+     * @return array{due: int, batches: int, minutes: int}
      */
     public static function plan(User $user, Language $language): array
     {
         $today = $user->today();
-        $reps = self::reps($user->levelForLanguage($language));
-        $items = self::items($user, $language);
-        $capacity = self::MAX_BATCHES * self::BATCH;
-
-        $due = min($items->filter(fn ($item) => self::isDue($item, $today))->count(), $capacity);
-        $new = min(self::newPerDay($user, $language), $items->whereNull('frammenti_due_on')->count(), intdiv($capacity - $due, $reps));
-        // A new item needs a batch for each of its repetitions.
-        $batches = max((int) ceil(($due + $new * $reps) / self::BATCH), $new ? $reps : 0);
+        $due = self::items($user, $language)->filter(fn ($item) => self::isDue($item, $today))->count();
+        $batches = min((int) ceil($due / self::BATCH), self::MAX_BATCHES);
 
         return [
             'due' => $due,
-            'new' => $new,
             'batches' => $batches,
             'minutes' => (int) ceil($batches * self::BATCH * self::SECONDS_PER_FRAGMENT / 60),
         ];
     }
 
     /**
-     * Apply one answer to an item's STORED schedule and today's session — never to a tier
-     * or attempt the client sent. Only the first attempt of the day moves the schedule:
-     *
-     * - new or due: it counts — the scheduling rules below, and the repetitions it owes;
-     * - otherwise, owing repetitions today: a correct one pays one off, a wrong one nothing;
-     * - otherwise it's an early answer and changes nothing.
+     * Apply one answer to an item's STORED schedule — never to a level the client sent.
+     * Only a due item's answer counts: right climbs one level and comes back in
+     * 2^(level − 1) days, wrong drops to level 0 and stays due today. Any other answer
+     * (filler) is early and changes nothing.
      *
      * $last marks the last fragment of a batch, which counts the batch done and, at the
-     * planned count, finishes the session. Returns today's session, if there is one.
+     * planned count, finishes the session. Returns the session the answer was given in,
+     * if there is one.
      */
     public static function answer(User $user, BaseWord|FixedExpression $item, bool $correct, bool $last): ?FrammentiSession
     {
         $today = $user->today();
-        $session = self::session($user, $item->language_id);
-        $key = self::key($item);
-        $owed = $session?->owed ?? [];
 
-        if (self::isNew($item) || self::isDue($item, $today)) {
-            $reps = self::reps($user->levelForLanguage($item->language));
-            $item->frammenti_miss_streak = $correct ? 0 : $item->frammenti_miss_streak + 1;
-
-            if (self::isNew($item)) {
-                // Introducing it is what counts, right or wrong; a correct first attempt
-                // already was one repetition.
-                $item->frammenti_interval = 1;
-                $owed[$key] = $correct ? $reps - 1 : $reps;
-                if ($session) {
-                    $session->introduced++;
-                }
-            } elseif ($correct) {
-                $interval = $item->frammenti_interval * 2;
-                // A harder exercise hasn't proven itself yet, so it starts short.
-                if ($interval >= self::PROMOTE_AT_DAYS && $item->frammenti_tier < 3) {
-                    $item->frammenti_tier++;
-                    $interval = self::PROMOTED_INTERVAL;
-                }
-                $item->frammenti_interval = min($interval, self::MAX_INTERVAL);
-                unset($owed[$key]);
-            } else {
-                $item->frammenti_interval = 1;
-                if ($item->frammenti_miss_streak >= self::MISSES_TO_DEMOTE && $item->frammenti_tier > 1) {
-                    $item->frammenti_tier--;
-                    $item->frammenti_miss_streak = 0;
-                }
-                $owed[$key] = $reps;
-            }
-
-            $item->frammenti_due_on = Carbon::parse($today)->addDays($item->frammenti_interval)->toDateString();
-        } elseif ($correct && isset($owed[$key])) {
-            $owed[$key]--;
+        if (self::isDue($item, $today)) {
+            $item->frammenti_level = $correct ? min($item->frammenti_level + 1, self::MAX_LEVEL) : 0;
+            $item->frammenti_due_on = $correct
+                ? Carbon::parse($today)->addDays(2 ** ($item->frammenti_level - 1))->toDateString()
+                : $today;
         }
 
         // All three tiers are production, so every correct answer is a recall.
@@ -228,9 +172,9 @@ class Frammenti
         }
         $item->save();
 
-        if ($session) {
-            $session->owed = array_filter($owed);
-            if ($last && ! $session->finished_at && ++$session->batches_done >= $session->planned_batches) {
+        $session = self::session($user, $item->language_id);
+        if ($session && $last) {
+            if (++$session->batches_done >= $session->planned_batches) {
                 $session->finished_at = now();
             }
             $session->save();
@@ -243,98 +187,55 @@ class Frammenti
      * Choose and generate one batch, or null when the AI call fails. The caller has
      * already checked enough().
      *
-     * During today's planned session the 5 slots take, in order: owed repetitions, due
-     * items (most overdue first), new items (while the day's intake lasts and enough
-     * planned batches remain for their repetitions), then the items closest to due as
-     * early answers. Extra drill — no session, or a finished one — takes only those last.
-     * In a language too small for that, the items on screen top the batch up.
-     *
-     * $onScreen is the batch currently shown, in order. Its items are never dealt as due or
-     * new again; an owed one comes back no sooner than SPACING fragments after its slot.
-     * One whose answer hasn't arrived yet is planned as if answered correctly.
+     * The 5 slots take due items at random; when fewer are due, the items closest to due
+     * fill the rest as early answers. $onScreen is the batch currently shown, and its
+     * items are never dealt: a miss on screen comes back in a later batch. An item's linked
+     * synonyms are skipped once it is dealt, since either could answer the other's
+     * fragment. An open language has at least 10 items, so 5 are left unless skipped
+     * synonyms leave fewer, which only makes a shorter batch.
      *
      * @param  array<int, string>  $onScreen  "type:id" keys
      */
-    public static function deal(User $user, Language $language, ?FrammentiSession $session, array $onScreen): ?array
+    public static function deal(User $user, Language $language, array $onScreen): ?array
     {
         $today = $user->today();
         $level = $user->levelForLanguage($language);
-        $reps = self::reps($level);
         // A base collection: an Eloquent one's except() goes by model id, not by these keys.
         $all = self::items($user, $language)->toBase()->keyBy(fn ($item) => self::key($item));
-        $onScreen = array_values(array_filter($onScreen, fn ($key) => $all->has($key)));
-        $pool = $all->except($onScreen);
-        $position = array_flip($onScreen);
+        [$due, $notDue] = $all->except($onScreen)->partition(fn ($item) => self::isDue($item, $today));
+        $synonyms = EntrySynonym::of($all);
 
-        // "type:id" => the first slot (0-based) the item may take, in priority order.
-        $candidates = [];
-
-        if ($session && ! $session->finished_at) {
-            $owed = $session->owed;
-            foreach ($onScreen as $key) {
-                if (self::isNew($all[$key])) {
-                    $owed[$key] = $reps - 1;
-                } elseif (self::isDue($all[$key], $today)) {
-                    unset($owed[$key]);
-                }
+        $slots = [];
+        $skip = [];
+        foreach ($due->shuffle()->concat($notDue->sortBy('frammenti_due_on')) as $item) {
+            if (count($slots) === self::BATCH) {
+                break;
             }
-            foreach (array_keys(array_filter($owed)) as $key) {
-                if ($all->has($key)) {
-                    $candidates[$key] = isset($position[$key]) ? max(0, $position[$key] - self::SPACING) : 0;
-                }
+            if (isset($skip[$item->entryKey()])) {
+                continue;
             }
 
-            $candidates += $pool->filter(fn ($item) => self::isDue($item, $today))
-                ->sortBy([['frammenti_due_on', 'asc'], ['frammenti_interval', 'asc']])
-                ->map(fn () => 0)->all();
-
-            $intake = self::newPerDay($user, $language) - $session->introduced
-                - collect($onScreen)->filter(fn ($key) => self::isNew($all[$key]))->count();
-            $batchesLeft = $session->planned_batches - $session->batches_done - ($onScreen ? 1 : 0);
-            if ($intake > 0 && $batchesLeft >= $reps) {
-                $candidates += $pool->filter(fn ($item) => self::isNew($item))
-                    ->sortBy([
-                        fn ($a, $b) => self::isNounOrVerb($b) <=> self::isNounOrVerb($a),
-                        fn ($a, $b) => $b->created_at <=> $a->created_at,
-                    ])
-                    ->take($intake)->map(fn () => 0)->all();
+            $itemSynonyms = $synonyms->get($item->entryKey(), collect());
+            $slots[] = self::slot($item, $itemSynonyms);
+            foreach ($itemSynonyms as $synonym) {
+                $skip[$synonym->entryKey()] = true;
             }
         }
 
-        $candidates += $pool->filter(fn ($item) => ! self::isNew($item) && ! self::isDue($item, $today))
-            ->sortBy('frammenti_due_on')->map(fn () => 0)->all();
-        $candidates += array_fill_keys($onScreen, 0);
+        // A beginner's fragments are built from words they have already produced twice.
+        $context = in_array($level, self::BEGINNER_LEVELS, true)
+            ? $all->where('frammenti_level', '>=', 2)->shuffle()->take(self::CONTEXT_WORDS)
+                ->map(fn ($item) => $item instanceof BaseWord ? $item->lemma : $item->form)->values()->all()
+            : null;
 
-        // Only the last two on-screen slots hold anything back (to slot 2 and slot 1 at the
-        // latest), so laying the batch out by first allowed slot always keeps the spacing.
-        $chosen = array_slice($candidates, 0, self::BATCH, true);
-        asort($chosen);
-        $slots = array_map(fn ($key) => self::slot($all[$key]), array_keys($chosen));
-
-        $types = array_column($slots, 'fragment_type');
-        $beginner = in_array($level, self::BEGINNER_LEVELS, true);
-        $proven = $all->whereNotNull('last_recalled_at')->shuffle()
-            ->sortBy([['frammenti_tier', 'desc'], ['frammenti_interval', 'desc']]);
-        $provenWords = $proven->whereInstanceOf(BaseWord::class);
-        $forms = fn ($items) => $items->map(fn ($item) => $item instanceof BaseWord ? $item->lemma : $item->form)->values()->all();
-
-        $fragments = AI::generateFragments(
-            $slots,
-            $language->name,
-            self::nativeLanguageName($user),
-            $level,
-            $beginner && in_array('I', $types, true) ? $forms($provenWords->take(self::CONTEXT_WORDS)) : null,
-            in_array('II', $types, true) ? $forms($proven->take(self::CONTEXT_WORDS)) : null,
-            $beginner && in_array('III', $types, true) ? $forms($provenWords->where('part_of_speech', 'noun')->take(self::SENTENCE_WORDS)
-                ->concat($provenWords->where('part_of_speech', 'verb')->take(self::SENTENCE_WORDS))) : null,
-        );
+        $fragments = AI::generateFragments($slots, $language->name, self::nativeLanguageName($user), $level, $context);
 
         return $fragments ? array_map(fn ($slot, $fragment) => $slot + $fragment, $slots, $fragments) : null;
     }
 
     /**
-     * Days in a row with a finished planned session in any language. Today doesn't break
-     * it before it's over, and one missed day per ISO week is forgiven.
+     * Days in a row with a finished session in any language. Today doesn't break it
+     * before it's over, and one missed day per ISO week is forgiven.
      */
     public static function streak(User $user): int
     {
@@ -364,46 +265,39 @@ class Frammenti
         return $streak;
     }
 
-    public static function reps(?string $level): int
-    {
-        return self::REPS[$level] ?? self::DEFAULT_REPS;
-    }
-
-    private static function newPerDay(User $user, Language $language): int
-    {
-        return (int) $user->languages()->whereKey($language->id)->first()?->pivot->frammenti_new_per_day;
-    }
-
-    private static function isNew(BaseWord|FixedExpression $item): bool
-    {
-        return $item->frammenti_due_on === null;
-    }
-
+    /** Due: never answered (no due date yet) or its due date has arrived. */
     private static function isDue(BaseWord|FixedExpression $item, string $today): bool
     {
-        return $item->frammenti_due_on !== null && $item->frammenti_due_on <= $today;
-    }
-
-    private static function isNounOrVerb(BaseWord|FixedExpression $item): bool
-    {
-        return $item instanceof BaseWord && in_array($item->part_of_speech, ['noun', 'verb'], true);
+        return $item->frammenti_due_on === null || $item->frammenti_due_on <= $today;
     }
 
     /**
-     * One slot of the batch, as the AI call takes it: the item's stored tier is its
-     * fragment type.
+     * An item's linked synonyms as the AI calls and the page take them: each one's form and
+     * translation, never its own level or schedule.
+     *
+     * @return array<int, array{form: string, translation: string}>
      */
-    private static function slot(BaseWord|FixedExpression $item): array
+    public static function synonyms(Collection $synonyms): array
+    {
+        return $synonyms->map(fn ($synonym) => ['form' => $synonym->displayForm(), 'translation' => $synonym->translation])->values()->all();
+    }
+
+    /**
+     * One slot of the batch, as the AI call takes it: the item's level sets its fragment
+     * type.
+     */
+    private static function slot(BaseWord|FixedExpression $item, Collection $synonyms): array
     {
         $isWord = $item instanceof BaseWord;
 
         return [
             'type' => self::type($item),
             'id' => $item->id,
-            'fragment_type' => self::TIERS[$item->frammenti_tier],
+            'fragment_type' => self::TIERS[self::tier($item->frammenti_level)],
             'item' => $isWord ? $item->displayForm() : $item->form,
             'part_of_speech' => $isWord ? $item->part_of_speech : 'fixed expression',
             'item_translation' => $item->translation,
+            'synonyms' => self::synonyms($synonyms),
         ];
     }
 }

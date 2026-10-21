@@ -257,6 +257,12 @@ it, it has no card schedule, only a Frammenti schedule; its entries are linked t
 on its own always means this, never a kind of card.
 _Avoid_: phrasebook, idiom list
 
+**Synonym link**:
+A manual link the learner makes on `/base` between two base words or fixed expressions of one
+language that mean the same (*glad*, *lycklig*). A pair only — a synonym's synonym is not linked.
+Frammenti never deals the two together, and asks for another way when one is given for the other.
+_Avoid_: linked cards (that is the card-level link), related, similar, duplicate, merge
+
 **Last recall**:
 The datetime a base word or fixed expression was last produced correctly — by clearing a card that
 contains it, or by any correct answer in Frammenti. It is set only on a correct answer, and it
@@ -291,13 +297,13 @@ that is a wordbox.
 See [docs/learning-flow.md](docs/learning-flow.md).
 
 **Level**:
-A card's spaced-repetition box. Answering correctly raises it and pushes the next review further
-out; answering wrong resets it.
+A card's spaced-repetition box, and in Frammenti a base word's or fixed expression's. Answering
+correctly raises it and pushes the next review further out; answering wrong resets it.
 _Avoid_: box, stage, streak, score, difficulty
 
 **Due**:
 A card whose next review date has arrived. Also the default session scope: due cards only. In
-Frammenti, a base word or fixed expression whose due date has arrived.
+Frammenti, a base word or fixed expression never answered or whose due date has arrived.
 _Avoid_: pending, scheduled, ready
 
 **Cram**:
@@ -333,28 +339,17 @@ tests gets no term of its own: write "the base word or fixed expression a fragme
 _Avoid_: snippet, exercise, question, item
 
 **Tier**:
-How a fragment tests its word (I fill the gap, II translate, III your sentence), and how far a base
-word or fixed expression has got.
-_Avoid_: level (that is a card's), stage, difficulty
-
-**New item**:
-A base word or fixed expression Frammenti has never introduced (no due date yet). The **daily
-intake** is how many new items it introduces per day and language, set by the learner.
-_Avoid_: unseen, fresh, unlearned
+How a fragment tests its word (I fill the gap, II translate, III your sentence), set by the base
+word's or fixed expression's level.
+_Avoid_: level (the tier follows from it, but is not it), stage, difficulty
 
 **Frammenti session**:
-One day's planned batches for one language: finite, fixed when first started, continued on return
-the same day.
+A planned run of batches over the due items in one language: finite, fixed when started, continued
+on return. Another can follow the same day while items are still due.
 _Avoid_: lesson, round, workout
 
-**Repetition**:
-An extra production a new or missed item owes in today's Frammenti session, each in a fresh
-fragment. It doesn't move the schedule.
-_Avoid_: rep, retry, review
-
 **Early answer**:
-An answer to an item that is neither new, due nor owing a repetition — Extra drill and filler. It
-doesn't move the schedule.
+An answer to an item that isn't due — filler in a short batch. It doesn't move the schedule.
 _Avoid_: bonus, practice answer
 
 **Active words**:

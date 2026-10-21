@@ -8,12 +8,11 @@ use App\Models\FixedExpression;
 use App\Models\Frammenti;
 use App\Models\Language;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 /**
  * LEARN: Frammenti, the daily active-vocabulary drill over the vocabulary base and
- * expression base. The page plays batches client-side; this controller plans the day,
+ * expression base. The page plays batches client-side; this controller plans sessions,
  * deals the batches, grades tier III sentences and saves each answer as it's given.
  * See docs/frammenti.md.
  */
@@ -40,8 +39,7 @@ class FrammentiController extends Controller
     }
 
     /**
-     * Deal one batch. The first request of the day plans and stores today's session;
-     * after it is finished (or when there was nothing to plan) batches are Extra drill.
+     * Deal one batch of the unfinished session, or of a new one planned and stored now.
      */
     public function batch(Request $request)
     {
@@ -59,8 +57,13 @@ class FrammentiController extends Controller
         }
 
         $session = Frammenti::startSession($user, $language);
+
+        if (! $session) {
+            return response()->json(['message' => 'Nothing is due in this language.'], 422);
+        }
+
         $onScreen = array_map(fn ($e) => $e['type'].':'.$e['id'], $data['on_screen'] ?? []);
-        $fragments = Frammenti::deal($user, $language, $session, $onScreen);
+        $fragments = Frammenti::deal($user, $language, $onScreen);
 
         if (! $fragments) {
             return response()->json(['message' => 'Could not generate a batch.'], 503);
@@ -68,9 +71,8 @@ class FrammentiController extends Controller
 
         return response()->json([
             'fragments' => $fragments,
-            'drill' => ! $session || $session->finished_at !== null,
-            'planned_batches' => $session?->planned_batches,
-            'batches_done' => $session?->batches_done,
+            'planned_batches' => $session->planned_batches,
+            'batches_done' => $session->batches_done,
         ]);
     }
 
@@ -88,25 +90,27 @@ class FrammentiController extends Controller
         ]);
         $user = Auth::user();
         $item = $this->item($data['type'], $data['id']);
-        $before = $item->frammenti_tier;
+        $before = $item->frammenti_level;
 
         $session = Frammenti::answer($user, $item, $data['result'], $data['last'] ?? false);
 
         return response()->json([
-            'tier_before' => $before,
-            'tier_after' => $item->frammenti_tier,
-            'back_tomorrow' => $item->frammenti_due_on === Carbon::parse($user->today())->addDay()->toDateString(),
+            'level_before' => $before,
+            'level_after' => $item->frammenti_level,
             'batches_done' => $session?->batches_done,
-            // Only on the answer that finishes today's planned session.
+            // Only on the answer that finishes the session; `due` says whether another
+            // one can start.
             'recap' => $session?->wasChanged('finished_at') ? [
                 'streak' => Frammenti::streak($user),
                 'active_words' => Frammenti::activeWords($user),
+                'due' => Frammenti::plan($user, $item->language)['due'],
             ] : null,
         ]);
     }
 
     /**
-     * Grade a tier III sentence. A 503 makes the client fall back to self-grading.
+     * Grade a tier III sentence, telling the item's linked synonyms apart from a miss. A 503
+     * makes the client fall back to self-grading.
      */
     public function evaluate(Request $request)
     {
@@ -124,6 +128,7 @@ class FrammentiController extends Controller
             $isWord ? $item->displayForm() : $item->form,
             $item->translation,
             $isWord ? $item->part_of_speech : 'fixed expression',
+            Frammenti::synonyms($item->synonyms()),
             $data['task'],
             $data['sentence'],
             $item->language->name,

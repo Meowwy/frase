@@ -35,7 +35,7 @@ class PageRendersTest extends TestCase
 
     public function test_every_page_the_redesign_touched_renders(): void
     {
-        $paths = ['/', '/staging', '/cards', '/base', '/frammenti', '/add', '/setLearning', '/profile', '/profile/edit', '/profile/frammenti'];
+        $paths = ['/', '/staging', '/cards', '/base', '/frammenti', '/add', '/setLearning', '/profile', '/profile/edit'];
 
         foreach ($paths as $path) {
             $this->actingAs($this->user)->get($path)->assertStatus(200, $path.' did not render');

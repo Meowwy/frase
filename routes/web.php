@@ -95,8 +95,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/edit', [UserController::class, 'update']);
     Route::get('/profile/wordboxes', [UserController::class, 'wordboxesOrder'])->name('wordboxes.order');
     Route::post('/profile/wordboxes', [UserController::class, 'updateWordboxesOrder'])->name('wordboxes.order.update');
-    Route::get('/profile/frammenti', [UserController::class, 'frammenti'])->name('profile.frammenti');
-    Route::post('/profile/frammenti', [UserController::class, 'updateFrammenti']);
     Route::post('/profile/timezone', [UserController::class, 'timezone']);
 
     Route::get('/learning', function () {
@@ -216,6 +214,8 @@ Route::middleware('auth')->group(function () {
     // ORGANIZE: the vocabulary base.
     Route::get('/base', [BaseWordController::class, 'index'])->name('base');
     Route::delete('/base/{kind}/{id}', [BaseWordController::class, 'destroy'])->whereIn('kind', ['word', 'expression'])->whereNumber('id');
+    Route::post('/base/synonyms', [BaseWordController::class, 'link']);
+    Route::delete('/base/synonyms', [BaseWordController::class, 'unlink']);
 
     Route::get('/search', [SearchController::class, 'index']);
     Route::get('/searchWordbox/{wbid}', [SearchController::class, 'searchWordbox'])->name('searchWordbox');

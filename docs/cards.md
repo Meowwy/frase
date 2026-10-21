@@ -71,7 +71,7 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `grammar_attributes` | nullable JSON (`array` cast) — the extra grammatical facts this language's guideline defines for this part of speech (e.g. Swedish noun `{"gender": "neuter"}`); null for a part-of-speech/language pair with nothing to say. See [ai-integration](ai-integration.md) "Language guidelines". **Not** named plain `attributes`: that collides with Eloquent's own internal attribute bag, which would make the column unreadable as `$this->attributes` from inside the model |
 | `translation` | set once at creation from CALL 1, never revised — sense lives on cards, not here |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
-| `frammenti_tier`, `frammenti_interval`, `frammenti_due_on`, `frammenti_miss_streak` | the Frammenti schedule, defaulting to tier I and new (no due date) — see [frammenti](frammenti.md) |
+| `frammenti_level`, `frammenti_due_on` | the Frammenti schedule, defaulting to level 0 and due (no due date) — see [frammenti](frammenti.md) |
 | `deleted` | boolean — set by deleting the entry from `/base`; see "Deleting an entry" below |
 
 Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key, not
@@ -143,7 +143,7 @@ any word that occurs in the Term only inside one, so *tycka om* is never split i
 | `form` | canonical form (base form of each word, `…` for a gap, a bracketed target-language placeholder for a slot it takes — `tycka om [någon]`; `translation` marks the same slot in the native language). `NOCASE` collation, so the unique key `(user_id, language_id, form)` and every lookup are case-insensitive |
 | `translation` | set once at creation from CALL 1, never revised — mirrors base words |
 | `last_recalled_at` | nullable, stamped by `Card::stampRecall()` when a card linking it is cleared, or by any correct answer in Frammenti |
-| `frammenti_*` | the Frammenti schedule; same four columns as on `base_words` (see [frammenti](frammenti.md)) |
+| `frammenti_*` | the Frammenti schedule; same two columns as on `base_words` (see [frammenti](frammenti.md)) |
 | `deleted` | as on `base_words` |
 
 `card_fixed_expression` — the pivot, unique on `(card_id, fixed_expression_id)`.
@@ -161,10 +161,12 @@ think about which table an entry lives in. The controller `UNION ALL`s the two (
 `kind`, `id`, paginates, then hydrates that page's models. `FixedExpression::displayForm()` (just
 `form`) lets the rows render both kinds alike.
 
-A table (display form, part of speech, translation, card count) and a **side panel** on the right, empty until a
-row is clicked, then listing the Terms of the cards that entry is part of — coverage is half of why
+A table (a checkbox, display form, part of speech, translation, card count) and a **side panel** on the right, empty until a
+row is clicked, then showing the entry's part of speech and translation, the Terms of the cards
+that entry is part of, and its synonyms (see "Synonym links" below) — coverage is half of why
 the base exists, and the panel shows it without making every row as tall as its card list. Each
-row's cards are eager-loaded (`cards:id,term`) and carried in a `<template>` inside the row
+row's cards and synonyms are loaded with the page (`cards:id,term`, and `EntrySynonym::of()` for
+the page's entries in three queries) and carried in a `<template>` inside the row
 (`base/_row-cards`), so a click is a client-side swap with no request (`base/_panel`). Last recall
 and the Frammenti schedule are not shown on the page. The header's **Frammenti** button opens
 Frammenti in the page's language.
@@ -172,13 +174,44 @@ Frammenti in the page's language.
 The column headers are live filters, the same way as on `/cards`: search inputs for the entry
 (`search`, on `lemma`/`form`) and for the translation, and a part-of-speech select offering only
 the parts of speech that language's base has — plus `expression` when it has any. An AJAX request to `/base` returns just the
-rows (`base/_rows`) and the pagination, which the panel script swaps in.
+rows (`base/_rows`) and the pagination, which the panel script swaps in. Its empty row's
+`colspan="5"` has to be kept in step with the columns.
 
 `?selected=word:<id>` or `?selected=expression:<id>` (ids collide across the two tables) opens
 with that row picked and its cards in the panel. The base runs to many pages, so the controller
 works out which page the row is on — by counting the entries that sort before it — rather than
 leaving it to whatever page was open. The card detail page's word and expression chips link here
 this way.
+
+### Synonym links
+
+Two saved synonyms (*glad*, *lycklig*) can both fill the same Frammenti gap, so the learner can't
+tell which one is asked for. The learner says so by hand: checking two rows on `/base` and pressing
+**Mark as synonyms** links them, and [Frammenti](frammenti.md) then never deals them in one batch
+and takes one for the other as "another way" rather than a miss. A link joins two entries of **one
+language**, in any mix of base words and fixed expressions. Links are **pairs only**: *glad*~*lycklig*
+and *lycklig*~*nöjd* don't make *glad*~*nöjd*.
+
+`entry_synonyms` — `user_id`, `language_id` (FKs, cascade), `kind` + `entry_id`, `other_kind` +
+`other_id`, unique on all four entry columns. `kind` is `word` or `expression`, the same as the
+`/base` row keys. Like card links, one link is **two mirrored rows**, so either entry's synonyms are
+one `where`. The entry ids have no foreign key (two tables), and a deleted entry is only flagged,
+so its links stay. `EntrySynonym::of($entries)` reads the synonyms of many entries in three queries
+(links, then words, then expressions), through the models' `notDeleted` scope, so a deleted synonym
+drops out of every list while its link waits for it. `HasSynonyms` (on `BaseWord` and
+`FixedExpression`) adds `entryKey()`, `synonyms()`, `linkSynonym()` and `unlinkSynonym()`.
+
+On the page, the checkbox is the `/cards` one (shown on hover). Each checked row gets its own panel
+under the selected one, built from the row's template and **kept in a JS map**, so checks survive
+the live search and paging (unlike `/cards`, whose selection is scoped to one view). The X on a
+checked panel unchecks it. Below the panels, **Mark as synonyms** shows from one check and is
+enabled at exactly two. In the panel, each synonym is a chip whose hover X unlinks it. A link or
+unlink reloads the rows on screen.
+
+| Route | What it does |
+|---|---|
+| `POST /base/synonyms` (`{first, second}`, row keys like `word:12`) | links both ways, `204`; linking again changes nothing. `404` for another learner's entry, `422` for one entry twice or two languages |
+| `DELETE /base/synonyms` (same body) | unlinks both ways, `204` |
 
 ### Deleting an entry
 
@@ -193,14 +226,14 @@ Deleting never removes the row. It sets `deleted`, and a **global scope** (`notD
 card detail page's chips, Frammenti (items, counts, the open threshold), staging (presence, related
 cards, covered, replace) and recall stamping with no per-feature check. A scope rather than a
 `where` in each consumer because "deleted means gone everywhere" was the whole requirement, and
-one missed consumer would show it again. Its `card_base_word` / `card_fixed_expression` links
-and Frammenti schedule stay.
+one missed consumer would show it again. Its `card_base_word` / `card_fixed_expression` links,
+synonym links and Frammenti schedule stay.
 
 It comes back the only way an entry is made: a proposal with that lemma and part of speech (or
 that form) is approved. Since the deleted row no longer counts as present, staging shows the word
 as a **new** chip (or *known*, if it was marked so, until un-known), and `BaseWord::resolve()` /
 `FixedExpression::resolve()` find it past the scope and clear the flag. It returns with its old
-card links and its Frammenti progress, not as a new item.
+card links, synonyms and Frammenti progress, not as a new item.
 
 ## The lexicon
 

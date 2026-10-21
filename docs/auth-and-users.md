@@ -47,13 +47,7 @@ Key relations/helpers (documented in depth where they're actually used):
 The account landing page: the user's themes, a short preview (up to 5) of their wordboxes
 (`orderBy('position')`), a total wordbox count, and the flags of their languages
 (`$user->languages()->get(['languages.id', 'flag'])`) for a quick-glance language row. It links
-to `/profile/edit`, the wordbox ordering page and `/profile/frammenti`.
-
-## `/profile/frammenti`
-
-`UserController@frammenti` / `@updateFrammenti`: one number per target language, **new items per
-day** for [Frammenti](frammenti.md) (`language_user.frammenti_new_per_day`, 0–50, default 12). It is
-the only Frammenti setting on purpose; the rest are constants.
+to `/profile/edit` and the wordbox ordering page. [Frammenti](frammenti.md) has no settings.
 
 ## `/profile/edit`
 
@@ -64,8 +58,8 @@ fields it also submits are `username`, `native_language_id` and `timezone`.
 ## Timezone
 
 `users.timezone` (nullable IANA name) is what `User::today()` uses — the user's local date, falling
-back to the app timezone (UTC). Every Frammenti date goes through it (due dates, the daily session,
-the intake, the streak), so "today" ends at the learner's midnight, not the server's: a streak
+back to the app timezone (UTC). Every Frammenti date goes through it (due dates, sessions, the
+streak), so "today" ends at the learner's midnight, not the server's: a streak
 that breaks at the wrong hour feels like a bug. The browser detects it
 (`Intl.DateTimeFormat().resolvedOptions().timeZone`): a hidden field at registration, and for a user
 who still has none, a one-off `POST /profile/timezone` from the layout on any authenticated page,

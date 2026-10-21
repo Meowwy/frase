@@ -65,15 +65,5 @@
             <x-forms.button>Reorder wordboxes</x-forms.button>
         </a>
     </div>
-    <br>
-    <x-forms.divider></x-forms.divider>
-
-    <div class="space-y-3 flex flex-col">
-        <p class="text-2xl">Frammenti</p>
-        <p class="text-sm text-white/50">How many new words and fixed expressions your daily drill introduces in each language.</p>
-        <a href="{{ route('profile.frammenti') }}">
-            <x-forms.button>Frammenti settings</x-forms.button>
-        </a>
-    </div>
 
 </x-html-layout>

@@ -7,6 +7,8 @@
                 <table class="min-w-full divide-y divide-gray-700 bg-white/5">
                     <thead>
                     <tr>
+                        {{-- Leftmost checkbox column (hover-revealed per row). --}}
+                        <th class="w-10 px-4 py-3"></th>
                         @include('base._search-input', ['name' => 'search', 'placeholder' => 'Word', 'value' => $search])
                         <th class="px-6 py-3 text-left">
                             <select name="part_of_speech"

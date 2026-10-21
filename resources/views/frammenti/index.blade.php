@@ -39,9 +39,9 @@
             <x-panel id="intro" class="flex-col items-center text-center gap-3 py-6">
                 <p><x-frammenti-today :enough="true" :session="$session" :plan="$plan" /></p>
                 <p class="text-sm text-white/50">{{ $activeWords }} active words in {{ $language->name }} · {{ $streak }}-day streak</p>
-                <x-forms.button id="startBtn" type="button">
-                    {{ $session?->finished_at || (! $session && ! $plan['batches']) ? 'Extra drill' : ($session ? 'Continue' : 'Start') }}
-                </x-forms.button>
+                @if($session || $plan['batches'])
+                    <x-forms.button id="startBtn" type="button">{{ $session ? 'Continue' : 'Start' }}</x-forms.button>
+                @endif
             </x-panel>
 
             <div id="loading" class="hidden py-16 text-center text-white/60 animate-pulse">Writing your fragments…</div>
@@ -100,12 +100,13 @@
                 $(function () {
                     const csrf = '{{ csrf_token() }}';
                     const languageId = {{ $language->id }};
-                    const tiers = { I: 1, II: 2, III: 3 };
+                    // The tier a level is tested at, as Frammenti::tier(): 0–2 I, 3–5 II, 6–8 III.
+                    const tier = level => Math.floor(level / 3) + 1;
 
                     let batch = [], index = 0, results = [], prefetch = null, retried = false;
-                    let drill = false, planned = 0, done = 0, recapData = null;
-                    // Every item answered since the page opened: its tier before the first
-                    // answer, after the latest, and whether it's back tomorrow.
+                    let planned = 0, done = 0, recapData = null;
+                    // Every item answered in this session: its level before the first answer
+                    // and after the latest.
                     const seen = new Map();
                     // Answers are posted one by one, in order, so each lands on the state the
                     // previous one left. This chain never rejects.
@@ -135,9 +136,9 @@
                         prefetch = null;
                         request.then(data => {
                             batch = data.fragments; index = 0; results = [];
-                            drill = data.drill; planned = data.planned_batches;
+                            planned = data.planned_batches;
                             // A prefetched batch was dealt before the last batch was done.
-                            done = Math.max(done, data.batches_done || 0);
+                            done = Math.max(done, data.batches_done);
                             show('play');
                             render();
                         }, () => show('error'));
@@ -146,7 +147,7 @@
                     function render() {
                         const f = batch[index];
                         retried = false;
-                        $('#batchLabel').text(drill ? 'Extra drill' : 'Batch ' + (done + 1) + ' of ' + planned);
+                        $('#batchLabel').text('Batch ' + (done + 1) + ' of ' + planned);
                         $('#position').text(index + 1);
                         $('#feedback').text('').removeClass('text-red-400 text-green-400');
                         $('#write, #compare, #correctedBox, #note, #gradeNote, #checkBtn, #revealBtn, #evalBtn, #passBtn, #hadBtn, #missedBtn, #nextBtn').addClass('hidden');
@@ -154,9 +155,9 @@
                         $('#translation').text('');
 
                         // Prefetch at fragment 4, when answers 1–3 are in, so the next batch
-                        // is dealt knowing them. Never after the last planned batch: Extra
-                        // drill is fetched on demand.
-                        if (index === 3 && ! drill && done + 1 < planned) {
+                        // is dealt knowing them. Never after the last planned batch: another
+                        // session is fetched on demand.
+                        if (index === 3 && done + 1 < planned) {
                             prefetch = saving.then(() => fetchBatch(batch.map(key)));
                             prefetch.catch(() => {});
                         }
@@ -200,7 +201,7 @@
                     function record(f, i, r) {
                         results[i].change = r;
                         const k = f.type + ':' + f.id;
-                        seen.set(k, { item: f.item, from: seen.has(k) ? seen.get(k).from : r.tier_before, to: r.tier_after, tomorrow: r.back_tomorrow });
+                        seen.set(k, { item: f.item, from: seen.has(k) ? seen.get(k).from : r.level_before, to: r.level_after });
                         if (r.batches_done !== null) done = r.batches_done;
                         if (r.recap) recapData = r.recap;
                     }
@@ -220,20 +221,27 @@
                         return row[b.length];
                     }
 
-                    // Tier I: each gap is right, a near miss (one character or one accent
-                    // off), or wrong. Any near miss earns one retry; the second check is final.
+                    // Tier I: each gap is right, a linked synonym, a near miss (one character
+                    // or one accent off), or wrong. A synonym is cleared and asked for again,
+                    // ungraded, as often as it comes. Any near miss earns one retry; the
+                    // second check is final.
                     function check() {
                         const f = batch[index];
                         const verdicts = $('.gap').map(function (i) {
                             const typed = normalize($(this).val());
                             const accepted = f.accepted[i].map(normalize);
                             if (accepted.includes(typed)) return 'right';
+                            if (f.synonym_answers[i].map(normalize).includes(typed)) return 'synonym';
                             return accepted.some(a => distance(a, typed) === 1 || bare(a) === bare(typed)) ? 'near' : 'wrong';
                         }).get();
 
                         if (verdicts.every(v => v === 'right')) {
                             $('.gap').prop('disabled', true);
                             return grade(true, 'Correct!');
+                        }
+                        if (verdicts.includes('synonym')) {
+                            $('.gap').filter(i => verdicts[i] === 'synonym').val('').first().trigger('focus');
+                            return $('#feedback').text('That\'s a synonym — give another way.').removeClass('text-red-400');
                         }
                         if (! retried && ! verdicts.includes('wrong')) {
                             retried = true;
@@ -269,7 +277,8 @@
                     }
 
                     // Tier III: the AI judges the item only; other mistakes are corrected and
-                    // explained but don't fail it.
+                    // explained but don't fail it. A linked synonym in its place is cleared
+                    // and asked for again, ungraded.
                     function evaluate() {
                         const f = batch[index];
                         const sentence = $('#attempt').val().trim();
@@ -278,6 +287,11 @@
                         $('#evalBtn, #passBtn').prop('disabled', true);
                         $('#feedback').text('Checking…').removeClass('text-red-400 text-green-400');
                         post('/frammenti/evaluate', { ...key(f), task: f.task, sentence }).then(e => {
+                            if (e.used_synonym && ! e.correct) {
+                                $('#evalBtn, #passBtn').prop('disabled', false);
+                                $('#attempt').val('').trigger('focus');
+                                return $('#feedback').text('You used a synonym (' + f.synonyms.map(s => s.form).join(', ') + '); say it another way.');
+                            }
                             showAttempt();
                             if (e.corrected.trim() !== sentence) {
                                 $('#corrected').text(e.corrected);
@@ -294,8 +308,8 @@
                     function recap() {
                         $('#recapList').empty();
                         results.forEach(({ f, correct, change }) => {
-                            const arrow = ! change || change.tier_after === change.tier_before ? ''
-                                : change.tier_after > change.tier_before ? ' <span class="text-green-400">↑</span>' : ' <span class="text-red-400">↓</span>';
+                            const arrow = ! change || tier(change.level_after) === tier(change.level_before) ? ''
+                                : change.level_after > change.level_before ? ' <span class="text-green-400">↑</span>' : ' <span class="text-red-400">↓</span>';
                             $('<li>').html((correct ? '<span class="text-green-400">✓</span> ' : '<span class="text-red-400">✗</span> ')
                                 + esc(f.item) + arrow).appendTo('#recapList');
                         });
@@ -304,20 +318,23 @@
                         if (recapData) {
                             const items = [...seen.values()];
                             const list = rows => rows.map(r => esc(r.item)).join(', ');
-                            const up = items.filter(r => r.to > r.from), down = items.filter(r => r.to < r.from);
-                            const gained = items.filter(r => r.from < 2 && r.to >= 2).length - items.filter(r => r.from >= 2 && r.to < 2).length;
-                            const back = items.filter(r => r.tomorrow);
+                            const up = items.filter(r => tier(r.to) > tier(r.from)), down = items.filter(r => tier(r.to) < tier(r.from));
+                            const gained = items.filter(r => tier(r.from) < 2 && tier(r.to) >= 2).length - items.filter(r => tier(r.from) >= 2 && tier(r.to) < 2).length;
+                            // Level 0 is always due: a miss not yet made good comes back.
+                            const missed = items.filter(r => r.to === 0);
                             $('#summary').html(
-                                '<p class="text-lg font-bold">' + (gained >= 0 ? '+' : '') + gained + ' active words today · '
+                                '<p class="text-lg font-bold">' + (gained >= 0 ? '+' : '') + gained + ' active words · '
                                     + recapData.active_words + ' in total · ' + recapData.streak + '-day streak</p>'
                                 + (up.length ? '<p><span class="text-green-400">Promoted:</span> ' + list(up) + '</p>' : '')
                                 + (down.length ? '<p><span class="text-red-400">Demoted:</span> ' + list(down) + '</p>' : '')
-                                + (back.length ? '<p class="text-white/70">Back tomorrow: ' + list(back) + '</p>' : '')
+                                + (missed.length ? '<p class="text-white/70">' + missed.length + ' missed, due again: ' + list(missed) + '</p>' : '')
+                                + (recapData.due ? '' : '<p class="text-white/70">Nothing more due, come back tomorrow.</p>')
                             );
                         }
 
-                        $('#recapTitle').text(recapData ? "Today's session is done" : 'Batch done');
-                        $('#nextBatchBtn').text(drill || recapData ? 'Extra drill' : 'Next batch');
+                        $('#recapTitle').text(recapData ? 'Session done' : 'Batch done');
+                        $('#nextBatchBtn').text(recapData ? 'Start another session' : 'Next batch')
+                            .toggleClass('hidden', !! recapData && ! recapData.due);
                         show('recap');
                     }
 
@@ -344,7 +361,10 @@
                     });
                     $('#retryBtn').on('click', () => start(fetchBatch(batch.map(key))));
                     $('#nextBatchBtn').on('click', () => {
-                        recapData = null;
+                        // After a session's last batch, this starts another.
+                        if (recapData) {
+                            recapData = null; done = 0; seen.clear();
+                        }
                         start(prefetch ? prefetch.then(null, () => fetchBatch(batch.map(key))) : fetchBatch(batch.map(key)));
                     });
                     $('#quitBtn').on('click', () => saving.then(() => window.location = '/'));
