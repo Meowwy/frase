@@ -11,12 +11,11 @@
         <p class="text-white/40">Select a row to see the cards it is part of.</p>
     </aside>
 
-    <div id="checkedPanels" class="space-y-4"></div>
-
-    <div id="synonymBar" class="hidden space-y-2 text-sm">
-        <p id="checkedCount" class="text-white/50"></p>
+    <div id="synonymBar" class="hidden">
         <x-forms.button id="markSynonyms" type="button" class="w-full">Mark as synonyms</x-forms.button>
     </div>
+
+    <div id="checkedPanels" class="space-y-4"></div>
 </div>
 
 <x-modal name="confirm-delete-base" title="Delete from the base?">
@@ -76,7 +75,6 @@
                 $('#checkedPanels').append($panel);
             });
             $('#synonymBar').toggleClass('hidden', checked.size === 0);
-            $('#checkedCount').text(checked.size + ' checked' + (checked.size === 2 ? '' : ' · check two to mark them as synonyms'));
             $('#markSynonyms').prop('disabled', checked.size !== 2);
         }
 

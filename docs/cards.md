@@ -201,12 +201,13 @@ so its links stay. `EntrySynonym::of($entries)` reads the synonyms of many entri
 drops out of every list while its link waits for it. `HasSynonyms` (on `BaseWord` and
 `FixedExpression`) adds `entryKey()`, `synonyms()`, `linkSynonym()` and `unlinkSynonym()`.
 
-On the page, the checkbox is the `/cards` one (shown on hover). Each checked row gets its own panel
-under the selected one, built from the row's template and **kept in a JS map**, so checks survive
-the live search and paging (unlike `/cards`, whose selection is scoped to one view). The X on a
-checked panel unchecks it. Below the panels, **Mark as synonyms** shows from one check and is
-enabled at exactly two. In the panel, each synonym is a chip whose hover X unlinks it. A link or
-unlink reloads the rows on screen.
+On the page, the checkbox is the `/cards` one (shown on hover). **Mark as synonyms** sits right
+under the selected row's panel, so it stays put while the checked panels grow below it; it shows
+from one check and is enabled at exactly two. Each checked row gets its own panel under the button,
+built from the row's template and **kept in a JS map**, so checks survive the live search and
+paging (unlike `/cards`, whose selection is scoped to one view). The X on a checked panel unchecks
+it. A panel shows a Synonyms section only when the entry has any, each synonym a chip whose hover X
+unlinks it. A link or unlink reloads the rows on screen.
 
 | Route | What it does |
 |---|---|

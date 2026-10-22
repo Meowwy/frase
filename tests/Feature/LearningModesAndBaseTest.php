@@ -370,6 +370,6 @@ class LearningModesAndBaseTest extends TestCase
         $this->assertStringContainsString('data-first="word:'.$glad->id.'" data-second="word:'.$lycklig->id.'"', $html);
         $this->assertStringContainsString('data-first="word:'.$lycklig->id.'" data-second="word:'.$glad->id.'"', $html);
         $this->assertSame(2, substr_count($html, 'class="js-synonym-unlink'));
-        $this->assertSame(1, substr_count($html, 'No synonyms linked.'));
+        $this->assertSame(2, substr_count($html, 'Synonyms</p>'));
     }
 }

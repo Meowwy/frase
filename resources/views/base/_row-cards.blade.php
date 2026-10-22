@@ -25,10 +25,8 @@
         <p class="text-white/40">Not part of any card yet.</p>
     @endforelse
 
-    <p class="mt-4 mb-2 text-xs uppercase tracking-wider text-white/40">Synonyms</p>
-    @if($synonyms->isEmpty())
-        <p class="text-white/40">No synonyms linked.</p>
-    @else
+    @if($synonyms->isNotEmpty())
+        <p class="mt-4 mb-2 text-xs uppercase tracking-wider text-white/40">Synonyms</p>
         <div class="flex flex-wrap gap-2">
             @foreach($synonyms as $synonym)
                 <span class="group inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1">
