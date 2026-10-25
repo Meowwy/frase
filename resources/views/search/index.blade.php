@@ -1,6 +1,6 @@
 <x-html-layout>
     <div class="mb-4">
-        <p class="text-center text-4xl">"{{$searchTerm}}"</p>
+        <p class="text-center text-4xl max-lg:text-3xl max-lg:break-words">"{{$searchTerm}}"</p>
     </div>
 
     @if(count($cards) == 0)

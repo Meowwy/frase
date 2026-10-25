@@ -21,6 +21,14 @@ export default {
         },
         fontSize: {
             "2xs": "10px"
+        },
+        // Below lg, on a page without the tab bar: what's left of the screen once the
+        // layout has taken the mobile top bar (h-14 plus the notch inset), main's mt-4 and
+        // the body's bottom padding (1.5rem plus the home-indicator inset), see html-layout.
+        // An app-like screen whose own bottom bar starts at the bottom edge. dvh, not vh,
+        // so it follows the browser's collapsing toolbars.
+        minHeight: {
+            "app-screen": "calc(100dvh - 6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
         }
     },
   },

@@ -88,6 +88,8 @@ game ends, so the learner isn't handed the correction mid-conversation (that wou
 point of a task game — see how this differs from the text challenge's live corrections).
 
 Header shows a **♥♥♥ lives row** (spent hearts dimmed via `.heart`) and a **Turn X / 10** counter.
+Below lg it is a full-height chat screen like the text challenge's (see
+[conversation-challenge](conversation-challenge.md) "Chat UI").
 
 On end, the feedback panel shows either **"🎉 You cleared all 10 turns!"** (win) or **"Game over —
 you ran out of lives"** (loss), then **"You lasted N turns."**, then a full **"Your mistakes"**

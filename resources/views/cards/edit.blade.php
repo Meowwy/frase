@@ -9,7 +9,7 @@
         <x-forms.textarea label="Note" name="note">{{$card->note}}</x-forms.textarea>
         <x-forms.divider></x-forms.divider>
         <div class="flex justify-between">
-            <x-forms.button>Save</x-forms.button>
+            <x-forms.button class="max-lg:w-full">Save</x-forms.button>
         </div>
     </x-forms.form>
 
@@ -17,7 +17,7 @@
         <input hidden value="{{$card->id}}" name="id"/>
         <x-forms.button-delete>Delete term</x-forms.button-delete>
     </x-forms.form>
-    <a href="/cards/{{$card->id}}">
-        <x-forms.button-small>Back to card list</x-forms.button-small>
+    <a href="/cards/{{$card->id}}" class="max-lg:mt-4 max-lg:inline-block">
+        <x-forms.button-small class="max-lg:px-4">Back to card list</x-forms.button-small>
     </a>
 </x-html-layout>

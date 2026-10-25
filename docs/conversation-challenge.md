@@ -35,10 +35,13 @@ shows the returned `scene` in a banner **above** the chat and `reply` as the fir
 
 ## Chat UI
 
-Top-left **Home** back link; a **two-column** thread (Tailwind `grid md:grid-cols-2`, stacks on
-mobile) — each learner message on the left, its **correction at the same row level** on the
-right. The composer is an auto-growing `<textarea>` (Enter sends, Shift+Enter = newline),
-disabled until the opening has loaded.
+Top-left **Home** back link; a **two-column** thread (Tailwind `grid md:grid-cols-2`) — each
+learner message on the left, its **correction at the same row level** on the right. Below md the
+row is one column and the correction sits right-aligned under the learner's bubble, and the header
+line says so ("under each of your messages"). The composer is an auto-growing `<textarea>` (Enter
+sends, Shift+Enter = newline), disabled until the opening has loaded. Below lg the page is a
+full-height chat screen with the composer stuck to the bottom edge, as are the game and voice
+variants and Conversation mode (see [frontend-patterns](frontend-patterns.md) "Responsive").
 
 Each turn is a synchronous `$.post` to `POST /conversation/message`
 (`ChallengeController@message`), which calls `AI::challengeReply()` — **one call** returns both

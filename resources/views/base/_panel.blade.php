@@ -5,38 +5,85 @@
      after a dialog that for a base word also offers marking it known.
 
      Each checked row gets a panel of its own below, kept across searches and pages, and two
-     checked entries can be marked as synonyms. --}}
-<div id="baseSide" class="space-y-4 lg:sticky lg:top-24 lg:w-72 lg:shrink-0">
-    <aside id="basePanel" class="rounded-xl border border-white/10 bg-white/5 p-4 text-sm">
+     checked entries can be marked as synonyms.
+
+     Below lg the two jobs come apart, so neither can cover the list, and only one of them is
+     ever on screen:
+     - with nothing checked, tapping a row opens its panel as a height-capped bottom sheet above
+       the tab bar (scrolling inside, closed by its handle or X); tapping that row again closes
+       it and deselects the row;
+     - once a row is checked, the sheet closes and checked rows get no panels, only a slim action
+       bar above the tab bar (#baseActionBar: count, Mark synonyms, Delete, clear) that never
+       grows; while it shows, tapping a row checks or unchecks it instead of opening the sheet,
+       and clearing the last check takes the bar away. --}}
+<div id="baseSide" class="space-y-4 lg:sticky lg:top-24 lg:w-72 lg:shrink-0 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(4rem_+_env(safe-area-inset-bottom))] max-lg:z-30 max-lg:flex max-lg:hidden max-lg:max-h-[55dvh] max-lg:flex-col max-lg:space-y-0 max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:rounded-t-2xl max-lg:border-t max-lg:border-white/10 max-lg:bg-[#111] max-lg:px-4 max-lg:pb-4 max-lg:shadow-2xl">
+    <aside id="basePanel" class="rounded-xl border border-white/10 bg-white/5 p-4 text-sm max-lg:border-0 max-lg:bg-transparent max-lg:p-0 max-lg:text-base">
         <p class="text-white/40">Select a row to see the cards it is part of.</p>
     </aside>
 
-    <div id="synonymBar" class="hidden">
+    {{-- Desktop only: below lg the action bar takes these over. --}}
+    <div id="synonymBar" class="hidden max-lg:hidden">
         <x-forms.button id="markSynonyms" type="button" class="w-full">Mark as synonyms</x-forms.button>
     </div>
 
-    <div id="checkedPanels" class="space-y-4"></div>
+    <div id="checkedPanels" class="space-y-4 max-lg:hidden"></div>
+
+    {{-- The sheet's own header — a drag-handle look and an X, both closing it — kept in view
+         while the panel scrolls. Last in the DOM so the desktop column's spacing is untouched. --}}
+    <div class="sticky top-0 z-10 -mx-4 mb-2 flex items-center justify-between bg-[#111] px-4 pt-1 lg:hidden max-lg:order-first">
+        <span class="w-11"></span>
+        <button type="button" aria-label="Close" class="js-base-sheet-close flex h-8 flex-1 items-center justify-center">
+            <span class="h-1 w-10 rounded-full bg-white/25"></span>
+        </button>
+        <button type="button" aria-label="Close" class="js-base-sheet-close flex h-11 w-11 items-center justify-center -mr-2.5 text-white/60">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+    </div>
+</div>
+
+{{-- Below lg only: what to do with the checked rows. Fixed above the tab bar, one row high
+     whatever is checked. --}}
+<div id="baseActionBar" class="hidden fixed inset-x-0 bottom-[calc(4rem_+_env(safe-area-inset-bottom))] z-20 border-t border-white/10 bg-[#111] px-4 py-2 lg:hidden">
+    <div class="flex items-center gap-2">
+        <button type="button" id="baseClearChecks" aria-label="Clear selection"
+                class="-ml-2.5 flex h-11 w-11 shrink-0 items-center justify-center text-white/60">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+        <span id="baseCheckedCount" class="min-w-0 flex-1 truncate text-sm text-white/80"></span>
+        <button type="button" id="baseBarSynonyms" title="Check exactly two to mark them as synonyms"
+                class="min-h-11 shrink-0 rounded bg-blue-800 px-3 text-sm font-bold transition-colors hover:bg-blue-600 disabled:opacity-40">
+            Mark synonyms
+        </button>
+        <button type="button" id="baseBarDelete"
+                class="min-h-11 shrink-0 rounded bg-red-800 px-3 text-sm font-bold transition-colors hover:bg-red-600">
+            Delete
+        </button>
+    </div>
 </div>
 
 <x-modal name="confirm-delete-base" title="Delete from the base?">
     <div class="mb-6 space-y-2 text-white/60">
         <p>
-            <span id="baseDeleteTitle" class="font-bold text-white"></span> leaves the base, its cards and Frammenti.
-            Saving it in a new card brings it back, with its old cards and progress.
+            <span id="baseDeleteTitle" class="font-bold text-white"></span> <span id="baseDeleteVerb">leaves</span> the base, its cards and Frammenti.
+            Saving <span id="baseDeleteIt">it</span> in a new card brings it back, with its old cards and progress.
         </p>
         <p id="baseDeleteKnownHint"><span class="font-bold text-white">Mark as known</span> also stops staging from proposing it again.</p>
     </div>
     <div class="flex flex-wrap justify-end gap-3">
         <button type="button" onclick="closeModal('confirm-delete-base')"
-                class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+                class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
             Cancel
         </button>
         <button type="button" id="baseDeleteKnown" data-known="1"
-                class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+                class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
             Mark as known
         </button>
         <button type="button" data-known="0"
-                class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all">
+                class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all max-lg:min-h-12 max-lg:flex-1">
             Delete
         </button>
     </div>
@@ -46,7 +93,8 @@
     $(function () {
         const csrf = '{{ csrf_token() }}';
         let debounce;
-        let pendingKey = null;
+        // What the delete dialog is about: the panel's entry, or (below lg) every checked one.
+        let pendingKeys = [];
         let selectedKey = null;
         // The rows on screen, so a link or unlink can load them again as they are.
         let currentUrl = window.location.href;
@@ -57,6 +105,14 @@
 
         const rowOf = key => $('.js-base-row').filter((i, row) => $(row).data('key') === key);
 
+        // The mobile detail sheet (see above); opening and closing it has no effect from lg up,
+        // and the tap rules that only make sense with it check `mobile()` first.
+        const mobile = () => window.matchMedia('(max-width: 1023.98px)').matches;
+        const sheetOpen = () => ! $('#baseSide').hasClass('max-lg:hidden');
+        const openSheet = () => $('#baseSide').removeClass('max-lg:hidden');
+        const closeSheet = () => $('#baseSide').addClass('max-lg:hidden');
+        $('#baseSide').on('click', '.js-base-sheet-close', closeSheet);
+
         function select($row) {
             selectedKey = $row.data('key');
             $('.js-base-row').removeClass('bg-blue-600/20');
@@ -64,8 +120,14 @@
             $('#basePanel').html($row.find('.js-row-cards').html());
         }
 
+        function deselect() {
+            selectedKey = null;
+            $('.js-base-row').removeClass('bg-blue-600/20');
+            $('#basePanel').html(emptyPanel);
+        }
+
         // A checked entry's panel looks like the selected one's, with an X that unchecks it
-        // in place of the bin.
+        // in place of the bin. The mobile action bar follows the same checks.
         function renderChecked() {
             $('#checkedPanels').empty();
             checked.forEach(html => {
@@ -75,7 +137,15 @@
                 $('#checkedPanels').append($panel);
             });
             $('#synonymBar').toggleClass('hidden', checked.size === 0);
-            $('#markSynonyms').prop('disabled', checked.size !== 2);
+            $('#markSynonyms, #baseBarSynonyms').prop('disabled', checked.size !== 2);
+            $('#baseActionBar, #baseActionSpacer').toggleClass('hidden', checked.size === 0);
+            $('#baseCheckedCount').text(checked.size + ' selected');
+        }
+
+        function uncheckAll() {
+            checked.clear();
+            $('.js-base-checkbox').prop('checked', false);
+            renderChecked();
         }
 
         // After a fetch: pick the selected row again and re-check the checked ones, taking
@@ -93,10 +163,23 @@
         }
 
         // Rows are swapped on every search, so the click is delegated. A click on the
-        // checkbox only checks it.
+        // checkbox only checks it. Below lg, while anything is checked a tap on a row checks
+        // or unchecks it too, and a second tap on the open row closes its sheet.
         $('#baseRows').on('click', '.js-base-row', function (e) {
             if ($(e.target).closest('.js-base-check').length) { return; }
-            select($(this));
+            const $row = $(this);
+            if (mobile() && checked.size) {
+                const $box = $row.find('.js-base-checkbox');
+                $box.prop('checked', ! $box.prop('checked')).trigger('change');
+                return;
+            }
+            if (mobile() && sheetOpen() && selectedKey === $row.data('key')) {
+                closeSheet();
+                deselect();
+                return;
+            }
+            select($row);
+            openSheet();
         });
 
         $('#baseRows').on('change', '.js-base-checkbox', function (e) {
@@ -104,6 +187,11 @@
             const key = $(this).data('key');
             if (this.checked) {
                 checked.set(key, $(this).closest('.js-base-row').find('.js-row-cards').html());
+                // Below lg the action bar takes the sheet's place.
+                if (mobile() && sheetOpen()) {
+                    closeSheet();
+                    deselect();
+                }
             } else {
                 checked.delete(key);
             }
@@ -117,12 +205,13 @@
             renderChecked();
         });
 
-        $('#markSynonyms').on('click', function () {
+        $('#baseClearChecks').on('click', uncheckAll);
+
+        $('#markSynonyms, #baseBarSynonyms').on('click', function () {
+            if (checked.size !== 2) { return; }
             const [first, second] = [...checked.keys()];
             $.post('/base/synonyms', { _token: csrf, first, second }).done(function () {
-                checked.clear();
-                $('.js-base-checkbox').prop('checked', false);
-                renderChecked();
+                uncheckAll();
                 fetchRows(currentUrl);
                 if (window.toastr) { toastr.success('Marked as synonyms.'); }
             }).fail(function (xhr) {
@@ -142,29 +231,47 @@
             });
         });
 
-        // An expression can't be known, so its dialog offers plain delete only.
-        $('#basePanel').on('click', '.js-base-delete', function () {
-            pendingKey = $(this).data('key');
-            const isWord = pendingKey.startsWith('word:');
-            $('#baseDeleteTitle').text($(this).data('title'));
-            $('#baseDeleteKnown, #baseDeleteKnownHint').toggle(isWord);
+        // An expression can't be known, so a dialog that touches one offers plain delete only.
+        function askDelete(keys, title) {
+            pendingKeys = keys;
+            const one = keys.length === 1;
+            $('#baseDeleteTitle').text(one ? title : keys.length + ' entries');
+            $('#baseDeleteVerb').text(one ? 'leaves' : 'leave');
+            $('#baseDeleteIt').text(one ? 'it' : 'one');
+            $('#baseDeleteKnown, #baseDeleteKnownHint').toggle(keys.every(key => key.startsWith('word:')));
             openModal('confirm-delete-base');
+        }
+
+        $('#basePanel').on('click', '.js-base-delete', function () {
+            askDelete([$(this).data('key')], $(this).data('title'));
+        });
+
+        // The action bar deletes every checked entry; one checked is named like the bin's.
+        $('#baseBarDelete').on('click', function () {
+            const keys = [...checked.keys()];
+            if (! keys.length) { return; }
+            askDelete(keys, $('<div>').html(checked.get(keys[0])).find('.js-base-delete').attr('data-title'));
         });
 
         $('.js-base-delete-confirm').on('click', function () {
-            $.ajax({
-                url: '/base/' + pendingKey.replace(':', '/'),
+            const keys = pendingKeys;
+            const known = $(this).data('known');
+            $.when(...keys.map(key => $.ajax({
+                url: '/base/' + key.replace(':', '/'),
                 type: 'DELETE',
-                data: { _token: csrf, known: $(this).data('known') },
-            }).done(function () {
+                data: { _token: csrf, known },
+            }))).done(function () {
                 closeModal('confirm-delete-base');
-                rowOf(pendingKey).remove();
-                $('#basePanel').html(emptyPanel);
-                selectedKey = null;
-                checked.delete(pendingKey);
+                keys.forEach(key => { rowOf(key).remove(); checked.delete(key); });
+                if (keys.includes(selectedKey)) {
+                    deselect();
+                    closeSheet();
+                }
                 renderChecked();
             }).fail(function () {
                 if (window.toastr) { toastr.error('Could not delete it.'); }
+                // Some of several may have gone: show the rows as they are now.
+                if (keys.length > 1) { fetchRows(currentUrl); }
             });
         });
 

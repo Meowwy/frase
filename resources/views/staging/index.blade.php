@@ -187,7 +187,7 @@
                         settled.set(id, line(
                             '<div class="flex items-center gap-3"><span class="text-white/40">✕</span>' +
                             '<span class="js-line-term font-bold text-white/60"></span><span class="text-sm text-white/40">discarded</span>' +
-                            '<button type="button" class="js-capture-again ml-auto text-sm text-white/60 underline hover:text-white">Capture again</button></div>', term)
+                            '<button type="button" class="js-capture-again ml-auto text-sm text-white/60 underline hover:text-white max-lg:min-h-11 max-lg:px-1">Capture again</button></div>', term)
                             .find('.js-capture-again').attr({ 'data-raw-input': $row.attr('data-raw-input'), 'data-context': $row.attr('data-context') }).end());
                         placeSettled();
                         setBadge(data.staged_count);

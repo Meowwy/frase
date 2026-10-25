@@ -81,7 +81,9 @@ in a new card and it comes back with its old cards, its synonyms and its Frammen
 
 **Synonyms**: check two entries of the same language (words, expressions or one of each — the
 checks stay while you search and page, each with its own panel) and press **Mark as synonyms**.
-The panel lists an entry's synonyms, and hovering one shows an X that unlinks it. Frammenti then
+The panel lists an entry's synonyms, and hovering one shows an X that unlinks it. On a phone,
+tapping a row slides its panel up from the bottom (the X is always there), while checked rows only
+bring up a slim bar above the tabs to mark them as synonyms or delete them. Frammenti then
 never puts two synonyms in one batch, and when you answer with the synonym instead of the word it
 asks for another way rather than marking you wrong.
 
@@ -137,8 +139,8 @@ a mode:
   the word). Words at tier II and up are your **Active words** — the ones you can produce.
 - A **streak** counts the days you finish a session (one missed day a week is forgiven).
 - Opens for a language once you've saved at least 5 nouns and 5 verbs in it.
-- Reached from the dashboard's **Today's Frammenti** section, the nav, the vocabulary base, and the
-  end of a review session. See [frammenti](frammenti.md).
+- Reached from the dashboard's **Today's Frammenti** section, the nav, and the end of a review
+  session. See [frammenti](frammenti.md).
 
 ## Conversation practice (three ways)
 
@@ -175,6 +177,15 @@ each other's detail pages. See [cards](cards.md) "Manual card linking".
 
 A quick term search from the nav bar (`/search`), and a separate search box on a wordbox's edit
 page for finding existing cards to add to it. See [search-and-linking](search-and-linking.md).
+
+## On a phone
+
+Every screen works one-handed on a phone. A slim top bar holds the logo, the search box and a menu
+(Frammenti, Conversation, your account, log out); a tab bar at the bottom leads to Home (capture),
+Staging (with its count), Cards, Base and Learn. Lists become tappable rows, filters fold away, and
+the screens where you practise — flashcards, Frammenti, the chats — go full screen with their main
+buttons or message box at the bottom, within thumb reach. See
+[frontend-patterns](frontend-patterns.md) "Responsive / mobile".
 
 ## Profile & settings
 

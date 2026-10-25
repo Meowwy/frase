@@ -1,7 +1,7 @@
 @props(["themes"])
 <x-html-layout>
     <div>
-        <p class="text-5xl">{{Auth::user()->username}}</p>
+        <p class="text-5xl max-lg:text-4xl max-lg:break-words">{{Auth::user()->username}}</p>
 {{--        <p class="text-lg">You can generate {{Auth::user()->currency_amount}} more cards.</p>--}}
         <p class="text-lg">The app is for invited people only. You can generate unlimited number of cards.</p>
     </div>

@@ -1,1 +1,1 @@
-<kbd {{ $attributes->merge(['class' => 'inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 ml-2 rounded border border-white/40 border-b-2 bg-white/15 font-mono text-xs font-semibold leading-none align-middle']) }}>{{ $slot }}</kbd>
+<kbd {{ $attributes->merge(['class' => 'inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 ml-2 max-lg:hidden rounded border border-white/40 border-b-2 bg-white/15 font-mono text-xs font-semibold leading-none align-middle']) }}>{{ $slot }}</kbd>

@@ -177,7 +177,11 @@ away (quitting mid-batch can still waste one prefetched batch). Each batch ends 
 session recap: "+k active words", promotions and demotions between tiers, the words missed and due
 again (level 0 after their latest answer), the streak, and **Start another session** while anything
 is due. **Enter** takes the step on screen (Check / Show answer / Evaluate, then Next, then Next
-batch); self-grading and **I pass** stay on buttons, and Shift+Enter breaks a line.
+batch); self-grading and **I pass** stay on buttons, and Shift+Enter breaks a line. Below lg the
+page has no tab bar and the step buttons stick to the bottom edge as full-width buttons, while the
+phone keyboard's own Enter key takes the same step; the gap and the answer field turn off
+autocorrect (and the gap auto-capitalisation), so the phone never rewrites a target-language
+answer into something the learner didn't type.
 
 ## Streak, settings, entry points
 
@@ -188,7 +192,7 @@ it's over, and **one missed day per ISO week** is forgiven automatically; a seco
 **No settings.** The batch cap and the intervals are constants: a broad audience needs a legible
 product with few knobs, and those are ours to tune.
 
-**Entry points**: the nav's LEARN group (tooltip "Daily active-vocabulary drill"), the **Today's
+**Entry points**: the nav's LEARN group (tooltip "Daily active-vocabulary drill"; on a phone, the top bar's menu), the **Today's
 Frammenti** section on the dashboard (between the capture form and the card reviews: streak, Active
-words, one row per target language with its state and Start / Continue), the **Frammenti** button
-on `/base`, and **Play Frammenti** on the session-complete screen.
+words, one row per target language with its state and Start / Continue), and **Play Frammenti** on
+the session-complete screen.

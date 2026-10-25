@@ -2,7 +2,9 @@
     <div class="max-w-xl mx-auto">
         <x-section-heading>Conversation challenge</x-section-heading>
 
-        <div class="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
+        {{-- Below lg the pickers' pills grow into 44px targets and the fields take 16px text
+             (smaller makes iOS zoom in on focus). --}}
+        <div class="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5 max-lg:mt-4 max-lg:p-4">
             <p class="text-white/70 text-sm leading-relaxed">
                 Have a real conversation with an AI partner in your target language. Try to
                 <span class="text-white font-semibold">write in full sentences</span> and do your best —
@@ -30,15 +32,15 @@
                         <label class="block text-sm font-semibold text-white/80 mb-2">Mode</label>
                         <div class="flex flex-wrap gap-2" id="modePicker">
                             <button type="button" data-mode="text"
-                                    class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors border-[#ff6f61] bg-[#ff6f61]/15 text-white">
+                                    class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors max-lg:min-h-11 border-[#ff6f61] bg-[#ff6f61]/15 text-white">
                                 ⌨️ <span>Text</span>
                             </button>
                             <button type="button" data-mode="voice"
-                                    class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
+                                    class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors max-lg:min-h-11 border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
                                 🎙️ <span>Voice</span>
                             </button>
                             <button type="button" data-mode="game"
-                                    class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
+                                    class="mode-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors max-lg:min-h-11 border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
                                 🎯 <span>Game</span>
                             </button>
                         </div>
@@ -56,11 +58,11 @@
                         <label class="block text-sm font-semibold text-white/80 mb-2">Turn-taking</label>
                         <div class="flex flex-wrap gap-2" id="turnTakingPicker">
                             <button type="button" data-turn="vad"
-                                    class="turn-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors border-[#ff6f61] bg-[#ff6f61]/15 text-white">
+                                    class="turn-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors max-lg:min-h-11 border-[#ff6f61] bg-[#ff6f61]/15 text-white">
                                 <span>Auto — it replies when you stop talking</span>
                             </button>
                             <button type="button" data-turn="ptt"
-                                    class="turn-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
+                                    class="turn-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors max-lg:min-h-11 border-white/15 bg-white/5 text-white/70 hover:bg-white/10">
                                 <span>Push-to-talk — tap to speak, tap to send</span>
                             </button>
                         </div>
@@ -72,7 +74,7 @@
                         <div>
                             <label for="voice" class="block text-sm font-semibold text-white/80 mb-2">Voice</label>
                             <select id="voice" name="voice"
-                                    class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30">
+                                    class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white max-lg:py-2.5 max-lg:text-base focus:outline-none focus:border-white/30">
                                 <option value="marin" selected>Marin</option>
                                 <option value="cedar">Cedar</option>
                                 <option value="alloy">Alloy</option>
@@ -88,7 +90,7 @@
                         <div>
                             <label for="speed" class="block text-sm font-semibold text-white/80 mb-2">Speaking speed</label>
                             <select id="speed" name="speed"
-                                    class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30">
+                                    class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white max-lg:py-2.5 max-lg:text-base focus:outline-none focus:border-white/30">
                                 <option value="0.75">Slower</option>
                                 <option value="0.9">Slow</option>
                                 <option value="1.0" selected>Normal</option>
@@ -99,7 +101,7 @@
 
                     {{-- Voice-only: barge-in (only affects Auto turn-taking). --}}
                     <div class="voice-only" style="display:none;">
-                        <label class="inline-flex items-center gap-2 text-sm text-white/80 cursor-pointer">
+                        <label class="inline-flex items-center gap-2 text-sm text-white/80 cursor-pointer max-lg:min-h-11">
                             <input type="checkbox" id="barge_in" name="barge_in" value="1" checked
                                    class="rounded border-white/20 bg-[#111] text-[#ff6f61] focus:ring-0">
                             <span>Let me interrupt while it's speaking</span>
@@ -113,7 +115,7 @@
                             @foreach ($languages as $language)
                                 <button type="button"
                                         data-language-id="{{ $language->id }}"
-                                        class="language-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors
+                                        class="language-option inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors max-lg:min-h-11
                                             {{ $language->id == $activeLanguageId ? 'border-[#ff6f61] bg-[#ff6f61]/15 text-white' : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10' }}">
                                     <span>{{ $language->flag }}</span>
                                     <span>{{ $language->name }}</span>
@@ -130,7 +132,7 @@
                         <p class="text-xs text-white/40 mb-2">What should the chat be about? e.g. “ordering coffee in a café”, “a job interview”, “planning a weekend trip”.</p>
                         <textarea id="scene" name="scene" rows="2" maxlength="200"
                                   placeholder="Leave empty and we'll pick a situation for you."
-                                  class="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"></textarea>
+                                  class="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white max-lg:py-2.5 max-lg:text-base placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"></textarea>
                     </div>
 
                     <div class="pref-block">
@@ -140,7 +142,7 @@
                         <p class="text-xs text-white/40 mb-2">Something specific to practise? We'll emphasise it in the corrections. e.g. “present perfect”, “word order”, “past tense verbs”, “prepositions”.</p>
                         <textarea id="feedback_focus" name="feedback_focus" rows="2" maxlength="200"
                                   placeholder="Leave empty for general corrections."
-                                  class="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"></textarea>
+                                  class="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white max-lg:py-2.5 max-lg:text-base placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"></textarea>
                     </div>
 
                     <x-forms.button type="submit" class="w-full bg-[#ff6f61] hover:bg-[#d7574d]">

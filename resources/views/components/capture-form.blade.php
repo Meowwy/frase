@@ -8,16 +8,19 @@
      so the learner is never left waiting on the AI. The instant feedback is a note beside
      the staging link plus the nav's staging badge; the proposal itself resolves in staging. --}}
 
-<x-forms.form :action="route('capture')" method="post" id="captureForm" class="max-w-2xl space-y-3">
+{{-- Full width below lg; on a phone keyboard the Term is left as typed (no auto-capital, no
+     autocorrect turning a foreign word into a native one). --}}
+<x-forms.form :action="route('capture')" method="post" id="captureForm" class="w-full max-w-2xl space-y-3 lg:w-auto">
     <x-forms.input :label="false" name="capturedWord" id="captureWord" autocomplete="off"
-                   placeholder="Word or phrase to learn" class="w-full min-w-[300px]" />
+                   autocapitalize="none" autocorrect="off" enterkeyhint="send"
+                   placeholder="Word or phrase to learn" class="w-full lg:min-w-[300px]" />
 
-    <x-forms.input :label="false" name="context" id="captureContext" autocomplete="off"
+    <x-forms.input :label="false" name="context" id="captureContext" autocomplete="off" enterkeyhint="send"
                    placeholder="(Optional) Add context, like a sentence or brief description of the term..." />
 
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 max-lg:flex-wrap">
         <x-forms.button id="captureBtn">Capture</x-forms.button>
-        <a href="{{ route('staging') }}" class="text-sm text-white/60 hover:text-white transition-colors">
+        <a href="{{ route('staging') }}" class="text-sm text-white/60 hover:text-white transition-colors max-lg:flex max-lg:min-h-11 max-lg:items-center">
             Review staging
         </a>
         <span id="captureNote" class="hidden text-sm text-green-400"></span>

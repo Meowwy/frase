@@ -1,13 +1,15 @@
-<x-html-layout>
-    <div class="max-w-4xl mx-auto relative">
-        <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-4">
+{{-- Below lg a full-height screen: the transcript fills it, and Tap to talk sticks to the bottom
+     edge in thumb reach, End under it. The tab bar steps aside. --}}
+<x-html-layout :tab-bar="false">
+    <div class="max-w-4xl mx-auto relative max-lg:flex max-lg:min-h-app-screen max-lg:flex-col">
+        <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-4 max-lg:mb-1 max-lg:min-h-11 max-lg:self-start">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
             <span>Home</span>
         </a>
 
-        <div class="mb-3 flex items-baseline justify-between">
+        <div class="mb-3 flex items-baseline justify-between max-lg:gap-3">
             <h1 class="text-lg font-bold">Voice conversation</h1>
             <span id="statusLine" class="text-xs text-white/40">Connecting…</span>
         </div>
@@ -22,26 +24,26 @@
         </div>
 
         {{-- Live transcript of the spoken conversation. --}}
-        <div id="thread" class="space-y-3 mb-4"></div>
+        <div id="thread" class="space-y-3 mb-4 max-lg:flex-1"></div>
 
         {{-- Push-to-talk control (only shown in PTT mode once connected). --}}
-        <div id="pttBar" class="hidden flex justify-center mb-4">
+        <div id="pttBar" class="hidden flex justify-center mb-4 max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-4 max-lg:mb-0 max-lg:bg-black max-lg:px-4 max-lg:pt-2 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <button id="pttBtn" type="button"
-                    class="inline-flex items-center gap-2 rounded-full bg-[#ff6f61] hover:bg-[#d7574d] px-6 py-3 text-sm font-bold text-white transition-colors disabled:opacity-40">
+                    class="inline-flex items-center gap-2 rounded-full bg-[#ff6f61] hover:bg-[#d7574d] px-6 py-3 text-sm font-bold text-white transition-colors disabled:opacity-40 max-lg:min-h-14 max-lg:w-full max-lg:justify-center max-lg:text-lg">
                 🎙️ <span id="pttLabel">Tap to talk</span>
             </button>
         </div>
 
         {{-- End the chat and get recommendations. --}}
-        <div class="mt-6 flex justify-center">
+        <div class="mt-6 flex justify-center max-lg:mt-3">
             <button id="endBtn" type="button"
-                    class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-40">
+                    class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-40 max-lg:min-h-11 max-lg:w-full max-lg:justify-center">
                 <span id="endLabel">End chat and get feedback</span>
             </button>
         </div>
 
         {{-- Recommendations (revealed once the chat ends). --}}
-        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5">
+        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5 max-lg:mt-4 max-lg:p-4">
             <div id="recapLoading" class="hidden flex-col items-center text-center py-6">
                 <svg class="animate-spin h-10 w-10 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -94,7 +96,7 @@
                 const isUser = role === 'user';
                 const row = $('<div>').addClass('flex ' + (isUser ? 'justify-end' : 'justify-start'));
                 const bubble = $('<div>')
-                    .addClass('max-w-[80%] rounded-2xl px-4 py-2 text-sm text-white ' + (isUser ? 'bg-[#ff6f61]' : 'bg-white/10'))
+                    .addClass('max-w-[80%] rounded-2xl px-4 py-2 text-sm text-white max-lg:max-w-[85%] max-lg:text-base ' + (isUser ? 'bg-[#ff6f61]' : 'bg-white/10'))
                     .html(escapeHtml(text));
                 row.append(bubble);
                 $thread.append(row);

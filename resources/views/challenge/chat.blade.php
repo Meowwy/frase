@@ -1,15 +1,19 @@
-<x-html-layout>
-    <div class="max-w-4xl mx-auto relative">
-        <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-4">
+{{-- Below lg a full-height chat screen, as in a messaging app: the column fills the screen
+     (min-h-app-screen) so the composer starts at the bottom, and once the thread is longer
+     than the screen the composer sticks to the bottom edge. The tab bar steps aside. --}}
+<x-html-layout :tab-bar="false">
+    <div class="max-w-4xl mx-auto relative max-lg:flex max-lg:min-h-app-screen max-lg:flex-col">
+        <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-4 max-lg:mb-1 max-lg:min-h-11 max-lg:self-start">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
             <span>Home</span>
         </a>
 
-        <div class="mb-3 flex items-baseline justify-between">
+        {{-- Below md the correction column folds under each message (see newRow()). --}}
+        <div class="mb-3 flex items-baseline justify-between max-lg:flex-wrap max-lg:gap-x-3">
             <h1 class="text-lg font-bold">Conversation challenge</h1>
-            <span class="text-xs text-white/40">Corrections appear on the right, next to each message.</span>
+            <span class="text-xs text-white/40"><span class="max-md:hidden">Corrections appear on the right, next to each message.</span><span class="md:hidden">Corrections appear under each of your messages.</span></span>
         </div>
 
         {{-- Scene label (shown above the chat once the opening loads). --}}
@@ -29,28 +33,28 @@
 
         {{-- Message thread. Each turn is a two-column row: message on the left, and for the
              learner's own messages a live correction on the right at the same level. --}}
-        <div id="thread" class="space-y-3 mb-4"></div>
+        <div id="thread" class="space-y-3 mb-4 max-lg:flex-1"></div>
 
         {{-- Composer --}}
-        <div id="composer" class="flex gap-2 items-end">
-            <textarea id="chatInput" rows="1" autocomplete="off" placeholder="Write a full sentence…"
-                      class="flex-1 resize-none max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30"></textarea>
+        <div id="composer" class="flex gap-2 items-end max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-4 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-2 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <textarea id="chatInput" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Write a full sentence…"
+                      class="flex-1 resize-none max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 max-lg:min-w-0 max-lg:py-2.5 max-lg:text-base"></textarea>
             <button id="sendBtn" type="button"
-                    class="rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors disabled:opacity-40">
+                    class="rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors disabled:opacity-40 max-lg:min-h-11 max-lg:text-base">
                 Send
             </button>
         </div>
 
         {{-- End the chat and get recommendations. --}}
-        <div class="mt-6 flex justify-center">
+        <div class="mt-6 flex justify-center max-lg:mt-3">
             <button id="endBtn" type="button"
-                    class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-40">
+                    class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-40 max-lg:min-h-11 max-lg:w-full max-lg:justify-center">
                 <span id="endLabel">End chat and get feedback</span>
             </button>
         </div>
 
         {{-- Recommendations (revealed once the chat ends). --}}
-        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5">
+        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5 max-lg:mt-4 max-lg:p-4">
             <div id="recapLoading" class="hidden flex-col items-center text-center py-6">
                 <svg class="animate-spin h-10 w-10 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -92,7 +96,8 @@
 
             // A two-column grid row: [message column | correction column].
             function newRow() {
-                const row = $('<div>').addClass('grid grid-cols-1 md:grid-cols-2 gap-4 items-start');
+                // Below md: one column, the correction tucked right under the learner's bubble.
+                const row = $('<div>').addClass('grid grid-cols-1 md:grid-cols-2 gap-4 items-start max-md:gap-1');
                 $thread.append(row);
                 return row;
             }
@@ -101,7 +106,7 @@
             function appendAssistant(text) {
                 const row = newRow();
                 row.append($('<div>').addClass('flex justify-start').append(
-                    $('<div>').addClass('max-w-[90%] rounded-2xl bg-white/10 px-4 py-2 text-sm text-white').html(escapeHtml(text))
+                    $('<div>').addClass('max-w-[90%] rounded-2xl bg-white/10 px-4 py-2 text-sm text-white max-lg:text-base').html(escapeHtml(text))
                 ));
                 row.append($('<div>')); // keep the correction column reserved
                 row[0].scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -112,9 +117,9 @@
             function appendUser(text) {
                 const row = newRow();
                 row.append($('<div>').addClass('flex justify-end').append(
-                    $('<div>').addClass('max-w-[90%] rounded-2xl bg-[#ff6f61] px-4 py-2 text-sm text-white').html(escapeHtml(text))
+                    $('<div>').addClass('max-w-[90%] rounded-2xl bg-[#ff6f61] px-4 py-2 text-sm text-white max-lg:text-base').html(escapeHtml(text))
                 ));
-                const cell = $('<div>').addClass('flex items-center text-white/50 pt-2')
+                const cell = $('<div>').addClass('flex items-center text-white/50 pt-2 max-md:justify-end max-md:pt-0')
                     .html(spinnerSvg('h-4 w-4'));
                 row.append(cell);
                 row[0].scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -124,11 +129,11 @@
             function renderCorrection(cell, correction) {
                 if (!correction || !correction.has_error || !correction.feedback) {
                     cell.removeClass('flex items-center')
-                        .html('<div class="flex items-center gap-1 text-xs text-green-400/80 pt-2"><span>✓</span><span>Looks good</span></div>');
+                        .html('<div class="flex items-center gap-1 text-xs text-green-400/80 pt-2 max-md:justify-end max-md:pt-0"><span>✓</span><span>Looks good</span></div>');
                     return;
                 }
                 cell.removeClass('flex items-center').html(
-                    '<div class="rounded-xl border border-orange-300/25 bg-orange-300/5 px-3 py-2">' +
+                    '<div class="rounded-xl border border-orange-300/25 bg-orange-300/5 px-3 py-2 max-md:ml-auto max-md:max-w-[90%]">' +
                         '<p class="text-sm text-white/85">' + escapeHtml(correction.feedback) + '</p>' +
                     '</div>'
                 );
@@ -161,7 +166,7 @@
                     appendAssistant(data.reply);
                 }).fail(function (xhr) {
                     cell.removeClass('flex items-center').html(
-                        '<div class="text-xs text-red-400/80 pt-2">Could not check this message.</div>'
+                        '<div class="text-xs text-red-400/80 pt-2 max-md:pt-0 max-md:text-right">Could not check this message.</div>'
                     );
                     const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Something went wrong. Please try again.';
                     if (window.toastr) { toastr.error(msg); }

@@ -1,15 +1,15 @@
 @props(['themes'])
 <x-html-layout>
     <section>
-        <div class="container mx-auto p-6">
-            <!-- Header -->
-            <div class="flex justify-between items-center mb-6">
+        <div class="container mx-auto p-6 max-lg:px-0 max-lg:pt-0">
+            <!-- Header (stacked below lg) -->
+            <div class="flex justify-between items-center mb-6 max-lg:flex-col max-lg:items-start max-lg:gap-3">
                 <div>
-                    <h2 class="text-3xl font-bold">Manage Themes</h2>
+                    <h2 class="text-3xl font-bold max-lg:text-2xl">Manage Themes</h2>
                     <p>Define themes that will be automatically assigned to cards.</p>
                 </div>
 
-                <button class="bg-blue-500 text-white rounded-full px-4 py-2 hover:bg-blue-600" id="addThemeBtn">Add New
+                <button class="bg-blue-500 text-white rounded-full px-4 py-2 hover:bg-blue-600 max-lg:min-h-11" id="addThemeBtn">Add New
                     Theme
                 </button>
             </div>
@@ -58,7 +58,7 @@
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.value = theme.name;
-                input.className = 'text-black border-2 rounded p-1';  // Style the input as needed
+                input.className = 'text-black border-2 rounded p-1 max-lg:min-w-0 max-lg:flex-1 max-lg:p-2';  // Style the input as needed
 
                 // Update the theme name in the array when the input value changes
                 input.oninput = function () {
@@ -67,7 +67,7 @@
 
                 // Create delete button
                 const button = document.createElement('button');
-                button.className = 'bg-red-500 text-white rounded-full px-4 py-2 hover:bg-red-600 ml-4';
+                button.className = 'bg-red-500 text-white rounded-full px-4 py-2 hover:bg-red-600 ml-4 max-lg:ml-2 max-lg:min-h-11';
                 button.textContent = 'Delete';
                 button.onclick = function () {
                     deleteTheme(theme.id);

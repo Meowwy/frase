@@ -1,56 +1,60 @@
 @props(['opening', 'targetWords'])
-<x-html-layout>
-    <div class="max-w-4xl mx-auto flex gap-6 items-start">
-        {{-- Hint: toggle list of the target-word translations, collapsed by default. --}}
-        <aside class="w-44 shrink-0">
+{{-- Below lg a full-height chat screen, as in a messaging app: the column fills the screen
+     (min-h-app-screen) so the composer starts at the bottom, and once the thread is longer
+     than the screen the composer sticks to the bottom edge. The tab bar steps aside. --}}
+<x-html-layout :tab-bar="false">
+    <div class="max-w-4xl mx-auto flex gap-6 items-start max-lg:min-h-app-screen max-lg:flex-col max-lg:items-stretch max-lg:gap-1">
+        {{-- Hint: toggle list of the target-word translations, collapsed by default. Below lg
+             it sits above the chat instead of beside it. --}}
+        <aside class="w-44 shrink-0 max-lg:w-full">
             <button id="hintToggle" type="button"
-                    class="flex items-center gap-1 text-sm font-semibold text-white/80 hover:text-white transition-colors">
+                    class="flex items-center gap-1 text-sm font-semibold text-white/80 hover:text-white transition-colors max-lg:min-h-11">
                 <svg id="hintChevron" class="h-4 w-4 transition-transform" xmlns="http://www.w3.org/2000/svg"
                      fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
                 </svg>
                 Hint
             </button>
-            <ul id="hintList" class="hidden mt-3 space-y-1">
+            <ul id="hintList" class="hidden mt-3 space-y-1 max-lg:mt-0 max-lg:mb-2 max-lg:flex max-lg:flex-wrap max-lg:gap-x-4 max-lg:gap-y-1 max-lg:space-y-0">
                 @foreach ($targetWords as $w)
                     <li class="text-sm italic text-white/70">{{ ($w['translation'] ?? '') !== '' ? $w['translation'] : $w['term'] }}</li>
                 @endforeach
             </ul>
         </aside>
 
-        <div class="flex-1 relative">
+        <div class="flex-1 relative max-lg:flex max-lg:flex-col">
         <div class="mb-3 text-sm text-white/60">
             Words left to use:
             <span id="remainingCount" class="font-bold text-white">{{ count($targetWords) }}</span>
         </div>
 
         {{-- Message thread; pre-seeded with the AI's opening line. --}}
-        <div id="thread" class="space-y-3 mb-4 min-h-[240px]">
+        <div id="thread" class="space-y-3 mb-4 min-h-[240px] max-lg:min-h-0 max-lg:flex-1">
             <div class="flex justify-start">
-                <div class="max-w-[80%] rounded-2xl bg-white/10 px-4 py-2 text-sm text-white">{{ $opening }}</div>
+                <div class="max-w-[80%] rounded-2xl bg-white/10 px-4 py-2 text-sm text-white max-lg:max-w-[85%] max-lg:text-base">{{ $opening }}</div>
             </div>
         </div>
 
         {{-- Composer --}}
-        <div id="composer" class="flex gap-2">
-            <input id="chatInput" type="text" autocomplete="off" placeholder="Type your reply…"
-                   class="flex-1 rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30">
+        <div id="composer" class="flex gap-2 max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-4 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-2 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <input id="chatInput" type="text" autocomplete="off" placeholder="Type your reply…" enterkeyhint="send"
+                   class="flex-1 rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 max-lg:min-w-0 max-lg:py-2.5 max-lg:text-base">
             <button id="sendBtn" type="button"
-                    class="rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors disabled:opacity-40">
+                    class="rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors disabled:opacity-40 max-lg:min-h-11 max-lg:text-base">
                 Send
             </button>
         </div>
 
         {{-- End the chat and show feedback (also fires automatically when the chat ends). --}}
-        <div class="mt-6 flex justify-center">
+        <div class="mt-6 flex justify-center max-lg:mt-3">
             <button id="endBtn" type="button"
-                    class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-40">
+                    class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-40 max-lg:min-h-11 max-lg:w-full max-lg:justify-center">
                 <span id="endLabel">End chat and display feedback</span>
             </button>
         </div>
 
         {{-- Recap (revealed once the chat ends). --}}
-        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5">
+        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5 max-lg:mt-4 max-lg:p-4">
             {{-- Loading state while the AI prepares the feedback. --}}
             <div id="recapLoading" class="hidden flex-col items-center text-center py-6">
                 <svg class="animate-spin h-10 w-10 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -102,7 +106,7 @@
                 const mine = role === 'user';
                 const row = $('<div>').addClass('flex ' + (mine ? 'justify-end' : 'justify-start'));
                 const bubble = $('<div>')
-                    .addClass('max-w-[80%] rounded-2xl px-4 py-2 text-sm text-white ' + (mine ? 'bg-[#ff6f61]' : 'bg-white/10'))
+                    .addClass('max-w-[80%] rounded-2xl px-4 py-2 text-sm text-white max-lg:max-w-[85%] max-lg:text-base ' + (mine ? 'bg-[#ff6f61]' : 'bg-white/10'))
                     .html(escapeHtml(text));
                 row.append(bubble);
                 $thread.append(row);

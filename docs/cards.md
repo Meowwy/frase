@@ -168,8 +168,21 @@ the base exists, and the panel shows it without making every row as tall as its 
 row's cards and synonyms are loaded with the page (`cards:id,term`, and `EntrySynonym::of()` for
 the page's entries in three queries) and carried in a `<template>` inside the row
 (`base/_row-cards`), so a click is a client-side swap with no request (`base/_panel`). Last recall
-and the Frammenti schedule are not shown on the page. The header's **Frammenti** button opens
-Frammenti in the page's language.
+and the Frammenti schedule are not shown on the page. The page header is just the title and the
+language filter.
+
+Below lg the side column would land under the whole list, out of sight of the row just tapped, and
+a tall panel over the list is worse, so its two jobs come apart, and **at most one bottom element
+shows at a time**. With nothing checked, tapping a row opens its panel as a **detail sheet** above
+the tab bar, capped at 55dvh and scrolling inside, closed by its handle or X, or by tapping that
+row again, which also deselects it (the script toggles `max-lg:hidden` on `#baseSide`). Checking a
+row closes the sheet: checked rows get **no panels** there, only a one-row **action bar** above
+the tab bar (`#baseActionBar`: count, **Mark synonyms**, **Delete**, clear) that never grows and
+goes when the last check is cleared. While it shows, tapping a row checks or unchecks it rather
+than opening the sheet, so a selection is built by tapping. A spacer under the list keeps its last
+rows reachable. The table stacks into a list (see the responsive
+section of [frontend-patterns](frontend-patterns.md)) and the header's filters wrap into a block
+above it.
 
 The column headers are live filters, the same way as on `/cards`: search inputs for the entry
 (`search`, on `lemma`/`form`) and for the translation, and a part-of-speech select offering only
@@ -201,13 +214,15 @@ so its links stay. `EntrySynonym::of($entries)` reads the synonyms of many entri
 drops out of every list while its link waits for it. `HasSynonyms` (on `BaseWord` and
 `FixedExpression`) adds `entryKey()`, `synonyms()`, `linkSynonym()` and `unlinkSynonym()`.
 
-On the page, the checkbox is the `/cards` one (shown on hover). **Mark as synonyms** sits right
+On the page, the checkbox is the `/cards` one (shown on hover, always below lg). **Mark as synonyms** sits right
 under the selected row's panel, so it stays put while the checked panels grow below it; it shows
 from one check and is enabled at exactly two. Each checked row gets its own panel under the button,
 built from the row's template and **kept in a JS map**, so checks survive the live search and
 paging (unlike `/cards`, whose selection is scoped to one view). The X on a checked panel unchecks
-it. A panel shows a Synonyms section only when the entry has any, each synonym a chip whose hover X
-unlinks it. A link or unlink reloads the rows on screen.
+it. Below lg the action bar does this instead (see above); its **Delete** opens the same dialog for
+every checked entry at once, one `DELETE` per entry, offering **Mark as known** only when all of
+them are base words. A panel shows a Synonyms section only when the entry has any, each synonym a chip whose hover X
+(always shown below lg) unlinks it. A link or unlink reloads the rows on screen.
 
 | Route | What it does |
 |---|---|
@@ -507,7 +522,7 @@ the proposal. See "The duplicate check" above.
 belongs to exactly one user and no one else can view, edit, or update it.
 
 The top row holds the **back** link on the left and **previous card** / **next card** arrows on
-the right, same style as back. `show()` resolves the two neighbours as the user's adjacent cards
+the right, same style as back (shortened to "previous" / "next" below lg, to fit a phone). `show()` resolves the two neighbours as the user's adjacent cards
 **in this card's language**, ordered by descending id — ids are monotonic with insertion, so that
 is the order `/cards` lists them in, and "previous" is the row above there while "next" is the row
 below. The nav deliberately ignores the list's wordbox/search filters; it walks the language,
@@ -517,7 +532,8 @@ dimmed and non-clickable, so the row doesn't shift as the learner walks the list
 Renders: the card's **base words** as chips, each in its display form with its
 part of speech, linking to `/base` with that word selected (fixed expressions the same); the `note` if present; and the "Linked cards" section
 (below). Hovering a base-word chip shows its `translation` in a small tooltip above it. The tooltip is a
-pure-CSS `group-hover` overlay with no JS, because the app has no tooltip library. The term
+pure-CSS `group-hover` overlay with no JS, because the app has no tooltip library; touch has no
+hover, so below lg the tooltip is hidden and the translation is written into the chip instead. The term
 heading is `font-medium`, not `font-bold` — there is no focus word left to emphasize against it, so
 the Term itself is what's shown. Because a whole-sentence Term can be much longer than a single
 word, the heading wraps (`flex-wrap` + `break-words`).
@@ -562,6 +578,12 @@ Filters, all combinable and all preserved across pagination via `->appends($requ
 
 `cards/_rows.blade.php` has a fixed 6 columns (checkbox, Term, Translation, Saved, Wordbox,
 row menu), and its `@empty` row's hardcoded `colspan="6"` has to be kept in step with them.
+
+Below lg the same markup stacks into a list (the table-to-list convention in
+[frontend-patterns](frontend-patterns.md)): the checkbox, its whole left gutter a label, and the
+3-dot menu are always shown, since there is no hover; the header keeps only the Term search. The
+picker folds into one **Filter** control naming the selection, and the bulk bar sticks under the top
+bar.
 
 Legacy entry: the old dashboard theme card still links here as `GET /cards?theme=<name>`, which
 resolves that theme and pre-filters + scopes the picker to its language.

@@ -23,6 +23,6 @@
         <script>document.getElementById('timezone').value = Intl.DateTimeFormat().resolvedOptions().timeZone;</script>
 
         <x-forms.divider></x-forms.divider>
-        <x-forms.button>Create account</x-forms.button>
+        <x-forms.button class="max-lg:w-full">Create account</x-forms.button>
     </x-forms.form>
 </x-html-layout>

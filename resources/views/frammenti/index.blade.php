@@ -1,11 +1,14 @@
-<x-html-layout>
+{{-- A focused practice screen: below lg the tab bar steps aside and the step buttons sit in a
+     bar stuck to the bottom of the screen; the phone keyboard's Enter key takes the same step
+     (see the keydown handler below). --}}
+<x-html-layout :tab-bar="false">
     <div class="max-w-2xl mx-auto">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
                 <h1 class="text-2xl font-bold">Frammenti</h1>
                 <p class="text-sm text-white/50">Daily active-vocabulary drill: your words and fixed expressions in fresh sentences, five at a time.</p>
             </div>
-            <button id="quitBtn" type="button" class="hidden text-white/70 hover:text-white transition-colors">Quit</button>
+            <button id="quitBtn" type="button" class="hidden text-white/70 hover:text-white transition-colors max-lg:min-h-11 max-lg:px-2">Quit</button>
         </div>
 
         {{-- Target languages only: native-language vocabulary is never dealt. --}}
@@ -14,7 +17,7 @@
                 @foreach($targetLanguages as $lang)
                     <a href="{{ route('frammenti', ['language_id' => $lang->id]) }}"
                        @class([
-                           'rounded-lg border border-white/10 px-3 py-1 text-sm transition-colors',
+                           'rounded-lg border border-white/10 px-3 py-1 text-sm transition-colors max-lg:py-2.5',
                            'bg-blue-600/30 ring-1 ring-blue-500' => $language->id === $lang->id,
                            'bg-white/5 hover:bg-white/10' => $language->id !== $lang->id,
                        ])>
@@ -40,7 +43,7 @@
                 <p><x-frammenti-today :enough="true" :session="$session" :plan="$plan" /></p>
                 <p class="text-sm text-white/50">{{ $activeWords }} active words in {{ $language->name }} · {{ $streak }}-day streak</p>
                 @if($session || $plan['batches'])
-                    <x-forms.button id="startBtn" type="button">{{ $session ? 'Continue' : 'Start' }}</x-forms.button>
+                    <x-forms.button id="startBtn" type="button" class="max-lg:w-full max-lg:min-h-12">{{ $session ? 'Continue' : 'Start' }}</x-forms.button>
                 @endif
             </x-panel>
 
@@ -54,10 +57,11 @@
             <div id="play" class="hidden">
                 <p class="mb-2 text-sm text-white/50"><span id="batchLabel"></span> · <span id="position"></span> / 5 · <span id="cue"></span></p>
                 <p id="translation" class="mb-3 text-white/60"></p>
-                <p id="fragment" class="mb-6 text-2xl leading-relaxed"></p>
+                <p id="fragment" class="mb-6 text-2xl leading-relaxed max-lg:text-xl"></p>
 
+                {{-- A target-language answer: no autocorrect pulling it towards the keyboard's own language. --}}
                 <div id="write" class="hidden">
-                    <textarea id="attempt" rows="2" class="w-full rounded-lg bg-white/5 border border-white/10 p-3"></textarea>
+                    <textarea id="attempt" rows="2" autocorrect="off" enterkeyhint="done" class="w-full rounded-lg bg-white/5 border border-white/10 p-3"></textarea>
                 </div>
 
                 <div id="compare" class="hidden mb-4">
@@ -74,14 +78,14 @@
 
                 <p id="feedback" class="my-4 min-h-6"></p>
 
-                <div class="flex flex-wrap gap-2">
-                    <x-forms.button id="checkBtn" type="button" class="hidden">Check</x-forms.button>
-                    <x-forms.button id="revealBtn" type="button" class="hidden">Show answer</x-forms.button>
-                    <x-forms.button id="evalBtn" type="button" class="hidden">Evaluate</x-forms.button>
-                    <x-forms.button id="passBtn" type="button" class="hidden">I pass</x-forms.button>
-                    <x-forms.button id="hadBtn" type="button" class="hidden">I had it</x-forms.button>
-                    <x-forms.button id="missedBtn" type="button" class="hidden">I didn't</x-forms.button>
-                    <x-forms.button id="nextBtn" type="button" class="hidden">Next</x-forms.button>
+                <div class="flex flex-wrap gap-2 max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-4 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-3 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                    <x-forms.button id="checkBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Check</x-forms.button>
+                    <x-forms.button id="revealBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Show answer</x-forms.button>
+                    <x-forms.button id="evalBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Evaluate</x-forms.button>
+                    <x-forms.button id="passBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">I pass</x-forms.button>
+                    <x-forms.button id="hadBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">I had it</x-forms.button>
+                    <x-forms.button id="missedBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">I didn't</x-forms.button>
+                    <x-forms.button id="nextBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Next</x-forms.button>
                 </div>
                 <p id="gradeNote" class="hidden mt-2 text-sm text-white/50">This is one way to say it — mark whether you used the highlighted word correctly.</p>
             </div>
@@ -91,8 +95,8 @@
                 <ul id="recapList" class="my-4 space-y-2"></ul>
                 <div id="summary" class="hidden mb-6 space-y-2 rounded-xl bg-white/5 border border-white/10 p-4"></div>
                 <div class="flex gap-2">
-                    <x-forms.button id="nextBatchBtn" type="button"></x-forms.button>
-                    <a href="/"><x-forms.button type="button">Done</x-forms.button></a>
+                    <x-forms.button id="nextBatchBtn" type="button" class="max-lg:min-h-12 max-lg:flex-1"></x-forms.button>
+                    <a href="/" class="max-lg:flex-1"><x-forms.button type="button" class="max-lg:min-h-12 max-lg:w-full">Done</x-forms.button></a>
                 </div>
             </div>
 
@@ -165,7 +169,7 @@
                         if (f.fragment_type === 'I') {
                             $('#cue').text('type the missing ' + f.part_of_speech);
                             $('#translation').text(f.translation);
-                            $('#fragment').html(gapped(f.fragment, '<input type="text" class="gap mx-1 w-32 rounded bg-white/10 border border-white/20 px-2 text-xl" autocomplete="off">'));
+                            $('#fragment').html(gapped(f.fragment, '<input type="text" class="gap mx-1 w-32 rounded bg-white/10 border border-white/20 px-2 text-xl max-lg:py-1" autocomplete="off" autocapitalize="none" autocorrect="off" enterkeyhint="done">'));
                             $('#checkBtn').removeClass('hidden');
                             $('.gap').first().trigger('focus');
                         } else {

@@ -122,12 +122,22 @@ a one-pass countdown.
   `invisible`, so cards don't visually jump around depending on whether they have one.
 - "Save and quit" is the standard back-button style (arrow + text), absolutely positioned
   top-left, rather than a full-width strip.
+- **Below lg** it is laid out like a native flashcard app, since this is the screen most used on a
+  phone: no tab bar, Save and quit at the top, a compact full-width card centred in the space left
+  (tapping it flips, as on desktop), and a panel fixed to the bottom edge, in thumb reach: the
+  counters as one row of small pills, over Flip — or Wrong | Correct, side by side — as tall
+  full-width buttons. The card is sized to its text, not to the screen: its faces share one grid
+  cell, so it takes the taller face's height, between 180px and 40dvh, and a longer text scrolls
+  inside. That sizing lives with the rest of the `.flashcard` / `.navigationStyle` CSS in
+  `resources/css/app.css`, under a `max-width: 1023.98px` query; the desktop 300×200 card is
+  untouched.
 - The session-complete screen (`learning/complete.blade.php`) offers **Play Frammenti** in the
   finished session's language, so the learner can keep practising once the due cards run out (see
   [frammenti](frammenti.md)).
 - **Keyboard**: Space or `2` flips the card; `1` / `3` grade it Wrong / Correct, only once it is
   flipped (the grade buttons aren't shown before that). `e.key` matching makes the number row and
-  the numpad both work. Each button shows its key(s) as an `<x-kbd>` badge.
+  the numpad both work. Each button shows its key(s) as an `<x-kbd>` badge (hidden below lg, where
+  there is no keyboard to press).
 - The **hint** panel is hidden for any entry whose `hint` is empty, which today is everything but
   Definitions. It is kept, not deleted, so a future hint source only has to fill the field.
 

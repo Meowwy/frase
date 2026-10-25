@@ -87,6 +87,67 @@
     transform: translateY(1px);
 }
 
+/* Mobile flashcard session (see learning/index): a compact full-width card sized to its text,
+   and the Flip / Wrong / Correct buttons stretched into the fixed bottom bar. Desktop keeps the
+   fixed 300×200 card above.
+
+   The faces are stacked in one grid cell instead of being absolutely positioned, so the card
+   takes the taller face's height (the flip still works: both faces keep backface-visibility).
+   Between 180px and 40dvh; a longer text scrolls inside its face. */
+@media (max-width: 1023.98px) {
+    .flashcard {
+        display: grid;
+        width: 100%;
+        height: auto;
+        margin-bottom: 16px;
+    }
+
+    .flashcard .front, .flashcard .back {
+        position: relative;
+        grid-area: 1 / 1;
+        height: auto;
+        min-height: 180px;
+        max-height: 40vh;
+        max-height: 40dvh;
+        overflow-y: auto;
+        /* An overflowing text starts at the top instead of being cut off above it. */
+        align-items: safe center;
+    }
+
+    .flashcard .back {
+        font-size: 20px;
+    }
+
+    .navigationStyle {
+        width: 100%;
+        gap: 12px;
+    }
+
+    .navigationStyle button {
+        flex: 1 1 0;
+        min-height: 56px;
+        font-size: 18px;
+    }
+
+    .navigationStyle button:hover {
+        transform: none;
+    }
+
+    /* The fixed mobile top bar and bottom bar (html-layout) would otherwise cover whatever
+       scrollIntoView() or an anchor scrolls to. */
+    html {
+        scroll-padding-top: calc(4rem + env(safe-area-inset-top));
+        scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+    }
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+/* Later than Tailwind's utilities, so it beats a responsive display class too: an element
+   that also carries lg:flex stays hidden on desktop. Hide below lg with max-lg:hidden instead
+   of pairing `hidden` with an lg: display class. */
 .hidden{
     display: none;
 }

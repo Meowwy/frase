@@ -1,14 +1,17 @@
 @props(['maxTurns' => 10, 'lives' => 3])
-<x-html-layout>
-    <div class="max-w-2xl mx-auto relative">
-        <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-4">
+{{-- Below lg a full-height chat screen, as in a messaging app: the column fills the screen
+     (min-h-app-screen) so the composer starts at the bottom, and once the thread is longer
+     than the screen the composer sticks to the bottom edge. The tab bar steps aside. --}}
+<x-html-layout :tab-bar="false">
+    <div class="max-w-2xl mx-auto relative max-lg:flex max-lg:min-h-app-screen max-lg:flex-col">
+        <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-4 max-lg:mb-1 max-lg:min-h-11 max-lg:self-start">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
             <span>Home</span>
         </a>
 
-        <div class="mb-3 flex items-baseline justify-between gap-3">
+        <div class="mb-3 flex items-baseline justify-between gap-3 max-lg:flex-wrap">
             <h1 class="text-lg font-bold">Conversation game</h1>
             <div class="flex items-baseline gap-4">
                 {{-- Lives: one heart per remaining life, spent ones dimmed. --}}
@@ -37,29 +40,29 @@
         </div>
 
         {{-- Message thread: assistant lines, task boxes, learner replies and their verdicts. --}}
-        <div id="thread" class="space-y-3 mb-4"></div>
+        <div id="thread" class="space-y-3 mb-4 max-lg:flex-1"></div>
 
         {{-- Composer --}}
-        <div id="composer" class="flex gap-2 items-end">
-            <textarea id="chatInput" rows="1" autocomplete="off" placeholder="Write your reply in the target language…"
-                      class="flex-1 resize-none max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30"></textarea>
+        <div id="composer" class="flex gap-2 items-end max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-4 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-2 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <textarea id="chatInput" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Write your reply in the target language…"
+                      class="flex-1 resize-none max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 max-lg:min-w-0 max-lg:py-2.5 max-lg:text-base"></textarea>
             <button id="sendBtn" type="button"
-                    class="rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors disabled:opacity-40">
+                    class="rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors disabled:opacity-40 max-lg:min-h-11 max-lg:text-base">
                 Send
             </button>
         </div>
 
         {{-- Feedback (revealed once the game ends): the score + every mistake made. --}}
-        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5">
+        <div id="recapPanel" class="hidden mt-8 rounded-xl border border-white/10 bg-white/5 p-5 max-lg:mt-4 max-lg:p-4">
             <h3 id="recapHeading" class="text-lg font-semibold mb-3"></h3>
             <p id="recapScore" class="text-sm text-white/60"></p>
             <div id="recapMistakes" class="hidden mt-5">
                 <h4 class="text-xs font-semibold uppercase tracking-wide text-white/40 mb-2">Your mistakes</h4>
                 <ul id="recapMistakeList" class="space-y-3"></ul>
             </div>
-            <div class="mt-5">
-                <a href="/conversation" class="inline-flex items-center gap-2 rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors">Play again</a>
-                <a href="/" class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors ml-2">Home</a>
+            <div class="mt-5 max-lg:flex max-lg:gap-2">
+                <a href="/conversation" class="inline-flex items-center gap-2 rounded-lg bg-[#ff6f61] hover:bg-[#d7574d] px-5 py-2 text-sm font-bold text-white transition-colors max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:text-base">Play again</a>
+                <a href="/" class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-5 py-2 text-sm font-semibold text-white transition-colors ml-2 max-lg:ml-0 max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:text-base">Home</a>
             </div>
         </div>
     </div>
@@ -92,7 +95,7 @@
             // Assistant line (target language) — left bubble.
             function appendAssistant(text) {
                 const row = $('<div>').addClass('flex justify-start');
-                row.append($('<div>').addClass('max-w-[90%] rounded-2xl bg-white/10 px-4 py-2 text-sm text-white').html(escapeHtml(text)));
+                row.append($('<div>').addClass('max-w-[90%] rounded-2xl bg-white/10 px-4 py-2 text-sm text-white max-lg:text-base').html(escapeHtml(text)));
                 $thread.append(row);
                 row[0].scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
@@ -101,7 +104,7 @@
             function appendTask(text) {
                 const box = $('<div>').addClass('rounded-xl border border-blue-400/30 bg-blue-400/5 px-4 py-3');
                 box.append($('<div>').addClass('text-xs font-semibold uppercase tracking-wide text-blue-300 mb-1').text('🎯 Your task'));
-                box.append($('<p>').addClass('text-sm text-white/90').html(escapeHtml(text)));
+                box.append($('<p>').addClass('text-sm text-white/90 max-lg:text-base').html(escapeHtml(text)));
                 $thread.append(box);
                 box[0].scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
@@ -109,8 +112,8 @@
             // Learner reply — right bubble; returns the verdict cell placed below it.
             function appendUser(text) {
                 const wrap = $('<div>').addClass('flex flex-col items-end gap-1');
-                wrap.append($('<div>').addClass('max-w-[90%] rounded-2xl bg-[#ff6f61] px-4 py-2 text-sm text-white').html(escapeHtml(text)));
-                const verdict = $('<div>').addClass('flex items-center gap-2 text-xs text-white/50').html(spinnerSvg('h-4 w-4'));
+                wrap.append($('<div>').addClass('max-w-[90%] rounded-2xl bg-[#ff6f61] px-4 py-2 text-sm text-white max-lg:text-base').html(escapeHtml(text)));
+                const verdict = $('<div>').addClass('flex items-center gap-2 text-xs text-white/50 max-lg:flex-wrap max-lg:justify-end').html(spinnerSvg('h-4 w-4'));
                 wrap.append(verdict);
                 $thread.append(wrap);
                 wrap[0].scrollIntoView({ behavior: 'smooth', block: 'end' });

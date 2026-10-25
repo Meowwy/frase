@@ -1,44 +1,45 @@
 @props(["card", "theme", "wordbox", "linkedCards", "previousCard", "nextCard"])
 <x-html-layout>
-    <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg" id="cardShow" data-card-id="{{ $card->id }}">
+    <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg max-lg:px-0 max-lg:py-2" id="cardShow" data-card-id="{{ $card->id }}">
         {{-- Back on the left, the prev/next walk through this language's cards on the
              right — same order /cards lists them in. A missing neighbour stays rendered
              but dimmed, so the row doesn't shift as the learner walks the list. --}}
-        <div class="mb-6 flex items-center justify-between gap-3">
-            <a href="/cards" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
+        {{-- Below lg the labels shorten to "previous" / "next" and every link is a 44px target. --}}
+        <div class="mb-6 flex items-center justify-between gap-3 max-lg:mb-4">
+            <a href="/cards" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors max-lg:min-h-11">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                 </svg>
                 <span>back</span>
             </a>
 
-            <div class="flex items-center gap-5">
+            <div class="flex items-center gap-5 max-lg:gap-3">
                 @if($previousCard)
-                    <a href="/cards/{{ $previousCard->id }}" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
+                    <a href="/cards/{{ $previousCard->id }}" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors max-lg:min-h-11">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                         </svg>
-                        <span>previous card</span>
+                        <span class="max-lg:hidden">previous card</span><span class="lg:hidden">previous</span>
                     </a>
                 @else
-                    <span class="inline-flex items-center gap-1 text-white/25 cursor-default">
+                    <span class="inline-flex items-center gap-1 text-white/25 cursor-default max-lg:min-h-11">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                         </svg>
-                        <span>previous card</span>
+                        <span class="max-lg:hidden">previous card</span><span class="lg:hidden">previous</span>
                     </span>
                 @endif
 
                 @if($nextCard)
-                    <a href="/cards/{{ $nextCard->id }}" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
-                        <span>next card</span>
+                    <a href="/cards/{{ $nextCard->id }}" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors max-lg:min-h-11">
+                        <span class="max-lg:hidden">next card</span><span class="lg:hidden">next</span>
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
                     </a>
                 @else
-                    <span class="inline-flex items-center gap-1 text-white/25 cursor-default">
-                        <span>next card</span>
+                    <span class="inline-flex items-center gap-1 text-white/25 cursor-default max-lg:min-h-11">
+                        <span class="max-lg:hidden">next card</span><span class="lg:hidden">next</span>
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
@@ -62,7 +63,7 @@
                     <span class="text-xl leading-none">{{$card->language->flag}}</span>
                 @endif
                 <a href="/cards/edit/{{$card->id}}" title="Edit card"
-                   class="text-white/70 hover:text-white transition-colors">
+                   class="text-white/70 hover:text-white transition-colors max-lg:-mr-2.5 max-lg:inline-flex max-lg:p-2.5">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -78,12 +79,14 @@
                 <span class="text-xs uppercase tracking-wider text-white/40">base words</span>
                 @foreach($card->baseWords as $baseWord)
                     <a href="{{ route('base', ['language_id' => $card->language_id, 'selected' => 'word:'.$baseWord->id]) }}"
-                       class="group relative rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm hover:bg-white/10 transition-colors">
+                       class="group relative rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm hover:bg-white/10 transition-colors max-lg:py-2">
                         {{ $baseWord->displayForm() }}
                         <span class="ml-1 text-xs text-white/40">{{ $baseWord->part_of_speech }}</span>
                         @if($baseWord->translation)
+                            {{-- No hover on touch: below lg the translation is written into the chip instead. --}}
+                            <span class="ml-1 text-xs text-white/60 lg:hidden">· {{ $baseWord->translation }}</span>
                             <span role="tooltip"
-                                  class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-700 px-3 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                                  class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-700 px-3 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 max-lg:hidden">
                                 {{ $baseWord->translation }}
                                 <span class="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-gray-700"></span>
                             </span>
@@ -92,7 +95,7 @@
                 @endforeach
                 @foreach($card->fixedExpressions as $expression)
                     <a href="{{ route('base', ['language_id' => $card->language_id, 'selected' => 'expression:'.$expression->id]) }}"
-                       class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-sm hover:bg-blue-500/20 transition-colors">
+                       class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-sm hover:bg-blue-500/20 transition-colors max-lg:py-2">
                         {{ $expression->form }}
                         <span class="ml-1 text-xs text-white/40">expression</span>
                     </a>
@@ -115,21 +118,22 @@
 
             <div class="relative max-w-md mb-3">
                 <input type="text" id="linkSearch" placeholder="Search a term to link…" autocomplete="off"
-                       class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30">
+                       class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 max-lg:py-2.5 max-lg:text-base">
                 <div id="linkResults"
                      class="hidden absolute z-20 mt-1 w-full rounded-lg border border-white/10 bg-[#111] py-1 shadow-xl max-h-60 overflow-y-auto"></div>
             </div>
 
+            {{-- Below lg the table stacks into a list (see cards._linked_rows). --}}
             <div class="overflow-x-auto">
-                <table class="min-w-full max-w-2xl divide-y divide-gray-700 bg-white/5 text-xs">
-                    <thead>
+                <table class="min-w-full max-w-2xl divide-y divide-gray-700 bg-white/5 text-xs max-lg:block max-lg:rounded-lg max-lg:text-sm">
+                    <thead class="max-lg:hidden">
                     <tr>
                         <th class="px-4 py-2 text-left font-medium text-gray-300 uppercase tracking-wider">Term</th>
                         <th class="px-4 py-2 text-left font-medium text-gray-300 uppercase tracking-wider">Translation</th>
                         <th class="w-8 px-4 py-2"></th>
                     </tr>
                     </thead>
-                    <tbody id="linkedCardsBody" class="divide-y divide-gray-700">
+                    <tbody id="linkedCardsBody" class="divide-y divide-gray-700 max-lg:block">
                     @include('cards._linked_rows', ['linkedCards' => $linkedCards])
                     </tbody>
                 </table>
@@ -138,41 +142,42 @@
             <!-- User note -->
             <div class="mt-4 max-w-md">
                 <textarea id="noteInput" rows="4" placeholder="Add a note…"
-                          class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30">{{ $card->note }}</textarea>
+                          class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30 max-lg:text-base">{{ $card->note }}</textarea>
                 <div class="mt-2">
                     <button type="button" id="saveNote"
-                            class="rounded-lg bg-white/10 hover:bg-white/20 px-4 py-2 text-sm font-medium text-white transition-colors">
+                            class="rounded-lg bg-white/10 hover:bg-white/20 px-4 py-2 text-sm font-medium text-white transition-colors max-lg:min-h-11 max-lg:w-full">
                         Save note
                     </button>
                 </div>
             </div>
         </div>
 
-        <table class="mb-4 table-auto text-left text-white max-w-2xl divide-gray-700 bg-white/5">
+        {{-- Below lg: full width, smaller type, so the three columns fit a phone. --}}
+        <table class="mb-4 table-auto text-left text-white max-w-2xl divide-gray-700 bg-white/5 max-lg:w-full">
             <thead class="text-white">
             <tr>
-                <th class="px-4 py-3 text-xl">Last studied</th>
-                <th class="px-4 py-3 text-xl">Level</th>
-                <th class="px-4 py-3 text-xl">Next study scheduled on</th>
+                <th class="px-4 py-3 text-xl max-lg:px-2 max-lg:text-sm">Last studied</th>
+                <th class="px-4 py-3 text-xl max-lg:px-2 max-lg:text-sm">Level</th>
+                <th class="px-4 py-3 text-xl max-lg:px-2 max-lg:text-sm">Next study scheduled on</th>
             </tr>
             </thead>
             <tbody class="divide-y divide-gray-700">
                 <tr class="">
-                    <td class="px-4 py-2 text-center">
+                    <td class="px-4 py-2 text-center max-lg:px-2">
                         @if(is_null($card->last_studied))
-                            <span class="text-xl">Not studied</span>
+                            <span class="text-xl max-lg:text-base">Not studied</span>
                         @elseif($card->last_studied_days == 0)
-                            <span class="text-xl">Today</span>
+                            <span class="text-xl max-lg:text-base">Today</span>
                         @elseif($card->last_studied_days == 1)
-                            <span class="text-xl">{{$card->last_studied_days}} day ago</span>
-                            <span class="text-sm"> ({{$card->last_studied}})</span>
+                            <span class="text-xl max-lg:text-base">{{$card->last_studied_days}} day ago</span>
+                            <span class="text-sm max-lg:block max-lg:text-xs"> ({{$card->last_studied}})</span>
                         @else
-                            <span class="text-xl">{{$card->last_studied_days}} days ago</span>
-                            <span class="text-sm"> ({{$card->last_studied}})</span>
+                            <span class="text-xl max-lg:text-base">{{$card->last_studied_days}} days ago</span>
+                            <span class="text-sm max-lg:block max-lg:text-xs"> ({{$card->last_studied}})</span>
                         @endif
                     </td>
-                    <td class="px-4 py-2 text-center text-xl">{{$card->level}}</td>
-                    <td class="px-4 py-2 text-center text-xl">{{$card->next_study_at}}</td>
+                    <td class="px-4 py-2 text-center text-xl max-lg:px-2 max-lg:text-base">{{$card->level}}</td>
+                    <td class="px-4 py-2 text-center text-xl max-lg:px-2 max-lg:text-base">{{$card->next_study_at}}</td>
                 </tr>
             </tbody>
         </table>
@@ -204,7 +209,7 @@
                     return;
                 }
                 const html = cards.map(function (c) {
-                    return '<button type="button" class="js-link-result block w-full text-left px-3 py-2 text-sm text-white hover:bg-white/10" data-id="' + c.id + '">' +
+                    return '<button type="button" class="js-link-result block w-full text-left px-3 py-2 text-sm text-white hover:bg-white/10 max-lg:py-3 max-lg:text-base" data-id="' + c.id + '">' +
                         '<span class="font-medium">' + escapeHtml(c.term) + '</span>' +
                         (c.translation ? ' <span class="text-gray-400">' + escapeHtml(c.translation) + '</span>' : '') +
                         '</button>';
@@ -229,13 +234,14 @@
                 $.post('/cards/' + cardId + '/links', { card_id: otherId, _token: csrf }, function (data) {
                     const c = data.card;
                     $body.find('.js-linked-empty').remove();
+                    // Same markup (and mobile stacking) as cards._linked_rows.
                     const row =
-                        '<tr class="group hover:bg-white/10 js-linked-row" data-linked-id="' + c.id + '">' +
-                        '<td class="px-4 py-2 whitespace-nowrap font-medium text-white">' +
+                        '<tr class="group hover:bg-white/10 js-linked-row max-lg:grid max-lg:grid-cols-[1fr_auto] max-lg:items-center max-lg:px-4 max-lg:py-2" data-linked-id="' + c.id + '">' +
+                        '<td class="px-4 py-2 whitespace-nowrap font-medium text-white max-lg:col-start-1 max-lg:p-0 max-lg:whitespace-normal">' +
                         '<a href="/cards/' + c.id + '" class="hover:underline">' + escapeHtml(c.term) + '</a></td>' +
-                        '<td class="px-4 py-2 text-gray-300">' + escapeHtml(c.translation) + '</td>' +
-                        '<td class="w-8 px-4 py-2 text-right">' +
-                        '<button type="button" class="js-unlink text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Unlink term">' +
+                        '<td class="px-4 py-2 text-gray-300 max-lg:col-start-1 max-lg:p-0">' + escapeHtml(c.translation) + '</td>' +
+                        '<td class="w-8 px-4 py-2 text-right max-lg:col-start-2 max-lg:row-span-2 max-lg:row-start-1 max-lg:w-auto max-lg:p-0">' +
+                        '<button type="button" class="js-unlink text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center max-lg:opacity-100" aria-label="Unlink term">' +
                         '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>' +
                         '</button></td></tr>';
                     $body.append(row);
@@ -258,7 +264,7 @@
                     success: function () {
                         $row.remove();
                         if ($body.find('.js-linked-row').length === 0) {
-                            $body.html('<tr class="js-linked-empty"><td colspan="3" class="px-4 py-3 text-center text-gray-400">No linked cards yet.</td></tr>');
+                            $body.html('<tr class="js-linked-empty max-lg:block"><td colspan="3" class="px-4 py-3 text-center text-gray-400 max-lg:block">No linked cards yet.</td></tr>');
                         }
                     }
                 });

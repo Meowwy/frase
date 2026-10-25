@@ -1,5 +1,6 @@
 <x-html-layout>
-    <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-6">
+    {{-- Below lg the tab bar already leads home. --}}
+    <a href="/" class="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors mb-6 max-lg:hidden">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
         </svg>
@@ -7,21 +8,38 @@
     </a>
 
     @if($targetLanguages->isNotEmpty())
-        <x-wordbox-picker :target-languages="$targetLanguages"
-                          :wordboxes-by-language="$wordboxesByLanguage"
-                          :active-language-id="$activeLanguageId" />
+        {{-- Below lg the picker folds into one Filter control that names the selection; it
+             unfolds in place. Opening it fires a resize so the picker lays out its tag row
+             again (it measured nothing while hidden). --}}
+        @php $languageLabels = $targetLanguages->mapWithKeys(fn ($l) => [$l->id => $l->flag.' '.$l->name]); @endphp
+        <div x-data="{ open: false, languages: @js($languageLabels), languageId: @js((string) $activeLanguageId), wordbox: null }"
+             @wordboxpicker:change.document="languageId = String($event.detail.languageId); wordbox = $event.detail.label">
+            <button type="button" :aria-expanded="open"
+                    @click="open = ! open; $nextTick(() => window.dispatchEvent(new Event('resize')))"
+                    class="flex min-h-12 w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-left lg:hidden">
+                <span class="font-bold">Filter</span>
+                <span class="min-w-0 flex-1 truncate text-white/60" x-text="(languages[languageId] || '') + ' · ' + (wordbox || 'all terms')"></span>
+                <span class="text-xs text-white/50 transition-transform" :class="open && 'rotate-180'">▾</span>
+            </button>
+            <div class="max-lg:mt-3 max-lg:hidden" :class="{ 'max-lg:hidden': ! open }">
+                <x-wordbox-picker :target-languages="$targetLanguages"
+                                  :wordboxes-by-language="$wordboxesByLanguage"
+                                  :active-language-id="$activeLanguageId" />
+            </div>
+        </div>
     @endif
 
-    {{-- Bulk-action bar — always visible, inert + grayed out when nothing is selected. --}}
-    <div class="mt-6 flex flex-wrap items-center justify-end gap-3">
-        <div id="bulkBar" class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 opacity-40 pointer-events-none transition-opacity">
-            <span id="bulkCount" class="text-sm text-white/80">0 selected</span>
+    {{-- Bulk-action bar — always visible, inert + grayed out when nothing is selected. Below lg
+         it sticks under the top bar, so it stays in reach while ticking rows further down. --}}
+    <div class="mt-6 flex flex-wrap items-center justify-end gap-3 max-lg:sticky max-lg:top-[calc(3.5rem_+_env(safe-area-inset-top))] max-lg:z-30 max-lg:-mx-4 max-lg:mt-3 max-lg:bg-black max-lg:px-4 max-lg:py-2">
+        <div id="bulkBar" class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 opacity-40 pointer-events-none transition-opacity max-lg:w-full">
+            <span id="bulkCount" class="text-sm text-white/80 max-lg:shrink-0">0 selected</span>
             <select id="bulkWordbox"
-                    class="rounded-lg border border-white/10 bg-[#111] px-2 py-1 text-sm text-white focus:outline-none">
+                    class="rounded-lg border border-white/10 bg-[#111] px-2 py-1 text-sm text-white focus:outline-none max-lg:min-h-10 max-lg:min-w-0 max-lg:flex-1 max-lg:text-base">
                 <option value="" disabled selected>Add to wordbox…</option>
             </select>
             <button type="button" id="bulkDelete" aria-label="Delete selected"
-                    class="inline-flex items-center rounded-lg bg-red-600 p-1.5 text-white transition hover:bg-red-500">
+                    class="inline-flex items-center rounded-lg bg-red-600 p-1.5 text-white transition hover:bg-red-500 max-lg:p-3">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                 </svg>
@@ -29,31 +47,33 @@
         </div>
     </div>
 
-    <div class="overflow-x-auto mt-6">
-        <table class="min-w-full divide-y divide-gray-700 bg-white/5">
-            <thead>
-            <tr>
+    {{-- Below lg the table stacks into a list (see cards._rows): the header keeps only the
+         Term search, as a full-width search field. --}}
+    <div class="overflow-x-auto mt-6 max-lg:mt-2">
+        <table class="min-w-full divide-y divide-gray-700 bg-white/5 max-lg:block max-lg:rounded-xl">
+            <thead class="max-lg:block">
+            <tr class="max-lg:block">
                 {{-- Leftmost checkbox column (hover-revealed per row). --}}
-                <th class="w-10 px-4 py-3"></th>
+                <th class="w-10 px-4 py-3 max-lg:hidden"></th>
                 {{-- Search inputs are baked into the header in place of the column titles. --}}
-                <th class="px-6 py-3 text-left">
+                <th class="px-6 py-3 text-left max-lg:block max-lg:px-4">
                     <div class="flex items-center gap-2 border-b border-white/60">
                         <svg class="w-4 h-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                         </svg>
                         <input type="text" id="cardSearchTerm" placeholder="Term" autocomplete="off"
-                               value="{{ $term }}"
-                               class="w-full bg-transparent py-1 text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500">
+                               value="{{ $term }}" enterkeyhint="search"
+                               class="w-full bg-transparent py-1 text-xs font-medium text-gray-300 placeholder-gray-300 uppercase tracking-wider focus:outline-none focus:text-white focus:placeholder-gray-500 max-lg:py-2 max-lg:text-base max-lg:normal-case max-lg:tracking-normal">
                     </div>
                 </th>
                 {{-- Only the Term has a backend filter; the other headers are plain. --}}
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Translation</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Saved</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Wordbox</th>
-                <th class="w-10 px-4 py-3"></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider max-lg:hidden">Translation</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider max-lg:hidden">Saved</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider max-lg:hidden">Wordbox</th>
+                <th class="w-10 px-4 py-3 max-lg:hidden"></th>
             </tr>
             </thead>
-            <tbody id="cardsTableBody" class="divide-y divide-gray-700">
+            <tbody id="cardsTableBody" class="divide-y divide-gray-700 max-lg:block">
             @include('cards._rows', ['cards' => $cards])
             </tbody>
         </table>
@@ -67,11 +87,11 @@
         <p class="text-white/60 mb-6"><span id="confirmDeleteMsg"></span> This action cannot be undone.</p>
         <div class="flex justify-end gap-3">
             <button type="button" onclick="closeModal('confirm-delete-cards')"
-                    class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+                    class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
                 Cancel
             </button>
             <button type="button" id="confirmDeleteBtn"
-                    class="px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all">
+                    class="px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all max-lg:min-h-12 max-lg:flex-1">
                 Delete
             </button>
         </div>

@@ -1,15 +1,21 @@
 @props(['cards', 'cardCount'])
-<x-html-layout>
-    <div class="relative">
-        <button id="exitBtn" type="button" class="absolute left-0 top-0 inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors">
+{{-- Below lg this is laid out like a native flashcard app: Save and quit at the top, a compact
+     full-width card (tap it to flip) centred in the space left, and at the bottom a fixed panel:
+     the counters as one row of small pills over Flip — or Wrong | Correct — as big buttons. The
+     tab bar steps aside for it. The flex column and `contents` only exist below lg, so the
+     desktop layout is untouched. --}}
+<x-html-layout :tab-bar="false">
+    <div class="max-lg:flex max-lg:min-h-app-screen max-lg:flex-col">
+    <div class="relative max-lg:contents">
+        <button id="exitBtn" type="button" class="absolute left-0 top-0 inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors max-lg:static max-lg:order-first max-lg:mb-2 max-lg:min-h-11 max-lg:self-start">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
             <span>Save and quit</span>
         </button>
 
-    <div class="flex justify-center items-center">
-        <div class="flex-col items-center">
+    <div class="flex justify-center items-center max-lg:flex-1">
+        <div class="flex-col items-center max-lg:w-full">
             <div class="flex justify-center items-center gap-2 mb-4">
                 <span id="wordboxName" class="invisible text-lg mr-1 font-bold bg-orange-800 text-white rounded-full px-3 py-1">&nbsp;</span>
             </div>
@@ -24,22 +30,28 @@
             <div>
                 {{-- Hidden for a card without a hint. Only Definitions carries one now; the
                      panel stays so a future hint source can switch it back on. --}}
-                <x-panel class="mb-6 cursor-pointer justify-center items-center max-w-[300px]" outline="orange" id="hint">
+                <x-panel class="mb-6 cursor-pointer justify-center items-center lg:max-w-[300px] max-lg:min-h-12" outline="orange" id="hint">
                     <p id="hintText" class="text-sm text-center">Click to show hint.</p>
                 </x-panel>
             </div>
-            <div class="navigationStyle flex justify-center">
-                <button class="w-[300px]" id="flipBtn">Flip<x-kbd>Space</x-kbd><x-kbd class="ml-1">2</x-kbd></button>
-            </div>
-            <div class="navigationStyle">
-                <button class="hidden" id="wrongBtn">Wrong<x-kbd>1</x-kbd></button>
-                <button class="hidden" id="correctBtn">Correct<x-kbd>3</x-kbd></button>
+            {{-- The key hints (x-kbd) hide themselves below lg, where there is no keyboard. --}}
+            <div id="sessionActions" class="max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:bg-black max-lg:px-4 max-lg:pt-3 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div class="navigationStyle flex justify-center">
+                    <button class="w-[300px]" id="flipBtn">Flip<x-kbd>Space</x-kbd><x-kbd class="ml-1">2</x-kbd></button>
+                </div>
+                <div class="navigationStyle">
+                    <button class="hidden" id="wrongBtn">Wrong<x-kbd>1</x-kbd></button>
+                    <button class="hidden" id="correctBtn">Correct<x-kbd>3</x-kbd></button>
+                </div>
             </div>
         </div>
     </div>
     </div>
 
-    <div class="flex justify-center gap-2 items-center mt-6">
+    {{-- Below lg the counters stay where they are in the DOM but are fixed right on top of the
+         button bar (#sessionActions), together one bottom panel: its offset is that bar's
+         height — pt-3, the 56px buttons (app.css), and its bottom padding. --}}
+    <div class="flex justify-center gap-2 items-center mt-6 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(0.75rem_+_56px_+_max(0.75rem,env(safe-area-inset-bottom)))] max-lg:z-40 max-lg:mt-0 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-3">
         <x-number-display number-id="queueCount" number="{{$cardCount}}" text="queue"></x-number-display>
         <x-number-display number-id="wrongCount" number="0" text="wrong"></x-number-display>
         <x-number-display number-id="correctCount" number="0" text="correct"></x-number-display>
@@ -48,6 +60,9 @@
         <x-forms.form id="resultsForm" method="POST" action="/saveLearning">
             <input id="resultsInput" type="hidden" name="results">
         </x-forms.form>
+    </div>
+    {{-- Room for the fixed bottom panel (counters and buttons). --}}
+    <div class="h-32 lg:hidden" aria-hidden="true"></div>
     </div>
 
     <script>
@@ -192,7 +207,7 @@
         if (cards.length) {
             showCard();
         } else {
-            document.querySelectorAll('.navigationStyle').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.navigationStyle, #sessionActions').forEach(el => el.classList.add('hidden'));
         }
     </script>
 </x-html-layout>
