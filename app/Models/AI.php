@@ -512,6 +512,9 @@ class AI
      * would also fill each gap come back as `synonym_answers`, so the page can ask for
      * another way instead of failing a synonym. The phrase is not made to exclude them.
      *
+     * A slot's `terms` (Frammenti::terms()) are the Terms of cards holding its item: they
+     * pin its sense, and the phrase must still come from another context.
+     *
      * Returns per slot, in slot order, ['fragment', 'translation', 'accepted',
      * 'synonym_answers'] for I, ['fragment', 'translation'] for II and ['task', 'answer']
      * for III, or null on failure.
@@ -522,6 +525,11 @@ class AI
             .'one per slot, each natural, as a native speaker would really say it. '
             .'Each uses its own item in a sense that fits the item\'s part of speech and translation, and none of the other slots\' items.'
             .self::levelInstruction($level);
+        if (array_filter(array_column($slots, 'terms'))) {
+            $system .= ' Some items list saved Terms that contain them. Those Terms lock the item\'s meaning: use the item in the sense it has there, '
+                .'but set the phrase in a different context than any of those Terms, never reusing or paraphrasing one. '
+                .'Every other rule, including any restriction to the learner\'s own words, still applies in full.';
+        }
 
         // The native translation is shown as plain text, so it never carries markup.
         $translation = ['type' => 'string', 'description' => "Natural {$nativeLanguage} translation of the whole phrase, as plain text."];
@@ -536,7 +544,8 @@ class AI
         foreach ($slots as $i => $slot) {
             $key = 'slot_'.($i + 1);
             $lines[] = "{$key}: \"{$slot['item']}\" ({$slot['part_of_speech']}) = \"{$slot['item_translation']}\""
-                .($slot['synonyms'] ? '; linked synonyms: '.self::synonymList($slot['synonyms']) : '');
+                .($slot['synonyms'] ? '; linked synonyms: '.self::synonymList($slot['synonyms']) : '')
+                .($slot['terms'] ? '; saved Terms: '.implode(', ', array_map(fn ($term) => "\"{$term}\"", $slot['terms'])) : '');
 
             // A base word is one gap even with its article ("en skola"); only an expression
             // whose parts end up apart in the phrase gets one gap per part.

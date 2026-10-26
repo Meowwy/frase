@@ -33,6 +33,9 @@ class Frammenti
     /** Proven words sent as context to a beginner's batch. */
     private const CONTEXT_WORDS = 80;
 
+    /** Card Terms sent with an item to lock its meaning. */
+    private const TERMS_PER_ITEM = 2;
+
     /**
      * The learner's target languages — never their native one, even when they collect
      * native-language vocabulary: "translating" your own language into itself is meaningless.
@@ -206,6 +209,7 @@ class Frammenti
         $synonyms = EntrySynonym::of($all);
 
         $slots = [];
+        $dealt = [];
         $skip = [];
         foreach ($due->shuffle()->concat($notDue->sortBy('frammenti_due_on')) as $item) {
             if (count($slots) === self::BATCH) {
@@ -217,6 +221,7 @@ class Frammenti
 
             $itemSynonyms = $synonyms->get($item->entryKey(), collect());
             $slots[] = self::slot($item, $itemSynonyms);
+            $dealt[] = $item;
             foreach ($itemSynonyms as $synonym) {
                 $skip[$synonym->entryKey()] = true;
             }
@@ -228,9 +233,28 @@ class Frammenti
                 ->map(fn ($item) => $item instanceof BaseWord ? $item->lemma : $item->form)->values()->all()
             : null;
 
-        $fragments = AI::generateFragments($slots, $language->name, self::nativeLanguageName($user), $level, $context);
+        // The Terms go to the AI only: the page gets the slots without them.
+        $withTerms = array_map(fn ($slot, $item) => $slot + ['terms' => self::terms($item)], $slots, $dealt);
+        $fragments = AI::generateFragments($withTerms, $language->name, self::nativeLanguageName($user), $level, $context);
 
         return $fragments ? array_map(fn ($slot, $fragment) => $slot + $fragment, $slots, $fragments) : null;
+    }
+
+    /**
+     * The Terms of the item's most recent cards, at most TERMS_PER_ITEM, that hold more than
+     * the item itself: a card whose Term is the item alone (any case, bare lemma or display
+     * form) says nothing about its sense that the item doesn't already.
+     *
+     * @return array<int, string>
+     */
+    private static function terms(BaseWord|FixedExpression $item): array
+    {
+        $own = array_map(mb_strtolower(...), array_filter([$item instanceof BaseWord ? $item->lemma : null, $item->displayForm()]));
+
+        return $item->cards()->orderByDesc('cards.created_at')->orderByDesc('cards.id')->pluck('cards.term')
+            ->map(fn ($term) => trim($term))
+            ->reject(fn ($term) => in_array(mb_strtolower($term), $own, true))
+            ->take(self::TERMS_PER_ITEM)->values()->all();
     }
 
     /**

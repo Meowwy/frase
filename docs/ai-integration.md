@@ -306,6 +306,12 @@ word lists) five times for a shorter wait.
   model is the one that can put it in the phrase's form, so the page can tell "another way" from a
   miss. The phrase is **not** made to rule the synonym out. A slot without synonyms isn't asked, so
   its schema stays as it was.
+- **An item's saved Terms lock its meaning, not its context.** A slot's line ends with
+  `saved Terms: "…", "…"` (up to 2 card Terms holding the item, see [frammenti](frammenti.md)
+  "Dealing"), and the system prompt, only when some slot has any, says to use the item in the sense
+  it has there but in a different context, never reusing or paraphrasing a Term. The learner's
+  own-words rule still applies in full. Part of speech and translation alone don't pin a sense, and
+  the learner's own Terms are the only evidence of the sense they meant.
 - **The native translation (I, II) and the task (III) are plain text**, and PHP strips any `[[ ]]`
   the model still adds: it did mark translations, and the learner should see just the text.
 - **At III, the task is an instruction to say something to someone** ("Tell your friend she should

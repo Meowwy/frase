@@ -327,6 +327,30 @@ class FrammentiTest extends TestCase
         $this->assertSame(1, $schema->filter(fn ($slot) => isset($slot['properties']['synonym_answers']))->count());
     }
 
+    /**
+     * The two most recent cards holding the item whose Term is more than the item itself
+     * go to the AI, which is told they lock the meaning; the page never gets them.
+     */
+    public function test_a_slot_carries_the_terms_of_its_most_recent_cards_that_hold_more_than_the_item(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->unlock($user, $language);
+        $skola = $this->word($user, $language, 'skola', $this->due());
+        $terms = ['skola' => '2026-10-01', 'en skola' => '2026-10-02', 'gamla skolan' => '2026-10-03', 'skolan öppnar' => '2026-10-04', 'min skola' => '2026-10-05'];
+        foreach ($terms as $term => $created) {
+            $card = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => $term, 'created_at' => $created]);
+            $skola->cards()->attach($card);
+        }
+        $this->fakeAi();
+
+        $fragments = collect($this->batch($user, $language)->assertOk()->json('fragments'))->keyBy('id');
+
+        $request = Http::recorded()->last()[0];
+        $this->assertStringContainsString('"skola" (noun) = "en: skola"; saved Terms: "min skola", "skolan öppnar"', $request['messages'][1]['content']);
+        $this->assertStringContainsString('lock the item\'s meaning', $request['messages'][0]['content']);
+        $this->assertArrayNotHasKey('terms', $fragments[$skola->id]);
+    }
+
     public function test_tier_one_synonym_answers_may_be_empty_but_not_the_wrong_length(): void
     {
         [$user, $language] = $this->learner();

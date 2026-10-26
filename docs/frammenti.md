@@ -116,6 +116,11 @@ a shorter batch.
 Each slot carries the item's `synonyms` (`[{form, translation}]`, empty when none) for the AI call
 and the page; never the synonyms' own level or schedule.
 
+The AI call also gets each slot's **saved Terms**: the Terms of the item's **2 most recent cards**
+(`created_at`) whose Term is more than the item alone (a Term equal to the lemma or display form,
+any case, is skipped). They are not sent to the page. They lock the item's sense, and the model
+must still write the phrase in a different context.
+
 **Not open yet**: Frammenti opens for a language once its base holds at least 5 nouns and 5 verbs
 (`MIN_NOUNS_AND_VERBS`). Below that the page shows what's missing, the batch endpoint answers 422,
 and no AI call is made.
