@@ -18,7 +18,7 @@ see [multi-language](multi-language.md)) → a wordbox scope (**nothing selected
 The route precomputes **per-selection card counts** (total + due, for "all", "general", and every
 wordbox in every language) in one pass so the builder can show "N due cards" for every possible
 choice without a round trip per click. These counts intentionally mirror the exact rules in
-`Learning::getCardsForSelection` (due = `next_study_at` on/before today) — if you change one, you
+`Learning::getCardsForSelection` (due = `next_study_at` on/before today and `level < 8`) — if you change one, you
 must change the other, or the counts shown in the builder will disagree with what a session
 actually serves.
 
@@ -95,6 +95,10 @@ linked to it (`Card::stampRecall()`) — producing the Term is producing all of 
 - `result === 1` (correct) → `next_study_at = now() + 2^(level - 1) days` — a simple doubling
   interval per level (level 1 → +1 day, level 2 → +2 days, level 3 → +4 days, …).
 - otherwise (wrong) → `next_study_at = now() + 1 day`.
+
+A card that reaches **level 8 is learned**: it is never due again (every due query — the session
+set, the builder counts, the dashboard counts — filters `level < 8`). Nothing else changes for it;
+it stays reachable via `cram`.
 
 Persisting a result (`AjaxController@saveLearning` — the whole of what that controller is now,
 `POST /saveLearning`) reads a JSON array of

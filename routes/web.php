@@ -38,6 +38,7 @@ Route::get('/', function () {
     // Due-card counts per target language → drives the "Learning" review cards on the dashboard.
     $dueByLanguage = $user->cards()
         ->whereDate('next_study_at', '<=', now()->toDateString())
+        ->where('level', '<', 8)
         ->selectRaw('language_id, COUNT(*) as aggregate')
         ->groupBy('language_id')
         ->pluck('aggregate', 'language_id');
@@ -129,9 +130,9 @@ Route::middleware('auth')->group(function () {
 
         // Precompute total/due card counts per selection so the builder can show how many
         // cards a filter yields without hitting the backend on every change. Mirrors the
-        // rules in Learning::getCardsForSelection (due = next_study_at on/before today).
+        // rules in Learning::getCardsForSelection (due = next_study_at on/before today, level < 8).
         $today = now()->toDateString();
-        $dueExpr = 'sum(case when date(next_study_at) <= ? then 1 else 0 end) as due';
+        $dueExpr = 'sum(case when date(next_study_at) <= ? and level < 8 then 1 else 0 end) as due';
 
         $allCounts = $user->cards()
             ->selectRaw("language_id, count(*) as total, {$dueExpr}", [$today])
@@ -141,7 +142,7 @@ Route::middleware('auth')->group(function () {
             ->groupBy('language_id')->get()->keyBy('language_id');
         $wordboxCounts = $user->cards()
             ->join('wordbox_card', 'cards.id', '=', 'wordbox_card.card_id')
-            ->selectRaw('wordbox_card.wordbox_id as wid, count(*) as total, '.str_replace('next_study_at', 'cards.next_study_at', $dueExpr), [$today])
+            ->selectRaw('wordbox_card.wordbox_id as wid, count(*) as total, '.str_replace(['next_study_at', 'level'], ['cards.next_study_at', 'cards.level'], $dueExpr), [$today])
             ->groupBy('wordbox_card.wordbox_id')->get()->keyBy('wid');
 
         $cardCounts = [];

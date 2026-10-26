@@ -152,6 +152,11 @@
             </div>
         </div>
 
+        @if($card->level >= 8)
+            <div class="mb-4 max-w-2xl bg-white/5 px-4 py-3 text-xl text-white max-lg:w-full max-lg:text-base">
+                Learned — this card has reached level {{$card->level}} and is no longer scheduled for review.
+            </div>
+        @else
         {{-- Below lg: full width, smaller type, so the three columns fit a phone. --}}
         <table class="mb-4 table-auto text-left text-white max-w-2xl divide-gray-700 bg-white/5 max-lg:w-full">
             <thead class="text-white">
@@ -181,6 +186,7 @@
                 </tr>
             </tbody>
         </table>
+        @endif
     </div>
 
     <script>

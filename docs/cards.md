@@ -531,7 +531,8 @@ dimmed and non-clickable, so the row doesn't shift as the learner walks the list
 
 Renders: the card's **base words** as chips, each in its display form with its
 part of speech, linking to `/base` with that word selected (fixed expressions the same); the `note` if present; and the "Linked cards" section
-(below). Hovering a base-word chip shows its `translation` in a small tooltip above it. The tooltip is a
+(below); and the SRS table (last studied / level / next study date) — replaced by a "Learned"
+message once the card is at level 8 or above, since it is never scheduled again. Hovering a base-word chip shows its `translation` in a small tooltip above it. The tooltip is a
 pure-CSS `group-hover` overlay with no JS, because the app has no tooltip library; touch has no
 hover, so below lg the tooltip is hidden and the translation is written into the chip instead. The term
 heading is `font-medium`, not `font-bold` — there is no focus word left to emphasize against it, so

@@ -47,7 +47,7 @@ class Learning
      */
     private static function onlyDue($query): void
     {
-        $query->whereDate('next_study_at', '<=', now()->toDateString());
+        $query->whereDate('next_study_at', '<=', now()->toDateString())->where('level', '<', 8);
 
         $more = (clone $query)->count() > 20;
         session(['more_cards_available' => $more]);
