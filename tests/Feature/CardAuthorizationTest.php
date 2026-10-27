@@ -51,7 +51,6 @@ class CardAuthorizationTest extends TestCase
 
         $response = $this->actingAs($other)->post("/cards/{$card->id}", [
             'term' => 'hacked',
-            'definition' => 'x',
             'translation' => 'x',
         ]);
 
@@ -66,7 +65,6 @@ class CardAuthorizationTest extends TestCase
 
         $response = $this->actingAs($owner)->post("/cards/{$card->id}", [
             'term' => 'updated',
-            'definition' => 'x',
             'translation' => 'x',
         ]);
 

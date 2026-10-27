@@ -26,7 +26,6 @@ class UpdateCardRequest extends FormRequest
     {
         return [
             'term' => ['required', 'string'],
-            'definition' => ['required', 'string'],
             'translation' => ['required', 'string'],
             // Nullable so the field can be cleared; the column is NOT NULL, hence the
             // coalesce in the controller.

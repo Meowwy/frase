@@ -32,14 +32,6 @@
                     <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
                 </div>
             </x-panel>
-            <x-panel class="w-48 max-lg:relative max-lg:w-full">
-                <div class="py-8">
-                    <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                        <a href="/startLearning/definitions" class="max-lg:after:absolute max-lg:after:inset-0">Definitions</a>
-                    </h3>
-                    <p class="text-sm mt-4">Recall the term from its definition.</p>
-                </div>
-            </x-panel>
         </div>
     @elseif($targetLanguages->isEmpty())
         <div class="max-w-3xl mx-auto bg-white/5 rounded-xl border border-white/10 p-4">
@@ -66,7 +58,7 @@
                 <span id="reviewSentence" class="max-lg:leading-loose">Review <span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> by...</span>
                 <span id="noCardsSentence" class="hidden">No cards to review</span>
             </x-section-heading>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-center">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-center">
                 <x-panel class="mode-panel max-lg:relative">
                     <div class="py-8">
                         <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
@@ -81,14 +73,6 @@
                             <a href="#" class="mode-link max-lg:after:absolute max-lg:after:inset-0" data-mode="conversation">Conversation</a>
                         </h3>
                         <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
-                    </div>
-                </x-panel>
-                <x-panel class="mode-panel max-lg:relative">
-                    <div class="py-8">
-                        <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                            <a href="#" class="mode-link max-lg:after:absolute max-lg:after:inset-0" data-mode="definitions">Definitions</a>
-                        </h3>
-                        <p class="text-sm mt-4">Recall the term from its definition.</p>
                     </div>
                 </x-panel>
             </div>

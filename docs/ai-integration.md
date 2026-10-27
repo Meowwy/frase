@@ -186,26 +186,28 @@ homographs, where it may pick only among the values the lexicon allows. The prom
 unchanged — the model still has to answer, because it is that fallback and that tie-break. A
 language with no lexicon rows keeps the AI-only path as it was.
 
-### Call 2 — `AI::generateCard($term, $language, $nativeLanguage, $context, $level): ?array`
+### Call 2 — `AI::generateCard($term, $language, $nativeLanguage, $context): ?array`
 
 Runs only once the proposal is **approved** — see [cards](cards.md) "Staging". `Card::generateContent()`
-resolves the native language and level and calls it; `Card::regenerate()` re-runs it alone, since a
-card already carries everything call 1 would decide (see [cards](cards.md) "Regenerate"). One
-schema for every Term:
+resolves the native language and calls it; `Card::regenerate()` re-runs it alone, since a
+card already carries everything call 1 would decide (see [cards](cards.md) "Regenerate"). The
+schema has one field, for every Term:
 
 | Field | Rule |
 |---|---|
 | `translation` | a natural equivalent of the Term **as typed**, inflection included (a past-tense Term gets a past-tense translation — Translation mode asks for exactly that form), never word-by-word, ≤2 variants separated by `; ` |
-| `definition` | what the Term means or, for a whole utterance, when you'd say it ("used to politely refuse something you have been offered") |
 
-**`$nativeLanguage === null` means a monolingual native-language card.** That single flag replaces
-the whole former `getContentForCardNative` variant: it drops `translation` from both `properties`
-and `required`, and skips `levelInstruction()`/`fieldContrastRule()` (a user isn't learning their
-own language, so a difficulty cap doesn't apply). `$context === null` drops the sense-fixing
-clauses.
+**There used to be a second field, `definition`** (what the Term means, written in the native or
+target language by CEFR level, with a guard against the model swapping it with the translation).
+It was dropped because nothing needed it any more — the Definitions learning mode went with it —
+and every token of it was paid on every approval. `cards.definition` stays in the schema, `''` on
+new cards, and is shown nowhere; don't bring the field back without a screen that uses it.
 
-`levelInstruction()`, `definitionLanguage()` and `fieldContrastRule()` are shared. Both calls go
-through one private `requestCardJson()` helper, which checks `successful()` and `refusal`, logs,
+**A monolingual native-language card has nothing to generate**: with no translation and no
+definition, `Card::generateContent()` returns `[]` without calling the AI (`nativeLanguageFor()`
+is `null`). `$context === null` drops the sense-fixing clauses.
+
+Both calls go through one private `requestCardJson()` helper, which checks `successful()` and `refusal`, logs,
 and returns a **decoded array** or `null`.
 
 Every field describes the card's **Term**, always — see [cards](cards.md) "What a card is built
@@ -213,33 +215,13 @@ around". The system prompt says so explicitly: the old `submitted_form` failure 
 every field about an inflected form it was only meant to touch once — is the general risk any
 secondary field carries.
 
-### CEFR level and the `definition` language
+### CEFR level
 
 `AI::levelInstruction($level)` builds the difficulty-capping instruction fragment described
 above, pulled from `config/proficiency.php` (`levels` map, `A1`..`C2`, plus a `default` and a
 `names` map for the UI). It returns `''` when no/unknown level is given, so prompts are unchanged
-for a language with no proficiency set yet.
-
-The **`definition` field's language depends on the level**: at `A1`/`A2`/`B1`
-(`AI::NATIVE_DEFINITION_LEVELS`) it is written in the **native** language; from `B2` up (and when
-no level is set) it's in the **target** language — below B2 a target-language definition is
-usually harder to read than the term it explains. This is **not** left to the model to decide:
-`AI::definitionLanguage($level, $target, $native)` resolves it in PHP and the resolved language
-name is interpolated straight into the `definition` property description, so the model is only
-ever told one language to write in. Consequently every bilingual user message says "Target
-language: … Native language: … Each field says which of the two it must be written in" rather
-than labelling the native one as translation-only. For a monolingual native card
-(`$nativeLanguage === null`) it resolves to the card's own language either way.
-
-**Field-collision guard**: once `definition` is native, it shares a language with `translation`,
-and the model started **swapping them** — e.g. German `schön` came back with definition
-`"hezký; krásný"` (that's a translation) and translation `"To je hezké."` (that's a sentence, and
-in the wrong field). `AI::fieldContrastRule($definitionLanguage, $nativeLanguage)` appends one
-sentence to the system prompt — *"both are in X but are NOT the same: the translation is the
-equivalent term, the definition explains what it means"* — and is emitted **only** when the two
-languages actually match, so B2+ cards (where they differ) don't pay the extra prompt tokens for
-a rule that can't apply. The two property descriptions also carry the same contrast as explicit
-negatives plus a worked `schön` example each.
+for a language with no proficiency set yet. CALL 2 does not use it: a translation has no level to
+cap.
 
 ## Related generators
 

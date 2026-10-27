@@ -3,7 +3,6 @@
 
     <x-forms.form method="post" action="/cards/new">
         <x-forms.input label="Term" name="term"/>
-        <x-forms.input label="Definition" name="definition"/>
         <x-forms.input label="Translation" name="translation"/>
 
         <x-forms.select label="Theme" name="theme_id">

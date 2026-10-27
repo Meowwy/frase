@@ -27,7 +27,7 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   keep any number of words, none included. A word you already have stays in the tray with a green
   border and nothing to decide (it is linked to the new card automatically); known words are shown
   aside — tap one to un-know it.
-- **Approve** writes the card and its words — and only then are the definition and translation
+- **Approve** writes the card and its words — and only then is the translation
   generated, so nothing is spent on a term you throw away. You stay on staging:
   the proposal shrinks to one line, then becomes a link to the new card. **Discard** leaves
   nothing behind: the proposal shrinks to a "discarded" line with **Capture again**, which captures
@@ -48,7 +48,7 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   and you can only clear it.
 - **Capturing a term you already have** is blocked until you give it a Context (to keep both, e.g.
   *run* the verb and *run* the noun). Staging also offers to
-  **regenerate** the existing card instead — fresh translation and definition,
+  **regenerate** the existing card instead — a fresh translation,
   while your review progress, note, words and linked cards stay as they are. Having one of a term's
   *words* in your vocabulary base is a different thing, and never stops you saving the term.
 
@@ -122,8 +122,8 @@ them, without going back to the list each time. See [cards](cards.md).
 regardless of schedule), then a mode:
 
 - **Translation** (the first mode) — see the translation, recall the term, flip to check. The
-  classic Anki-style review; a card in your own native language shows its definition instead.
-- **Definitions** — see the definition, recall the term.
+  classic Anki-style review. A card in your own native language has no translation, so Translation
+  mode leaves it out.
 - Reviews use **spaced repetition**: getting a card right pushes its next review further out
   (doubling each time), getting it wrong resets it to "review again tomorrow."
 - See [learning-flow](learning-flow.md).

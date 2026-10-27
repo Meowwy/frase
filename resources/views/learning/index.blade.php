@@ -27,7 +27,7 @@
                 </div>
             </div>
             <div>
-                {{-- Hidden for a card without a hint. Only Definitions carries one now; the
+                {{-- Hidden for a card without a hint. No mode carries one now; the
                      panel stays so a future hint source can switch it back on. --}}
                 <x-panel class="mb-6 cursor-pointer justify-center items-center lg:max-w-[300px] max-lg:min-h-12" outline="orange" id="hint">
                     <p id="hintText" class="text-sm text-center">Click to show hint.</p>

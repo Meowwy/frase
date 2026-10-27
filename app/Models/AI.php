@@ -58,36 +58,6 @@ class AI
         return " The learner is CEFR level {$level}: {$description} Every word and structure around the term must stay at this level; the term itself may be harder. This caps difficulty, not length — never write less than a field asks for.";
     }
 
-    /**
-     * CEFR levels that get the definition in the learner's native language: below B2 a
-     * target-language definition is usually harder than the term it explains.
-     */
-    private const NATIVE_DEFINITION_LEVELS = ['A1', 'A2', 'B1'];
-
-    /**
-     * Which language the `definition` field is written in. Resolved here in PHP and
-     * interpolated into the schema, so the model is only ever told one language to
-     * write in — it never decides this itself.
-     */
-    private static function definitionLanguage(?string $level, string $targetLanguage, string $nativeLanguage): string
-    {
-        return in_array($level, self::NATIVE_DEFINITION_LEVELS, true)
-            ? $nativeLanguage
-            : $targetLanguage;
-    }
-
-    /**
-     * Keeps `translation` and `definition` apart. Only needed when both land in the
-     * native language (A1-B1): without a language cue to tell the two fields apart the
-     * model swapped them, returning "hezký; krásný" as the definition of "schön".
-     */
-    private static function fieldContrastRule(string $definitionLanguage, string $nativeLanguage): string
-    {
-        return $definitionLanguage === $nativeLanguage
-            ? " Translation and definition are both in {$nativeLanguage} but are NOT the same: the translation is the equivalent term, the definition explains what it means."
-            : '';
-    }
-
     public static function getEmbedding(string $text): ?array
     {
         $response = Http::withToken(config('services.openai.secret'))
@@ -207,7 +177,7 @@ class AI
         $system = "You are a vocabulary tutor reading a learner's Term before a flashcard is written for it. You do not write any card content here. You decide which language it is in, fix its spelling, and list which of the Term's own words are worth collecting as vocabulary. Never swap the Term for a different one and never change its form — you only correct spelling mistakes.";
 
         if (! is_null($context)) {
-            $system .= ' The learner also supplied the context they met the Term in. It fixes WHICH sense or domain the Term is used in. It is NOT part of the Term: never take a word from the context into the Term or into the extracted words — "collateral" met in "collateral damage" must not contribute "damage".';
+            $system .= ' The learner also supplied the context they met the Term in. It fixes WHICH sense or domain the Term is used in. It is NOT part of the Term: never take a word from the context into the Term or into the extracted words — "collateral" met in "collateral damage" must not contribute "damage" Context can also contain any other information for you.';
         }
 
         // Each language's own grammar rules, quoted from its guideline file, so the model
@@ -362,53 +332,32 @@ class AI
     /**
      * CALL 2: the card's content, written around the Term CALL 1 settled. One generator
      * for every Term, whether it is a single word, a phrase or a whole utterance — the
-     * Term is an input, never rewritten here.
-     *
-     * $nativeLanguage === null means a MONOLINGUAL native-language card: no translation
-     * field at all and no CEFR steering (a learner is not "learning" their own language).
+     * Term is an input, never rewritten here. The translation is all it writes: a card has
+     * no other generated content, so a native-language card never gets here (see
+     * Card::generateContent()).
      */
-    public static function generateCard(string $term, string $language, ?string $nativeLanguage, ?string $context = null, ?string $level = null): ?array
+    public static function generateCard(string $term, string $language, string $nativeLanguage, ?string $context = null): ?array
     {
         logger('Generating a card for '.$term);
 
-        $isNative = is_null($nativeLanguage);
-        $definitionLanguage = self::definitionLanguage($level, $language, $nativeLanguage ?? $language);
-
-        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term — a single word, a phrase or a whole utterance, exactly in the form the learner met it. The Term is already fixed and correctly spelled, so don't change it. Every field is about the WHOLE Term — never about one word inside it.";
+        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term — a single word, a phrase or a whole utterance, exactly in the form the learner met it. The Term is already fixed and correctly spelled, so don't change it. Every field is about the WHOLE Term.";
 
         if (! is_null($context)) {
-            $system .= ' The context the learner supplied fixes WHICH sense, domain or situation this card is about, so every field must reflect ONLY that. The context might be in target, native language or in English.';
+            $system .= ' The context the learner supplied fixes WHICH sense, domain or situation this card is about, so every field must reflect ONLY that. The context might be in target, native language or in English. Context can also have any other information for you.';
         }
 
-        if ($isNative) {
-            $system .= " The learner is a native speaker of {$language} building vocabulary in their own language: write every field in {$language}, and the card has no translation.";
-        } else {
-            $system .= self::fieldContrastRule($definitionLanguage, $nativeLanguage).self::levelInstruction($level);
-        }
-
-        $user = $isNative
-            ? "Term: \"{$term}\". Write everything in \"{$language}\"."
-            : "Term: \"{$term}\". Target language: \"{$language}\". Native language: \"{$nativeLanguage}\". Each field says which of the two it must be written in.";
+        $user = "Term: \"{$term}\". Target language: \"{$language}\". Native language: \"{$nativeLanguage}\".";
         if (! is_null($context)) {
-            $user .= " It was seen in this context: \"{$context}\".";
+            $user .= " Context: \"{$context}\".";
         }
 
         $translation = "The natural equivalent of the WHOLE Term in {$nativeLanguage}, exactly as typed — keep its inflection (tense, number, person), so a past-tense Term gets a past-tense translation. What a native speaker would really say for the same thing, never a word-by-word rendering. At most 2 variants separated by \"; \". Never an explanation.";
 
-        $definition = "EXPLAINS what the Term means in {$definitionLanguage} — never a translation, an equivalent or a list of synonyms, and it never contains the Term itself. If the Term is a whole utterance, say instead when you would say it and what the speaker is doing (\"used to politely refuse something you have been offered\").";
-
         if (! is_null($context)) {
             $translation .= ' In the meaning it has in the supplied context.';
-            $definition .= ' In the meaning it has in the supplied context.';
         }
 
-        $properties = [];
-
-        if (! $isNative) {
-            $properties['translation'] = ['type' => 'string', 'description' => $translation];
-        }
-
-        $properties['definition'] = ['type' => 'string', 'description' => $definition];
+        $properties = ['translation' => ['type' => 'string', 'description' => $translation]];
 
         return self::requestCardJson(
             [

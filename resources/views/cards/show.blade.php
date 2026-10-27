@@ -103,11 +103,6 @@
             </div>
         @endif
 
-        <!-- Definition Section -->
-        <div class="mb-6">
-            <span class="">{{$card->definition}}</span>
-        </div>
-
         <!-- Linked cards -->
         <div class="mb-8" id="linkedCards">
             <h3 class="text-lg font-semibold mb-2">Linked cards</h3>

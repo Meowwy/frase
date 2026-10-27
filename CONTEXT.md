@@ -74,7 +74,7 @@ proficiency level. Up to five.
 _Avoid_: learning language, foreign language, studied language
 
 **Native language**:
-The learner's own language — the one translations and definitions are written in.
+The learner's own language — the one translations are written in.
 _Avoid_: first language, mother tongue, L1, home language
 
 **Native-language vocabulary**:
@@ -308,16 +308,16 @@ The session scope that serves every card in the selection regardless of schedule
 _Avoid_: practice, review all, free review
 
 **Cleared**:
-What a card becomes once its whole Term has been produced (Translation, Definitions, Conversation).
+What a card becomes once its whole Term has been produced (Translation, Conversation).
 It advances the card's level. Nothing word-level clears a card.
 _Avoid_: passed, completed, answered, correct
 
 **Learning mode**:
-How a session presents its cards — Translation, Definitions, or Conversation.
+How a session presents its cards — Translation or Conversation.
 _Avoid_: exercise, game, activity, drill
 
 **Translation**:
-The learning mode that shows a card's translation (its definition, for a native-language card) and
+The learning mode that shows a card's translation and
 elicits the Term — the classic Anki-style review, and the first mode the builder offers.
 _Avoid_: reverse mode, recall mode, flashcards
 

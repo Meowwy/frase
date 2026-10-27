@@ -14,7 +14,7 @@ Base columns from the original migration plus everything added since:
 | `theme_id` | nullable, `onDelete('set null')` — see [wordboxes-themes-tags](wordboxes-themes-tags.md) |
 | `term` | the Term itself, exactly as the learner gave it with only typos fixed — renamed from `phrase` (see [ai-integration](ai-integration.md)) |
 | `translation` | native-language equivalent; `''` for a native-language card (column is `NOT NULL`) |
-| `definition` | what the Term means or, for a whole utterance, when you'd say it |
+| `definition` | no longer written or shown (`''` on new cards); the column is kept for now |
 | `note` | nullable free-text, user-editable, not AI-generated |
 | `context` | nullable — the learner's own context input, kept so a card can be regenerated in the sense it was captured in |
 | `level` | integer SRS box/level — see [learning-flow](learning-flow.md) "SRS algorithm" |
@@ -42,7 +42,7 @@ backfilled.
 Every card has exactly one thing it is about: its **Term**, always — kept exactly as the learner
 typed it, with only typos fixed. A lone inflected word stays inflected (`kostade`) and a pasted
 sentence stays a sentence; only the card's base words carry lemmas. There is no focus word and no
-word/phrase split inside a Term — `translation` and `definition` are always about the whole Term, in whatever form it takes. `Card::target()` is the Term.
+word/phrase split inside a Term — `translation` is always about the whole Term, in whatever form it takes. `Card::target()` is the Term.
 
 ### Helpers on the model
 
@@ -480,7 +480,7 @@ There are still **two** ways a card gets created — one AI-assisted, one manual
   [overview](overview.md) "Known rough edges", which already applies to gap-fill.
 - **Manual, no AI** (`GET /add` → `cards/add.blade.php` → `POST /cards/new` →
   `CardController::save()`, via `StoreCardRequest`): the user types every field themselves
-  (`term`, `definition`, optional `translation`/`note`/`theme_id`). This path
+  (`term`, optional `translation`/`note`/`theme_id`). This path
   never goes through staging — there's nothing to approve that the learner didn't already type.
   Still dispatches `GenerateEmbeddingJob` so the card participates in linking/search the same way.
   This entry point has no nav link (reach it directly at `/add`) but is a real, working path.

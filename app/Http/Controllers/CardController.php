@@ -306,7 +306,7 @@ class CardController extends Controller
             'level' => 1,
             'translation' => $data['translation'] ?? '',
             'note' => $data['note'] ?? null,
-            'definition' => $data['definition'],
+            'definition' => '',
             'next_study_at' => now(),
         ]);
 

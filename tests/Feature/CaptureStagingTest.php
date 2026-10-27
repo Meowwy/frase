@@ -68,7 +68,6 @@ class CaptureStagingTest extends TestCase
     {
         return array_replace([
             'translation' => 'how much does it cost',
-            'definition' => 'Asking after the price of something.',
         ], $overrides);
     }
 

@@ -4,7 +4,6 @@
     <x-forms.form method="post" action="/cards/{{$card->id}}">
         <input hidden value="{{$card->id}}" name="id"/>
         <x-forms.input value="{{$card->term}}" label="Term" name="term"/>
-        <x-forms.input value="{{$card->definition}}" label="Definition" name="definition"/>
         <x-forms.input value="{{$card->translation}}" label="Translation" name="translation"/>
         <x-forms.textarea label="Note" name="note">{{$card->note}}</x-forms.textarea>
         <x-forms.divider></x-forms.divider>

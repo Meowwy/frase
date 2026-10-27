@@ -124,10 +124,9 @@ class Card extends Model
     public static function generateContent(User $user, Language $language, string $term, ?string $context): ?array
     {
         $nativeLanguage = self::nativeLanguageFor($user, $language);
-        // A learner is not "learning" their own language, so no CEFR steering there.
-        $level = is_null($nativeLanguage) ? null : $user->levelForLanguage($language);
 
-        return AI::generateCard($term, $language->name, $nativeLanguage, $context, $level);
+        // A native-language card has nothing to translate, so nothing to generate.
+        return is_null($nativeLanguage) ? [] : AI::generateCard($term, $language->name, $nativeLanguage, $context);
     }
 
     /**
@@ -171,6 +170,8 @@ class Card extends Model
         $card = $user->cards()->create(
             self::contentColumns($term, $context, $content) + [
                 'language_id' => $language->id,
+                // Cards no longer have a definition; the column is NOT NULL and kept for now.
+                'definition' => '',
                 'level' => 1,
                 'next_study_at' => now(),
             ]
@@ -194,8 +195,6 @@ class Card extends Model
             'term' => $term,
             // '' for a native-language card, whose schema has no translation at all.
             'translation' => $content['translation'] ?? '',
-            // NOT NULL, so coalesce to an empty string.
-            'definition' => $content['definition'] ?? '',
             'context' => $context,
         ];
     }

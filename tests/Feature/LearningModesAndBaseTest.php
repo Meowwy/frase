@@ -71,22 +71,15 @@ class LearningModesAndBaseTest extends TestCase
         return json_decode($matches[1], true);
     }
 
-    /**
-     * There is one kind of card, so every whole-Term mode serves every card — a whole
-     * utterance with no base words included.
-     */
-    public function test_definitions_mode_serves_a_whole_utterance_card(): void
+    /** Definitions mode is gone: cards have no definition to review from. */
+    public function test_the_removed_definitions_mode_is_a_404(): void
     {
         [$user, $language] = $this->learner();
-        $this->cardWithWords($user, $language, 'I would rather not', [], ['definition' => 'Said to politely refuse an offer.']);
+        $this->cardWithWords($user, $language, 'I would rather not', [], ['translation' => 'jag vill helst inte']);
 
-        $deck = $this->deck($this->actingAs($user)
+        $this->actingAs($user)
             ->withSession(['learning_filter' => ['language_id' => $language->id, 'scope' => 'due']])
-            ->get('/startLearningSet/definitions')->getContent());
-
-        $this->assertCount(1, $deck);
-        $this->assertSame('Said to politely refuse an offer.', $deck[0]['front']);
-        $this->assertSame('I would rather not', $deck[0]['back']);
+            ->get('/startLearningSet/definitions')->assertNotFound();
     }
 
     public function test_translation_mode_asks_for_the_term_from_its_translation(): void
@@ -104,20 +97,17 @@ class LearningModesAndBaseTest extends TestCase
         $this->assertSame('', $deck[0]['hint']);
     }
 
-    /**
-     * A native-language card has no translation, so its definition stands in on the front.
-     */
-    public function test_translation_mode_shows_a_native_cards_definition_on_the_front(): void
+    /** A native-language card has no translation, so it has no front and is left out. */
+    public function test_translation_mode_skips_a_native_card(): void
     {
         [$user, $language] = $this->learner();
-        $this->cardWithWords($user, $language, 'hus', [], ['translation' => '', 'definition' => 'En byggnad att bo i.']);
+        $this->cardWithWords($user, $language, 'hus', [], ['translation' => '']);
 
         $deck = $this->deck($this->actingAs($user)
             ->withSession(['learning_filter' => ['language_id' => $language->id, 'scope' => 'due']])
             ->get('/startLearningSet/translation')->getContent());
 
-        $this->assertSame('En byggnad att bo i.', $deck[0]['front']);
-        $this->assertSame('hus', $deck[0]['back']);
+        $this->assertSame([], $deck);
     }
 
     /**

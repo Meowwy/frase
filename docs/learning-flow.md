@@ -52,9 +52,10 @@ everything, uncapped. A theme is looked up
 among the learner's own themes; an unknown one serves nothing. The returned collection is always
 `->shuffle()`d.
 
-Every mode serves every card. There is one kind of card (see [cards](cards.md)), so Definitions
-skips no Term, however long or idiomatic: a whole-sentence Term's definition says when you'd say
-it.
+Every mode serves every card that has what the mode shows. There is one kind of card (see
+[cards](cards.md)), so Translation skips no Term, however long or idiomatic. The one exception is a
+native-language card, which has no translation (see [multi-language](multi-language.md)): Translation
+mode leaves it out, and Conversation takes it as usual.
 
 ## Rendering a session (`Learning::renderLearningView($mode)`)
 
@@ -63,24 +64,22 @@ it.
 
 | Mode | front | back | hint |
 |---|---|---|---|
-| `translation` | `translation`, or `definition` when it is empty | the **Term** | *(none)* |
-| `definitions` | `definition` | the **Term** | `translation` |
+| `translation` | `translation` | the **Term** | *(none)* |
 
-Any other mode, including a stale link to the removed `words` mode, is a 404.
+Any other mode, including a stale link to the removed `words` or `definitions` mode, is a 404.
 
 **Every mode's answer is the card's Term** — there is no focus word to answer instead of it (see
 [cards](cards.md) "What a card is built around").
 
 `translation` is the classic Anki-style review and the builder's **first** tile. A native-language
-card (see [multi-language](multi-language.md)) is generated without a translation, so its
-definition stands in on the front — otherwise those cards would have an empty front. It has no
+card has no translation and is left out of the deck, rather than shown with an empty front. It has no
 hint: the hint used to be the card's blanked example sentence, and cards no longer have one.
 
 The full set is serialized as a JS variable (`let cards = [...];`) and handed
 to `learning/index.blade.php`, which drives the whole session **client-side** — no per-card request
 during review.
 
-A correct answer in either mode clears the card (SRS level/`next_study_at` advance —
+A correct answer clears the card (SRS level/`next_study_at` advance —
 see "SRS algorithm" below) and stamps last-recall on **every** base word and fixed expression
 linked to it (`Card::stampRecall()`) — producing the Term is producing all of them. Conversation mode's clearing/stamping is the same; see
 "Conversation mode" below.
@@ -138,8 +137,7 @@ a one-pass countdown.
   flipped (the grade buttons aren't shown before that). `e.key` matching makes the number row and
   the numpad both work. Each button shows its key(s) as an `<x-kbd>` badge (hidden below lg, where
   there is no keyboard to press).
-- The **hint** panel is hidden for any entry whose `hint` is empty, which today is everything but
-  Definitions. It is kept, not deleted, so a future hint source only has to fill the field.
+- The **hint** panel is hidden for any entry whose `hint` is empty, which today is every entry. It is kept, not deleted, so a future hint source only has to fill the field.
 - The results form posts to the view's `action` prop, `/saveLearning` by default. Frammenti's
   [article drill](frammenti.md#article-drill) reuses the view for its noun flip cards and passes
   its own endpoint, so its answers never touch a card's schedule.

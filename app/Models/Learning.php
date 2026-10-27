@@ -152,12 +152,15 @@ class Learning
 
         foreach ($cards as $card) {
             $entry = match ($mode) {
-                // A native-language card has no translation, so its definition stands in.
                 // No hint: it was the example sentence, which cards no longer have.
-                'translation' => ['front' => $card->translation ?: $card->definition, 'back' => $card->target(), 'hint' => ''],
-                'definitions' => ['front' => $card->definition, 'back' => $card->target(), 'hint' => $card->translation],
+                'translation' => ['front' => $card->translation, 'back' => $card->target(), 'hint' => ''],
                 default => abort(404),
             };
+
+            // A native-language card has no translation, so no front to review it from.
+            if ($entry['front'] === '') {
+                continue;
+            }
 
             $entries[] = ['id' => $card->id] + $entry;
         }

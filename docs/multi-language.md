@@ -13,7 +13,7 @@ the shared UI component that switches between languages in place.
   in `config/proficiency.php`) via `->withPivot()`.
   `User::levelForLanguage($language)` reads the level for a given language.
 - **`users.native_language_id`**, **`users.active_language_id`** — single-value FKs.
-  `native_language_id` is the user's own language (used for translations/definitions, see
+  `native_language_id` is the user's own language (used for translations, see
   [ai-integration](ai-integration.md)). `active_language_id` is the language single-language screens
   **open on** (see "Which language a screen opens on" below) — not a save destination: capture has
   none any more.
@@ -49,8 +49,7 @@ specifically:
   in the pivot and strips native out of the table data before passing it to the view;
   `UserController@update` re-adds native to the sync set when the box is checked.
 - `Card::nativeLanguageFor()` returns `null` when the card's language **is** the user's native
-  language, which is the flag every CALL 2 generator reads to write a monolingual card (no
-  `translation` field, no CEFR steering). That is the only other generation-time special-casing.
+  language, which is the flag every CALL 2 generator reads to write a monolingual card (no AI call at all: it has no translation to write). That is the only other generation-time special-casing.
   Its effect reaches CALL 1 too: with no native language to translate into, a base word's
   `translation` is asked for as a short same-language gloss instead.
 
