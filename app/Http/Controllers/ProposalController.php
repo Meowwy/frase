@@ -95,13 +95,14 @@ class ProposalController extends Controller
         $attributes = [
             'user_id' => $proposal->user_id,
             'language_id' => $proposal->language_id,
-            'lemma' => $word->lemma,
             'part_of_speech' => $word->part_of_speech,
         ];
 
+        $existing = KnownWord::where($attributes)->whereLemma($word->lemma);
+
         $request->boolean('known')
-            ? KnownWord::firstOrCreate($attributes)
-            : KnownWord::where($attributes)->delete();
+            ? ($existing->exists() || KnownWord::create($attributes + ['lemma' => $word->lemma]))
+            : $existing->delete();
 
         return response()->noContent();
     }

@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 /**
  * The previous/next arrows on the card detail page: they walk the user's cards in the
- * card's own language, newest first — the order /cards lists them in.
+ * card's own language in time: previous is the older card, next the newer one.
  */
 class CardNavigationTest extends TestCase
 {
@@ -29,10 +29,10 @@ class CardNavigationTest extends TestCase
 
         $response->assertStatus(200);
 
-        // "Previous" is the row above on /cards (the newer card), "next" the row below.
+        // "Previous" is the older card (the row below on /cards), "next" the newer one.
         $response->assertSeeInOrder([
-            'href="/cards/'.$newer->id.'"', 'previous card',
-            'href="/cards/'.$older->id.'"', 'next card',
+            'href="/cards/'.$older->id.'"', 'previous card',
+            'href="/cards/'.$newer->id.'"', 'next card',
         ], false);
     }
 

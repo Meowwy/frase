@@ -116,12 +116,13 @@ class CardController extends Controller
         $card->load(['language', 'baseWords', 'fixedExpressions']);
 
         // Neighbours for the prev/next arrows: the user's other cards in this card's
-        // language, newest first — the same order /cards lists them in, so "previous"
-        // is the row above there and "next" the row below. Ids are monotonic with
-        // insertion, so they stand in for created_at without needing a tie-breaker.
+        // language, walked in time: "previous" is the next older card (the row below on
+        // /cards, which lists newest first) and "next" the next newer one. Ids are
+        // monotonic with insertion, so they stand in for created_at without needing a
+        // tie-breaker.
         $neighbours = Auth::user()->cards()->where('language_id', $card->language_id);
-        $previousCard = (clone $neighbours)->where('id', '>', $card->id)->orderBy('id')->first(['id']);
-        $nextCard = (clone $neighbours)->where('id', '<', $card->id)->orderByDesc('id')->first(['id']);
+        $previousCard = (clone $neighbours)->where('id', '<', $card->id)->orderByDesc('id')->first(['id']);
+        $nextCard = (clone $neighbours)->where('id', '>', $card->id)->orderBy('id')->first(['id']);
 
         return view('cards.show', [
             'card' => $card,

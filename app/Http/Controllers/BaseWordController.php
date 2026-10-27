@@ -58,7 +58,8 @@ class BaseWordController extends Controller
 
         if ($kind === 'word' && $data['part_of_speech'] !== $entry->part_of_speech) {
             $taken = BaseWord::withoutGlobalScope('notDeleted')
-                ->where($entry->only('user_id', 'language_id', 'lemma'))
+                ->where($entry->only('user_id', 'language_id'))
+                ->whereLemma($entry->lemma)
                 ->where('part_of_speech', $data['part_of_speech'])
                 ->exists();
 
@@ -84,7 +85,11 @@ class BaseWordController extends Controller
         $entry = $this->entry($kind, $id);
 
         if ($kind === 'word' && $request->boolean('known')) {
-            KnownWord::firstOrCreate($entry->only('user_id', 'language_id', 'lemma', 'part_of_speech'));
+            $alreadyKnown = KnownWord::where($entry->only('user_id', 'language_id', 'part_of_speech'))->whereLemma($entry->lemma)->exists();
+
+            if (! $alreadyKnown) {
+                KnownWord::create($entry->only('user_id', 'language_id', 'lemma', 'part_of_speech'));
+            }
         }
 
         $entry->update(['deleted' => true]);

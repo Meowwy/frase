@@ -145,7 +145,7 @@ class Proposal extends Model
      */
     public function presenceKeyFor(ProposalBaseWord $word): string
     {
-        return $this->language_id.'|'.$word->lemma.'|'.$word->part_of_speech;
+        return $this->language_id.'|'.BaseWord::lemmaKey($word->lemma).'|'.$word->part_of_speech;
     }
 
     /**
@@ -254,10 +254,10 @@ class Proposal extends Model
 
         return $query->whereIn('user_id', $proposals->pluck('user_id')->unique())
             ->whereIn('language_id', $languageIds)
-            ->whereIn('lemma', $candidates->pluck('lemma')->unique())
+            ->whereLemma($candidates->pluck('lemma')->unique()->all())
             ->whereIn('part_of_speech', $candidates->pluck('part_of_speech')->unique())
             ->get()
-            ->keyBy(fn ($word) => $word->language_id.'|'.$word->lemma.'|'.$word->part_of_speech);
+            ->keyBy(fn ($word) => $word->language_id.'|'.BaseWord::lemmaKey($word->lemma).'|'.$word->part_of_speech);
     }
 
     /**

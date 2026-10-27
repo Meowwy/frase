@@ -75,9 +75,13 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `deleted` | boolean — set by deleting the entry from `/base`; see "Deleting an entry" below |
 
 Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key, not
-`lemma` alone. `grammar_attributes`, `translation` and `dictionary_form` are set once, at creation:
-**`BaseWord::resolve()`** is a `firstOrCreate` whose second argument holds exactly those three, so
-a later approval never overwrites them. The learner alone revises an entry, by hand, with the pen
+`lemma` alone. The database index is case-sensitive, and the lemma keeps the spelling the AI gave it
+(a German noun is "Haus"), so every lookup — staging's presence/known indexes, `resolve()`, the
+edit collision check — matches the lemma **ignoring case** (`MatchesLemma`: `whereLemma()` tries
+the as-given, lower-case and capitalised spellings, `lemmaKey()` compares the rest), and "Hus" finds
+"hus" instead of adding a twin. `grammar_attributes`, `translation` and `dictionary_form` are set
+once, at creation: **`BaseWord::resolve()`** finds the row or creates it with exactly those three,
+so a later approval never overwrites them. The learner alone revises an entry, by hand, with the pen
 on `/base` (see "Editing an entry"). `resolve()` looks past the `deleted` scope, so a deleted row
 is reused and brought back rather than colliding with the unique key.
 
@@ -557,9 +561,9 @@ belongs to exactly one user and no one else can view, edit, or update it.
 
 The top row holds the **back** link on the left and **previous card** / **next card** arrows on
 the right, same style as back (shortened to "previous" / "next" below lg, to fit a phone). `show()` resolves the two neighbours as the user's adjacent cards
-**in this card's language**, ordered by descending id — ids are monotonic with insertion, so that
-is the order `/cards` lists them in, and "previous" is the row above there while "next" is the row
-below. The nav deliberately ignores the list's search filter; it walks the language,
+**in this card's language** by id — ids are monotonic with insertion, so they stand in for the
+saved date: "previous" is the next older card (the row below on `/cards`, which lists newest first)
+and "next" the next newer one. The nav deliberately ignores the list's search filter; it walks the language,
 not whatever view the learner arrived from. At either end the missing arrow is still rendered, just
 dimmed and non-clickable, so the row doesn't shift as the learner walks the list.
 

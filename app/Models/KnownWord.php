@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\MatchesLemma;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -11,5 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class KnownWord extends Model
 {
+    use MatchesLemma;
+
     protected $guarded = [];
 }

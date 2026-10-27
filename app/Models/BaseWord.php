@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasSynonyms;
+use App\Models\Concerns\MatchesLemma;
 use App\Support\LanguageGuideline;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  */
 class BaseWord extends Model
 {
-    use HasSynonyms;
+    use HasSynonyms, MatchesLemma;
 
     protected $guarded = [];
 
@@ -86,23 +87,25 @@ class BaseWord extends Model
      * lemma + part of speech, so two proposals for the same word approved in either order
      * both land on one row; `translation`/`grammar_attributes`/`dictionary_form` are only
      * written when the row is new, which is what makes them never-revised. A deleted row is
-     * found too and comes back as it was, card links and Frammenti progress included.
+     * found too and comes back as it was, card links and Frammenti progress included. The
+     * lemma is matched whatever its capitalisation ("Hus" finds "hus"), so a differently
+     * cased answer from the AI reuses the row instead of adding a twin.
      */
     public static function resolve(User $user, Language $language, string $lemma, string $partOfSpeech, ?array $grammarAttributes, string $translation, ?string $dictionaryForm = null): self
     {
-        $baseWord = self::withoutGlobalScope('notDeleted')->firstOrCreate(
-            [
+        $baseWord = self::withoutGlobalScope('notDeleted')
+            ->where(['user_id' => $user->id, 'language_id' => $language->id, 'part_of_speech' => $partOfSpeech])
+            ->whereLemma($lemma)
+            ->first()
+            ?? self::create([
                 'user_id' => $user->id,
                 'language_id' => $language->id,
                 'lemma' => $lemma,
                 'part_of_speech' => $partOfSpeech,
-            ],
-            [
                 'grammar_attributes' => $grammarAttributes,
                 'translation' => $translation,
                 'dictionary_form' => $dictionaryForm,
-            ]
-        );
+            ]);
 
         if ($baseWord->deleted) {
             $baseWord->update(['deleted' => false]);

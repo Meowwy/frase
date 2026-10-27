@@ -245,6 +245,31 @@ class LearningModesAndBaseTest extends TestCase
         $this->assertSame(0, KnownWord::count());
     }
 
+    public function test_a_word_is_found_whatever_its_capitalisation(): void
+    {
+        [$user, $language] = $this->learner();
+        $word = BaseWord::resolve($user, $language, 'hus', 'noun', null, 'house');
+
+        $again = BaseWord::resolve($user, $language, 'Hus', 'noun', null, 'home');
+
+        $this->assertTrue($again->is($word));
+        $this->assertSame(1, BaseWord::count());
+        $this->assertSame('house', $again->translation);
+    }
+
+    public function test_changing_the_part_of_speech_to_one_the_learner_has_is_refused_with_a_message(): void
+    {
+        [$user, $language] = $this->learner();
+        $noun = BaseWord::resolve($user, $language, 'plan', 'noun', null, 'plan');
+        BaseWord::resolve($user, $language, 'Plan', 'verb', null, 'to plan');
+
+        $this->actingAs($user)->putJson("/base/word/{$noun->id}", ['translation' => 'plan', 'part_of_speech' => 'verb'])
+            ->assertStatus(422)
+            ->assertJson(['message' => 'You already have this word as a verb.']);
+
+        $this->assertSame('noun', $noun->fresh()->part_of_speech);
+    }
+
     public function test_deleting_a_word_as_known_records_it_as_known(): void
     {
         [$user, $language] = $this->learner();
