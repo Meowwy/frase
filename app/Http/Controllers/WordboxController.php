@@ -125,6 +125,17 @@ class WordboxController extends Controller
     }
 
     /**
+     * Delete the wordbox with its gap-fill exercises and word memberships (both cascade).
+     * The words stay in the base.
+     */
+    public function destroy(string $id)
+    {
+        Auth::user()->wordboxes()->findOrFail($id)->delete();
+
+        return redirect('/')->with('success', 'Wordbox deleted.');
+    }
+
+    /**
      * Save the edit page's list: the wordbox holds exactly these words afterwards. sync()
      * leaves the rows of the words that stay untouched.
      */

@@ -20,9 +20,14 @@
             @include('base._row-cards', [
                 'title' => $entry->displayForm(),
                 'subtitle' => $entryPartOfSpeech.' · '.$entry->translation,
+                'translation' => $entry->translation,
+                'entryPart' => $entryPartOfSpeech,
                 'cards' => $entry->cards,
                 'key' => $key,
                 'synonyms' => $synonyms,
+                'parts' => $entry instanceof \App\Models\BaseWord
+                    ? (\App\Support\LanguageGuideline::for($entry->language?->code)?->partsOfSpeech() ?? \App\Support\LanguageGuideline::PARTS_OF_SPEECH)
+                    : null,
             ])
         </td>
         <td class="px-6 py-2 text-sm text-gray-400 max-lg:p-0 max-lg:text-xs">{{ $entryPartOfSpeech }}</td>

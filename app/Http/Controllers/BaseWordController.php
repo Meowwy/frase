@@ -6,8 +6,10 @@ use App\Http\Controllers\Concerns\ListsBaseEntries;
 use App\Models\BaseWord;
 use App\Models\FixedExpression;
 use App\Models\KnownWord;
+use App\Support\LanguageGuideline;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 /**
  * ORGANIZE: the vocabulary base's own page.
@@ -34,6 +36,42 @@ class BaseWordController extends Controller
             'activeLanguageId' => $languageId,
             'wordboxes' => $user->wordboxes()->forLanguage($languageId)->orderBy('position')->orderBy('name')->get(['id', 'name']),
         ]);
+    }
+
+    /**
+     * Correct an entry's translation and, for a word, its part of speech (from its language's
+     * list). The word itself stays. A new part of speech makes it another entry in the base's
+     * eyes, so it is refused when the learner already has that one, and the gender / dictionary
+     * form of the old part of speech go — they would no longer apply.
+     */
+    public function update(Request $request, string $kind, int $id)
+    {
+        $entry = $this->entry($kind, $id);
+        $rules = ['translation' => ['required', 'string', 'max:255']];
+
+        if ($kind === 'word') {
+            $parts = LanguageGuideline::for($entry->language?->code)?->partsOfSpeech() ?? LanguageGuideline::PARTS_OF_SPEECH;
+            $rules['part_of_speech'] = ['required', Rule::in($parts)];
+        }
+
+        $data = $request->validate($rules);
+
+        if ($kind === 'word' && $data['part_of_speech'] !== $entry->part_of_speech) {
+            $taken = BaseWord::withoutGlobalScope('notDeleted')
+                ->where($entry->only('user_id', 'language_id', 'lemma'))
+                ->where('part_of_speech', $data['part_of_speech'])
+                ->exists();
+
+            if ($taken) {
+                return response()->json(['message' => 'You already have this word as a '.$data['part_of_speech'].'.'], 422);
+            }
+
+            $data += ['grammar_attributes' => null, 'dictionary_form' => null];
+        }
+
+        $entry->update($data);
+
+        return response()->noContent();
     }
 
     /**

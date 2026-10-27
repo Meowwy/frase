@@ -54,7 +54,33 @@
                 <x-forms.button id="saveWordsBtn" class="max-lg:min-h-12">Save Changes</x-forms.button>
             </div>
         </x-panel>
+
+        <x-panel>
+            <h2 class="text-xl font-bold mb-2">Delete wordbox</h2>
+            <p class="text-sm text-white/50 mb-4">Removes the wordbox and its gap-fill exercises. The words stay in your vocabulary base.</p>
+            <x-forms.button-delete type="button" onclick="openModal('confirm-delete-wordbox')" class="max-lg:w-full">Delete wordbox</x-forms.button-delete>
+        </x-panel>
     </div>
+
+    <x-modal name="confirm-delete-wordbox" title="Delete this wordbox?">
+        <p class="mb-6 text-white/60">
+            <span class="font-bold text-white">{{ $wordbox->name }}</span> and its gap-fill exercises will be deleted. The words stay in the base.
+        </p>
+        <x-forms.form method="post" action="/wordbox/{{$wordbox->id}}" class="max-w-full">
+            @csrf
+            @method('DELETE')
+            <div class="flex flex-wrap justify-end gap-3">
+                <button type="button" onclick="closeModal('confirm-delete-wordbox')"
+                        class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all max-lg:min-h-12 max-lg:flex-1">
+                    Delete
+                </button>
+            </div>
+        </x-forms.form>
+    </x-modal>
 
     <script>
         // The wordbox's words as {id, form, translation}; saved as a whole list.

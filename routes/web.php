@@ -190,6 +190,7 @@ Route::middleware('auth')->group(function () {
 
     // ORGANIZE: the vocabulary base.
     Route::get('/base', [BaseWordController::class, 'index'])->name('base');
+    Route::put('/base/{kind}/{id}', [BaseWordController::class, 'update'])->whereIn('kind', ['word', 'expression'])->whereNumber('id');
     Route::delete('/base/{kind}/{id}', [BaseWordController::class, 'destroy'])->whereIn('kind', ['word', 'expression'])->whereNumber('id');
     Route::post('/base/synonyms', [BaseWordController::class, 'link']);
     Route::delete('/base/synonyms', [BaseWordController::class, 'unlink']);
@@ -246,6 +247,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/wordbox/{id}/words/add', [WordboxController::class, 'addWords']);
     Route::post('/wordbox/{id}/words/remove', [WordboxController::class, 'removeWords']);
     Route::patch('/wordbox/{id}', [WordboxController::class, 'updateName']);
+    Route::delete('/wordbox/{id}', [WordboxController::class, 'destroy'])->name('wordbox.destroy');
     Route::get('/wordbox/{wordbox}/gapfill/generate', [GapFillExerciseController::class, 'store'])->name('gapfill.generate');
     Route::get('/gap-fill/{exercise}', [GapFillExerciseController::class, 'show'])->name('gap-fill.show');
     Route::get('/gap-fill/{exercise}/status', [GapFillExerciseController::class, 'status'])->name('gap-fill.status');

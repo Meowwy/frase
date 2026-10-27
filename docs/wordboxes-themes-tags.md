@@ -56,7 +56,9 @@ word.
     builds a list client-side, saved as a whole by `POST /wordbox/{id}/words` (`@update`,
     `ids[]`, `sync()` — rows of words that stay aren't churned). The same page renames the
     wordbox (`PATCH /wordbox/{id}`, `@updateName`).
-- Wordboxes aren't deletable through the UI.
+- The edit page's last panel deletes the wordbox, after a dialog (`DELETE /wordbox/{id}`,
+  `@destroy`, redirect to `/`). Its gap-fill exercises and word memberships go with it (cascading
+  foreign keys); the words stay in the base.
 
 ## Themes — legacy grouping, still live but not actively extended
 

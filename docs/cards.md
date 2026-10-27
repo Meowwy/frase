@@ -75,11 +75,11 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `deleted` | boolean — set by deleting the entry from `/base`; see "Deleting an entry" below |
 
 Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key, not
-`lemma` alone. `grammar_attributes`, `translation` and `dictionary_form` are set once, at creation,
-and never revised: **`BaseWord::resolve()`** is a `firstOrCreate` whose second argument holds
-exactly those three, so "never revised" is a property of the write rather than a rule someone has
-to remember. It looks past the `deleted` scope, so a deleted row is reused and brought back
-rather than colliding with the unique key.
+`lemma` alone. `grammar_attributes`, `translation` and `dictionary_form` are set once, at creation:
+**`BaseWord::resolve()`** is a `firstOrCreate` whose second argument holds exactly those three, so
+a later approval never overwrites them. The learner alone revises an entry, by hand, with the pen
+on `/base` (see "Editing an entry"). `resolve()` looks past the `deleted` scope, so a deleted row
+is reused and brought back rather than colliding with the unique key.
 
 **`BaseWord::displayForm()`** renders the lemma the way the learner is expected to learn it
 (*"ett hus"*, *"komm|a -er"*), reading the language's guideline. A correct whole-Term answer
@@ -236,6 +236,17 @@ them are base words. A panel shows a Synonyms section only when the entry has an
 |---|---|
 | `POST /base/synonyms` (`{first, second}`, row keys like `word:12`) | links both ways, `204`; linking again changes nothing. `404` for another learner's entry, `422` for one entry twice or two languages |
 | `DELETE /base/synonyms` (same body) | unlinks both ways, `204` |
+
+### Editing an entry
+
+The panel's pen (`PUT /base/{word|expression}/{id}`, `BaseWordController@update`) opens an
+`<x-modal>` (a bottom sheet below lg) to correct a wrong AI answer. The word itself can't be
+edited. A **word** takes a new `translation` and `part_of_speech`, picked from its language's
+guideline list (`LanguageGuideline::partsOfSpeech()`); an **expression** takes a `translation`
+only. Part of speech is half the dedup key, so a change to one the learner already has for that
+lemma (deleted rows included) is a `422`. A changed part of speech also nulls `grammar_attributes`
+and `dictionary_form`, which belonged to the old one — the display form falls back to the bare
+lemma. Checked entries' panels have no pen, as with the bin. The rows reload after a save.
 
 ### Deleting an entry
 

@@ -91,6 +91,31 @@
     </div>
 </div>
 
+<x-modal name="edit-base" title="Edit entry">
+    <form id="baseEditForm" class="space-y-4">
+        <p id="baseEditTitle" class="text-lg font-bold text-white"></p>
+        <label id="baseEditPartField" class="block">
+            <span class="mb-1 block text-xs uppercase tracking-wider text-white/40">Part of speech</span>
+            <select id="baseEditPart" class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-base text-white focus:outline-none"></select>
+        </label>
+        <label class="block">
+            <span class="mb-1 block text-xs uppercase tracking-wider text-white/40">Translation</span>
+            <input id="baseEditTranslation" type="text" maxlength="255" required
+                   class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-base text-white focus:outline-none">
+        </label>
+        <div class="flex flex-wrap justify-end gap-3">
+            <button type="button" onclick="closeModal('edit-base')"
+                    class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
+                Cancel
+            </button>
+            <button type="submit"
+                    class="px-5 py-2 rounded-xl font-bold bg-blue-800 hover:bg-blue-600 text-white transition-all max-lg:min-h-12 max-lg:flex-1">
+                Save
+            </button>
+        </div>
+    </form>
+</x-modal>
+
 <x-modal name="confirm-delete-base" title="Delete from the base?">
     <div class="mb-6 space-y-2 text-white/60">
         <p>
@@ -158,7 +183,7 @@
             $('#checkedPanels').empty();
             checked.forEach(html => {
                 const $panel = $('<aside>', { class: $('#basePanel').attr('class') }).html(html);
-                $panel.find('.js-base-delete').remove();
+                $panel.find('.js-base-delete, .js-base-edit').remove();
                 $panel.find('.js-base-uncheck').removeClass('hidden');
                 $('#checkedPanels').append($panel);
             });
@@ -287,6 +312,32 @@
                 });
             });
         @endisset
+
+        // The pen: the word stays, its part of speech (a word only) and translation change.
+        let editKey = null;
+        $('#basePanel').on('click', '.js-base-edit', function () {
+            const $btn = $(this);
+            const parts = $btn.data('parts');
+            editKey = $btn.data('key');
+            $('#baseEditTitle').text($btn.data('title'));
+            $('#baseEditTranslation').val($btn.data('translation'));
+            $('#baseEditPartField').toggle(!! parts);
+            $('#baseEditPart').empty().append((parts || []).map(part => $('<option>', { value: part, text: part })))
+                .val($btn.data('part'));
+            openModal('edit-base');
+        });
+
+        $('#baseEditForm').on('submit', function (e) {
+            e.preventDefault();
+            const data = { _token: csrf, translation: $('#baseEditTranslation').val() };
+            if (editKey.startsWith('word:')) { data.part_of_speech = $('#baseEditPart').val(); }
+            $.ajax({ url: '/base/' + editKey.replace(':', '/'), type: 'PUT', data }).done(function () {
+                closeModal('edit-base');
+                fetchRows(currentUrl);
+            }).fail(function (xhr) {
+                if (window.toastr) { toastr.error(xhr.responseJSON?.message || 'Could not save it.'); }
+            });
+        });
 
         // An expression can't be known, so a dialog that touches one offers plain delete only.
         function askDelete(keys, title) {
