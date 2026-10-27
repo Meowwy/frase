@@ -29,7 +29,8 @@ Route::get('/', function () {
     $user = Auth::user();
 
     $wordboxes = $user->wordboxes()
-        ->select('id', 'name', 'description')
+        ->select('id', 'name', 'description', 'language_id')
+        ->with('language:id,flag')
         ->withCount('baseWords')
         ->get();
 

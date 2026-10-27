@@ -13,6 +13,9 @@ class GenerateGapFillJob implements ShouldQueue
 {
     use Queueable;
 
+    // A local `queue:work` kills a job after 60 seconds by default; the AI call may take longer.
+    public int $timeout = AI::GAP_FILL_TIMEOUT + 5;
+
     public function __construct(
         public GapFillExercise $exercise
     ) {}
@@ -43,13 +46,18 @@ class GenerateGapFillJob implements ShouldQueue
                 return;
             }
 
-            $result = AI::generateTextWithGaps(
-                $words,
-                $wordbox->language->name,
-                $this->exercise->theme_preference,
-                // Match the exercise difficulty to the user's proficiency in this language.
-                $user->levelForLanguage($wordbox->language)
-            );
+            // Match the exercise difficulty to the user's proficiency in this language.
+            $level = $user->levelForLanguage($wordbox->language) ?? config('proficiency.default');
+
+            // A beginner's story is built from words they know: up to 30 other words of theirs.
+            $familiarWords = in_array($level, AI::GAP_FILL_BASIC_LEVELS, true)
+                ? $user->baseWords()->where('language_id', $wordbox->language_id)
+                    ->whereNotIn('id', array_column($words, 'base_word_id'))
+                    ->inRandomOrder()->limit(30)->get()
+                    ->map(fn (BaseWord $word) => "{$word->lemma} ({$word->translation})")->all()
+                : [];
+
+            $result = AI::generateTextWithGaps($words, $wordbox->language->name, $this->exercise->theme_preference, $level, $familiarWords);
 
             if ($result) {
                 $this->exercise->update([

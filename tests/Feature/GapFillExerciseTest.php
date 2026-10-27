@@ -61,9 +61,9 @@ class GapFillExerciseTest extends TestCase
     }
 
     /**
-     * Only the wordbox's own words can be ticked, and at most 30 of them.
+     * Only the wordbox's own words can be ticked, and at most 25 of them.
      */
-    public function test_generation_rejects_words_outside_the_wordbox_and_more_than_thirty(): void
+    public function test_generation_rejects_words_outside_the_wordbox_and_more_than_twenty_five(): void
     {
         Queue::fake();
         [$user, $wordbox] = $this->wordbox();
@@ -72,7 +72,7 @@ class GapFillExerciseTest extends TestCase
         $generate = fn (array $ids) => $this->actingAs($user)->get(route('gapfill.generate', $wordbox->id).'?'.http_build_query(['base_word_ids' => $ids]));
 
         $generate([$outside->id])->assertSessionHasErrors('base_word_ids.0');
-        $generate(range(1, 31))->assertSessionHasErrors('base_word_ids');
+        $generate(range(1, 26))->assertSessionHasErrors('base_word_ids');
         $generate([])->assertSessionHasErrors('base_word_ids');
         Queue::assertNotPushed(GenerateGapFillJob::class);
     }

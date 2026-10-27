@@ -16,11 +16,11 @@ cast — the words ticked for it), `theme_preference` (nullable, free text passe
 
 ## Generation flow
 
-1. The wordbox page's gap-fill card lists the box's words as a checklist, the first 30 ticked,
+1. The wordbox page's gap-fill card lists the box's words as a checklist, the first 25 ticked,
    with a theme field. It submits to `GET /wordbox/{wordbox}/gapfill/generate`
    (`GapFillExerciseController@store`), which checks `$this->authorize('update', $wordbox)`
    (`WordboxPolicy` — the wordbox must belong to the current user, see [overview](overview.md)
-   "Authorization") and validates `base_word_ids`: required, **at most 30** (as many as one short
+   "Authorization") and validates `base_word_ids`: required, **at most 25** (as many as one
    story can carry) and every one of them in the wordbox. It then creates a `GapFillExercise`
    row with `status: pending` and dispatches **`GenerateGapFillJob`** onto the queue — this is
    the one AI-backed feature in the app that's genuinely asynchronous rather than synchronous
@@ -32,15 +32,18 @@ cast — the words ticked for it), `theme_preference` (nullable, free text passe
    `base_word_ids` through `$wordbox->baseWords()` — so a word since removed from the box or
    deleted from the base drops out — and builds one item per word: `base_word_id`, `lemma`,
    `display_form`, `part_of_speech`, `grammar` (its attributes) and `translation`. With the
-   wordbox's language and the user's CEFR level for it (`User::levelForLanguage`) it calls
-   `AI::generateTextWithGaps()` (see [ai-integration](ai-integration.md) "Gap-fill"). On success
+   wordbox's language and the user's CEFR level for it (`User::levelForLanguage`, the default
+   level when unset) — plus, for A1/A2, up to 30 random other base words of the language as
+   vocabulary the story should favour — it calls `AI::generateTextWithGaps()` (see [ai-integration](ai-integration.md) "Gap-fill"). On success
    it stores `title`, `text_with_gaps`, `correct_answers`, `status: completed`; with no words
    left, a null AI result or any thrown exception, `status: failed` (logged via `Log::error`).
 
 `GapFillExerciseController@status` (`GET /gap-fill/{exercise}/status`) is a small JSON polling
 endpoint (`{status, url}`) the show view hits while `status` is still `pending`/`processing`.
 **Requires a running queue worker** (`php artisan queue:work`, `QUEUE_CONNECTION=database`) — with
-no worker running, the job never executes and the page polls forever.
+no worker running, the job never executes and the page polls forever. The AI call is allowed 80
+seconds (`AI::GAP_FILL_TIMEOUT`; the default 30 timed out on a full box) and the job 85 — both
+under the database queue's 90-second `retry_after`, so a slow call is never picked up twice.
 
 ## Viewing / retrying (`GapFillExerciseController@show`)
 
@@ -53,8 +56,9 @@ of every exercise generated for that wordbox alongside the current one.
 
 ## The word bank
 
-**Words to use** shows each gap's word as the learner learnt it — its display form and
-translation — never the form the gap needs: putting it in that form is the exercise. A click puts
+**Words to use** shows each gap's word as the learner learnt it — its display form,
+with its translation in the card detail page's tooltip (above the pill on hover; written into the
+pill below lg, where there is no hover) — never the form the gap needs: putting it in that form is the exercise. A click puts
 the bare lemma into the focused (or first empty) gap, to inflect there. Hovering a gap shows its
 word's part of speech and display form.
 

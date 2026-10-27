@@ -149,7 +149,10 @@
                             @foreach($wordboxes as $wordbox)
                                 <div class="bg-white/10 p-4 rounded-lg flex flex-col justify-between h-full border border-white/10 hover:border-blue-500 transition-colors">
                                     <div>
-                                        <h3 class="text-xl font-bold mb-2 truncate" title="{{ $wordbox->name }}">{{ $wordbox->name }}</h3>
+                                        <div class="flex items-start justify-between gap-3 mb-2">
+                                            <h3 class="text-xl font-bold truncate" title="{{ $wordbox->name }}">{{ $wordbox->name }}</h3>
+                                            <span class="text-xl leading-none shrink-0">{{ $wordbox->language->flag }}</span>
+                                        </div>
                                         <p class="text-sm text-white/70 line-clamp-2 mb-2">{{ $wordbox->description }}</p>
                                         <p class="text-xs font-semibold text-blue-400 uppercase tracking-wider">Words: {{ $wordbox->base_words_count }}</p>
                                     </div>

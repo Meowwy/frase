@@ -267,7 +267,17 @@ lemma — the display form as "dictionary entry" (*ett hus*, *komm|a -er*), then
   alone doesn't say which of its meanings the learner saved.
 - **No word appears outside its own gap**, the title included — anywhere else it gives the answer
   away.
-- The CEFR rule (rule 2 above) applies through `levelInstruction()`.
+- **Length follows the word count, density doesn't.** The prompt states a minimum of 12 words of
+  running text per listed word (`GAP_FILL_WORDS_PER_GAP`, computed in PHP so the model gets a
+  number, not "longer"), and that ordinary words must clearly outnumber the gaps. Left alone the
+  model wrote a short story that was mostly gaps. Gaps are spread through the story and
+  interleaved with real text; two may touch (an article and its noun), never three in a row.
+- The CEFR rule (rule 2 above) applies through `levelInstruction()`; the job falls back to the
+  configured default level (A1) for a language with none set, so a level is always sent.
+- **A1/A2 (`GAP_FILL_BASIC_LEVELS`) get a text the learner can read:** apart from the listed
+  words, only really basic everyday words in short sentences, and up to 30 random other words of
+  the learner's base in that language (`lemma (translation)`, not the gap words) that the model
+  prefers wherever they fit, written as plain text. From B1 up there is no such list.
 - It does **not** quote `LanguageGuideline::promptNote()`: those notes tell CALL 1 how to tag and
   write a base word (dictionary style with its `|`, "tag it as common or neuter") and would bleed
   into the story. The display form and attributes already carry what the model needs.
@@ -300,6 +310,11 @@ word lists) five times for a shorter wait.
 - **The item is used in a sense that fits its part of speech and translation.** Base words carry
   no sense finer than part of speech, so this is the only thing keeping *run* the noun from being
   tested as a verb.
+- **The translation follows the phrase closely** (I and II, where it is the learner's cue): same
+  tense, number, person and definiteness, the item rendered by its given translation, nothing
+  added, dropped or paraphrased. A "natural" translation drifted from the phrase, so the learner
+  couldn't tell which form or word the gap or the sentence asked for. Stated once in the system
+  prompt; the field description says only "close" (it is sent once per slot).
 - **No slot uses another slot's item.** A fragment with two of the batch's items in it would give
   one away or test two at once.
 - **A beginner's context words are their proven words.** Below B1, and for a language with no

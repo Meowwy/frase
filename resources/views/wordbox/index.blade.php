@@ -24,7 +24,7 @@
             </div>
         </x-panel>
 
-        {{-- A new exercise is generated from the ticked words: all of them, up to the 30 one
+        {{-- A new exercise is generated from the ticked words: all of them, up to the 25 one
              story can carry. --}}
         <x-panel>
             <h2 class="text-xl font-bold mb-1">Gap-Fill Exercise</h2>
@@ -41,7 +41,7 @@
                     <div class="max-h-48 overflow-y-auto rounded-lg border border-white/10 p-2">
                         @foreach($words as $word)
                             <label class="flex cursor-pointer items-baseline gap-2 px-1 py-0.5 text-sm max-lg:py-2 max-lg:text-base">
-                                <input type="checkbox" name="base_word_ids[]" value="{{ $word->id }}" @checked($loop->index < 30)
+                                <input type="checkbox" name="base_word_ids[]" value="{{ $word->id }}" @checked($loop->index < 25)
                                        class="h-4 w-4 shrink-0 rounded border-white/30 bg-transparent">
                                 <span>{{ $word->displayForm() }}</span>
                                 <span class="truncate text-white/40">{{ $word->translation }}</span>

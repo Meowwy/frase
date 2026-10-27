@@ -23,6 +23,20 @@ class AI
     private const REASONING_EFFORT = 'medium';
 
     /**
+     * Seconds the gap-fill call may take: a story with up to 25 words and each gap's accepted
+     * forms outruns the 30 seconds an HTTP call gets by default. The queued job's timeout
+     * (GenerateGapFillJob) sits just above it and, like the worker's, under the database
+     * queue's 90-second `retry_after`.
+     */
+    public const GAP_FILL_TIMEOUT = 80;
+
+    /** Words of running text the gap-fill story gets per gap, so its length follows the word count. */
+    private const GAP_FILL_WORDS_PER_GAP = 4;
+
+    /** Levels whose gap-fill text is limited to basic words and the learner's own known words. */
+    public const GAP_FILL_BASIC_LEVELS = ['A1', 'A2'];
+
+    /**
      * Build an instruction fragment that constrains the language the model produces to
      * the learner's CEFR proficiency level. Returns an empty string when no (or an
      * unknown) level is given, so prompts stay unchanged.
@@ -107,9 +121,9 @@ class AI
      * or an unparseable body, having logged it first — same contract as every other
      * method in this file, so every caller checks for null.
      */
-    private static function requestCardJson(array $messages, string $schemaName, array $properties, string $reasoningEffort = self::REASONING_EFFORT): ?array
+    private static function requestCardJson(array $messages, string $schemaName, array $properties, string $reasoningEffort = self::REASONING_EFFORT, int $timeout = 30): ?array
     {
-        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
+        $response = Http::timeout($timeout)->withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
 
             'model' => self::MODEL,
             'reasoning_effort' => $reasoningEffort,
@@ -416,20 +430,36 @@ class AI
      * the text would give the answers away.
      *
      * $words: [['base_word_id', 'lemma', 'display_form', 'part_of_speech', 'grammar',
-     * 'translation'], ...]. Returns ['title', 'text', 'answers' => [index => ['phrase',
+     * 'translation'], ...]. $familiarWords: strings naming other words the learner knows,
+     * which a beginner's story (A1/A2) prefers around the gaps. Returns ['title', 'text', 'answers' => [index => ['phrase',
      * 'accepted', 'base_word_id']]] — `phrase` the form the story used, `accepted` every form
      * that fills the gap, the phrase among them — or null on failure, including a story whose
      * placeholders don't match its answers.
      */
-    public static function generateTextWithGaps(array $words, string $targetLanguage, ?string $themePreference = null, ?string $level = null): ?array
+    public static function generateTextWithGaps(array $words, string $targetLanguage, ?string $themePreference = null, ?string $level = null, array $familiarWords = []): ?array
     {
-        $system = "You are a language learning expert. Write a short, coherent story in {$targetLanguage} that works in every listed word once. "
-            .'Each word is given as its dictionary lemma: use it in whatever form its sentence naturally needs (tense, person, number, definiteness, case, comparison), never the bare lemma where the grammar wants another form. '
+        $minimumWords = count($words) * self::GAP_FILL_WORDS_PER_GAP;
+
+        $system = "You are a language learning expert. Write a coherent story in {$targetLanguage} that works in every listed word once. "
+            ."The story grows with the number of words: write at least {$minimumWords} words of running text in total (about ".self::GAP_FILL_WORDS_PER_GAP.' per listed word). More words mean a longer text, never a denser one. '
+            .'Each word is given as its dictionary lemma: use it in whatever form its sentence naturally needs (tense, person, number, definiteness, case, comparison). '
             .'Keep each word\'s part of speech and the sense its translation gives it. '
             .'Replace each word with a numbered placeholder [1], [2], … in order of appearance, one per word, and never write a listed word anywhere else in the story or the title. '
+            .'Spread the gaps through the whole story and interleave them with text. Two gaps may stand right next to each other (an article and its noun, say) but never more than two in a row. '
             .'The words around each gap make the missing form unambiguous. '
             ."Also give the story a short title (max 5 words) in {$targetLanguage}."
             .self::levelInstruction($level);
+
+        // A beginner has to understand the text around the gaps: only basic words, and the
+        // words they already know in preference to any others.
+        if (in_array($level, self::GAP_FILL_BASIC_LEVELS, true)) {
+            $system .= " Apart from the listed words, use only really basic, everyday {$targetLanguage} words in short, simple sentences.";
+
+            if ($familiarWords) {
+                $system .= ' The learner already knows the words below, prefer them to any other word so the text stays understandable. Write them as plain text, they are not gaps. '
+                    .implode(', ', $familiarWords).'.';
+            }
+        }
 
         $lines = array_map(function (array $word) {
             $grammar = implode(', ', array_map(fn ($name, $value) => "{$name}: {$value}", array_keys($word['grammar']), $word['grammar']));
@@ -461,6 +491,7 @@ class AI
                     ]),
                 ],
             ],
+            timeout: self::GAP_FILL_TIMEOUT,
         );
 
         if (! $result) {
@@ -522,7 +553,8 @@ class AI
     {
         $system = "You are a language tutor. Write short {$targetLanguage} phrases or sentences for a learner whose native language is {$nativeLanguage}, "
             .'one per slot, each natural, as a native speaker would really say it. '
-            .'Each uses its own item in a sense that fits the item\'s part of speech and translation, and none of the other slots\' items.'
+            .'Each uses its own item in a sense that fits the item\'s part of speech and translation, and none of the other slots\' items. '
+            .'Every translation stays close to its phrase: same tense, number, person and definiteness, the phrase must be rebuildable from it.'
             .self::levelInstruction($level);
         if (array_filter(array_column($slots, 'terms'))) {
             $system .= ' Some items list saved Terms that contain them. Those Terms lock the item\'s meaning: use the item in the sense it has there, '
@@ -531,7 +563,7 @@ class AI
         }
 
         // The native translation is shown as plain text, so it never carries markup.
-        $translation = ['type' => 'string', 'description' => "Natural {$nativeLanguage} translation of the whole phrase, as plain text."];
+        $translation = ['type' => 'string', 'description' => "Close {$nativeLanguage} translation of the whole phrase, plain text."];
         // A beginner's fragment carries exactly one unknown: the item.
         $phraseRule = $ownWords === null ? '' : ' Besides the item, its only content words are the learner\'s own words (in any form) or words too basic to be worth learning.';
         $taskRule = $ownWords === null ? '' : ' It asks only for what can be said with the item, the learner\'s own words, and words too basic to be worth learning.';

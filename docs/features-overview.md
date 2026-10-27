@@ -171,7 +171,8 @@ regardless of schedule), then a mode:
 
 ## Gap-fill exercises
 
-Tick up to 30 words in a wordbox and generate a short AI-written story that works them in, each
+Tick up to 25 words in a wordbox and generate an AI-written story (longer the more words you tick)
+that works them in, each
 replaced by a blank you fill in **the form the sentence needs** (a plural, a past tense, a
 definite form…). The "words to use" bank shows the words as you learnt them; checking tells you
 which gaps are right, almost right, or the right word in the wrong form. See [gap-fill](gap-fill.md).

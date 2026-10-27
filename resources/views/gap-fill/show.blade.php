@@ -119,9 +119,15 @@
                 @if($exercise->status === 'completed')
                     @foreach($gapWords->shuffle() as $word)
                         <button type="button" @click="fill(@js($word['lemma']))"
-                                class="bg-white/5 hover:bg-blue-600/30 text-blue-300 font-medium px-4 py-2 rounded-lg border border-white/10 hover:border-blue-500/50 transition-all max-lg:min-h-11">
+                                class="group relative bg-white/5 hover:bg-blue-600/30 text-blue-300 font-medium px-4 py-2 rounded-lg border border-white/10 hover:border-blue-500/50 transition-all max-lg:min-h-11">
                             {{ $word['form'] }}
-                            <span class="ml-1 text-sm font-normal text-white/40">{{ $word['translation'] }}</span>
+                            {{-- No hover on touch: below lg the translation is written into the pill instead. --}}
+                            <span class="ml-1 text-xs font-normal text-white/60 lg:hidden">· {{ $word['translation'] }}</span>
+                            <span role="tooltip"
+                                  class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-700 px-3 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 max-lg:hidden">
+                                {{ $word['translation'] }}
+                                <span class="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-gray-700"></span>
+                            </span>
                         </button>
                     @endforeach
                 @else

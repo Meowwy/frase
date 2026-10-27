@@ -12,15 +12,15 @@ use Illuminate\Validation\Rule;
 class GapFillExerciseController extends Controller
 {
     /**
-     * Queue an exercise over the ticked words — the wordbox's own, at most 30, as many as one
-     * short story can carry.
+     * Queue an exercise over the ticked words — the wordbox's own, at most 25, as many as one
+     * story can carry.
      */
     public function store(Request $request, Wordbox $wordbox)
     {
         $this->authorize('update', $wordbox);
 
         $data = $request->validate([
-            'base_word_ids' => ['required', 'array', 'max:30'],
+            'base_word_ids' => ['required', 'array', 'max:25'],
             'base_word_ids.*' => ['integer', 'distinct', Rule::in($wordbox->baseWords()->pluck('base_words.id'))],
             'theme_preference' => ['nullable', 'string', 'max:255'],
         ]);
