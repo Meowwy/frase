@@ -144,6 +144,9 @@ a one-pass countdown.
   there is no keyboard to press).
 - The **hint** panel is hidden for any entry whose `hint` is empty, which today is everything but
   Definitions. It is kept, not deleted, so a future hint source only has to fill the field.
+- The results form posts to the view's `action` prop, `/saveLearning` by default. Frammenti's
+  [article drill](frammenti.md#article-drill) reuses the view for its noun flip cards and passes
+  its own endpoint, so its answers never touch a card's schedule.
 
 ## Conversation mode (live AI roleplay chat)
 

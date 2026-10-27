@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AI;
+use App\Models\ArticleDrill;
 use App\Models\BaseWord;
 use App\Models\FixedExpression;
 use App\Models\Frammenti;
@@ -13,8 +14,8 @@ use Illuminate\Support\Facades\Auth;
 /**
  * LEARN: Frammenti, the daily active-vocabulary drill over the vocabulary base and
  * expression base. The page plays batches client-side; this controller plans sessions,
- * deals the batches, grades tier III sentences and saves each answer as it's given.
- * See docs/frammenti.md.
+ * deals the batches, grades tier III sentences and saves each answer as it's given. It also
+ * serves and saves the article drill shown on the same page. See docs/frammenti.md.
  */
 class FrammentiController extends Controller
 {
@@ -35,7 +36,44 @@ class FrammentiController extends Controller
             'plan' => $language && ! $session ? Frammenti::plan($user, $language) : null,
             'activeWords' => $language ? Frammenti::activeWords($user, $language) : 0,
             'streak' => Frammenti::streak($user),
+            'articles' => $language && ArticleDrill::available($language) ? ArticleDrill::due($user, $language)->count() : null,
         ]);
+    }
+
+    /**
+     * An article-drill session, played in the flashcard view and saved here, not on
+     * /saveLearning: it must never touch a card's schedule.
+     */
+    public function articles(Request $request)
+    {
+        $language = $this->targetLanguage((int) $request->query('language_id'));
+        $cards = ArticleDrill::session(Auth::user(), $language);
+
+        return view('learning.index', [
+            'cards' => 'let cards = '.json_encode($cards).';',
+            'cardCount' => count($cards),
+            'action' => route('frammenti.articles', ['language_id' => $language->id]),
+        ]);
+    }
+
+    /**
+     * Persist a finished article-drill session: `results`, `{id, result}` per noun, its
+     * first answer. Another learner's id is skipped, as on /saveLearning.
+     */
+    public function saveArticles(Request $request)
+    {
+        $user = Auth::user();
+        $language = $this->targetLanguage((int) $request->input('language_id'));
+        $results = json_decode($request->input('results'), true) ?? [];
+        $nouns = $user->baseWords()->whereIn('id', array_column($results, 'id'))->get()->keyBy('id');
+
+        foreach ($results as $r) {
+            if ($noun = $nouns->get($r['id'])) {
+                ArticleDrill::answer($user, $noun, $r['result'] === 1);
+            }
+        }
+
+        return redirect()->route('frammenti', ['language_id' => $language->id]);
     }
 
     /**

@@ -157,7 +157,8 @@ are in [ai-integration](ai-integration.md) "Frammenti".
   The switcher lists **target languages only** (`Frammenti::languages()`), never the native one even
   for a learner who collects native-language vocabulary. The start panel shows the state — "Batch 2
   of 4" with **Continue**, the plan with **Start**, or "Nothing due, come back tomorrow" with no
-  button — plus Active words and the streak.
+  button — plus Active words and the streak, and below it the [article drill](#article-drill)
+  panel where the language has one.
 - `POST /frammenti/batch`, `{language_id, on_screen: [{type, id}]}`: plans a session when none is
   open, then deals 5 fragments. Returns `{fragments, planned_batches, batches_done}`. A non-target
   language is 403; below 5 nouns and 5 verbs, or with nothing due and no open session, it's 422; a
@@ -172,7 +173,7 @@ are in [ai-integration](ai-integration.md) "Frammenti".
   `{correct, used_synonym, corrected, note}` or 503.
 
 **Client flow** (jQuery, inline in the view). Nothing is generated until the learner presses Start.
-The switcher is hidden during play. **Each answer is posted as it's given**, one request each, in
+The switcher and the article-drill panel are hidden during play. **Each answer is posted as it's given**, one request each, in
 order on one promise chain (so each lands on the state the previous one left): the schedule
 updates immediately, **Quit** loses nothing, and the next batch is dealt knowing most of the current
 batch's outcomes. **The prefetch starts at fragment 4 of 5**, once the earlier answers are saved.
@@ -187,6 +188,35 @@ page has no tab bar and the step buttons stick to the bottom edge as full-width 
 phone keyboard's own Enter key takes the same step; the gap and the answer field turn off
 autocorrect (and the gap auto-capitalisation), so the phone never rewrites a target-language
 answer into something the learner didn't type.
+
+## Article drill
+
+A noun's article has to be memorised with the noun (*en skola* but *ett hus*), and nothing in
+Frammenti drills it on its own: tier I accepts the whole display form as one gap. The article
+drill is a panel at the bottom of the start view: **Articles**, "N due" (every noun a session could
+serve, never-answered ones included), and **Start** while N > 0. It plays the learner's nouns as flip cards in the
+flashcard view (see [learning-flow](learning-flow.md) "Flashcard view details"): the bare lemma
+on the front (*hus*), the display form on the back (*ett hus*). It needs no AI call. Code:
+`App\Models\ArticleDrill`, `FrammentiController::articles()` / `saveArticles()`.
+
+- **Which languages**: those whose language guideline gives nouns a `gender`
+  (`ArticleDrill::available()`), today Swedish. It's derived from the guideline, not stored, so a
+  guideline that adds noun genders gets the drill. Elsewhere the panel isn't shown.
+- **Which nouns**: the learner's base words in that language with part of speech `noun` and a
+  gender among the guideline's values. A noun without a gender has no article to recall.
+- **Schedule**: `article_level` (0–3) and `article_due_on` on `base_words`, independent of the
+  Frammenti schedule, of any card and of last recall. Right at level 0 → level 1, due in 3 days;
+  at level 1 → level 2, due in 6 days; at level 2 → level 3, **learned**, never due again. Wrong
+  at any level → level 0, due today.
+- **Session**: the due nouns (`ArticleDrill::due()`: no due date yet, or it has arrived), the
+  nouns in **most cards first**, ties by id, at most **20** (`ArticleDrill::SESSION`). No wordbox
+  scope. In-session it behaves as a card review: a wrong noun comes back until it's right, and only its
+  first answer is saved.
+- **Endpoints**: `GET /frammenti/articles?language_id=` renders the session; the view posts
+  `results` (`[{id, result}]`) to `POST /frammenti/articles`, which applies `ArticleDrill::answer()`
+  to the learner's own nouns (another learner's id is skipped) and redirects back to `/frammenti`.
+  A non-target language is 403. It never goes through `/saveLearning`, which would move card
+  schedules.
 
 ## Streak, settings, entry points
 

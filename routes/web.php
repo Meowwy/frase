@@ -177,6 +177,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/frammenti/batch', [FrammentiController::class, 'batch']);
     Route::post('/frammenti/answer', [FrammentiController::class, 'answer']);
     Route::post('/frammenti/evaluate', [FrammentiController::class, 'evaluate']);
+    Route::get('/frammenti/articles', [FrammentiController::class, 'articles'])->name('frammenti.articles');
+    Route::post('/frammenti/articles', [FrammentiController::class, 'saveArticles']);
 
     // Conversation learning mode (live AI roleplay chat; state lives in the session).
     Route::post('/chat/message', [ChatController::class, 'message']);

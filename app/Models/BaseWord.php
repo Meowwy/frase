@@ -20,7 +20,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * and the base carries no sense finer than part of speech.
  *
  * It has no card schedule and no generated content. Its jobs are deduplication and
- * coverage, and it carries its own Frammenti schedule (docs/frammenti.md).
+ * coverage, and it carries its own Frammenti schedule and, for a noun, its article-drill
+ * schedule (docs/frammenti.md).
  *
  * A `deleted` entry is hidden by a global scope from every query — the base, Frammenti, card
  * chips, staging — while its card links, synonym links and schedule stay; resolve() brings
@@ -36,6 +37,7 @@ class BaseWord extends Model
         'grammar_attributes' => 'array',
         'last_recalled_at' => 'datetime',
         'frammenti_level' => 'integer',
+        'article_level' => 'integer',
         'deleted' => 'boolean',
     ];
 

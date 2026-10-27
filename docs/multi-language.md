@@ -24,6 +24,9 @@ the shared UI component that switches between languages/wordboxes everywhere.
 - `cards`, `wordboxes`, and `themes` each carry their own `language_id` — a card belongs to
   exactly **one** language. "**General vocabulary**" means cards in that language that aren't
   attached to any wordbox, not a separate table.
+- A feature only some languages have is **derived from the language guideline**, never a flag on
+  `languages`: Frammenti's [article drill](frammenti.md#article-drill) exists for a language whose
+  guideline gives nouns a gender (`ArticleDrill::available()`).
 
 ## Native-language vocabulary
 

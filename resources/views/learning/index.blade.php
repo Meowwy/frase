@@ -1,4 +1,6 @@
-@props(['cards', 'cardCount'])
+{{-- `action` is where the results go: the article drill (docs/frammenti.md) posts them to its
+     own endpoint, so it never touches a card's schedule. --}}
+@props(['cards', 'cardCount', 'action' => '/saveLearning'])
 {{-- Below lg this is laid out like a native flashcard app: Save and quit at the top, a compact
      full-width card (tap it to flip) centred in the space left, and at the bottom a fixed panel:
      the counters as one row of small pills over Flip — or Wrong | Correct — as big buttons. The
@@ -57,7 +59,7 @@
         <x-number-display number-id="correctCount" number="0" text="correct"></x-number-display>
     </div>
     <div>
-        <x-forms.form id="resultsForm" method="POST" action="/saveLearning">
+        <x-forms.form id="resultsForm" method="POST" :action="$action">
             <input id="resultsInput" type="hidden" name="results">
         </x-forms.form>
     </div>

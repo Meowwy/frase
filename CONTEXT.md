@@ -182,7 +182,8 @@ One entry in the vocabulary base: a lemma, its **part of speech**, its native tr
 **grammatical attributes** (if its language and part of speech carry any), and when it was last
 recalled. Two base words may share a lemma when they differ in part of speech — *run* the verb and
 *run* the noun are different base words, not one. It carries no sense finer than part of speech, no
-card schedule and no generated content — those live on cards — only its Frammenti schedule.
+card schedule and no generated content — those live on cards — only its Frammenti schedule and,
+for a noun, its article-drill schedule.
 _Avoid_: focus word, headword, root, stem, vocabulary item
 
 **Delete (a base entry)**:
@@ -355,6 +356,12 @@ _Avoid_: bonus, practice answer
 **Active words**:
 The base words and fixed expressions at tier II or above: the ones the learner can produce.
 _Avoid_: known words (that is struck words), mastered, learned
+
+**Article drill**:
+Flip cards on the Frammenti page over the learner's nouns: the lemma on the front, the display
+form with its article on the back. Only for a language whose guideline gives nouns a gender, on a
+short schedule of its own that ends in *learned*. It touches no card and no Frammenti level.
+_Avoid_: gender quiz, en/ett mode, article mode
 
 **Streak**:
 Days in a row with a finished Frammenti session in any language, forgiving one missed day per week.

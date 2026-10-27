@@ -100,6 +100,21 @@
                 </div>
             </div>
 
+            {{-- The article drill: flip cards over the nouns, only for a language whose nouns
+                 carry an article. --}}
+            @if($articles !== null)
+                <x-panel id="articles" class="mt-6 flex-col items-center text-center gap-3 py-6">
+                    <h2 class="text-lg font-bold">Articles</h2>
+                    <p class="text-sm text-white/50">Your nouns, one at a time: recall each one's article.</p>
+                    <p>{{ $articles }} due</p>
+                    @if($articles)
+                        <a href="{{ route('frammenti.articles', ['language_id' => $language->id]) }}" class="max-lg:w-full">
+                            <x-forms.button id="articlesBtn" type="button" class="max-lg:w-full max-lg:min-h-12">Start</x-forms.button>
+                        </a>
+                    @endif
+                </x-panel>
+            @endif
+
             <script>
                 $(function () {
                     const csrf = '{{ csrf_token() }}';
@@ -130,7 +145,7 @@
                     const fetchBatch = onScreen => post('/frammenti/batch', { language_id: languageId, on_screen: onScreen });
 
                     function show(id) {
-                        $('#intro, #languages, #loading, #error, #play, #recap').addClass('hidden');
+                        $('#intro, #languages, #articles, #loading, #error, #play, #recap').addClass('hidden');
                         $('#' + id).removeClass('hidden');
                         $('#quitBtn').toggleClass('hidden', id !== 'play');
                     }
