@@ -428,29 +428,39 @@ class Proposal extends Model
         $language = $this->language;
         $user = $this->user;
 
-        $content = Card::generateContent($user, $language, $this->term, $this->context);
+        $present = self::presenceIndex(collect([$this]));
+        $known = self::knownIndex(collect([$this]));
+        $presentExpressions = self::expressionPresenceIndex(collect([$this]));
+
+        // Only a word the base doesn't hold yet is described: CALL 2 is paid for exactly those.
+        $newWords = $this->linkedWords($present, $known)
+            ->reject(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)))
+            ->map(fn (ProposalBaseWord $word) => $word->only('lemma', 'part_of_speech'))
+            ->values()
+            ->all();
+
+        $content = Card::generateContent($user, $language, $this->term, $this->context, $newWords);
 
         if (is_null($content)) {
             return null;
         }
-
-        $present = self::presenceIndex(collect([$this]));
-        $known = self::knownIndex(collect([$this]));
-        $presentExpressions = self::expressionPresenceIndex(collect([$this]));
 
         $card = DB::transaction(function () use ($user, $language, $content, $present, $known, $presentExpressions) {
             $card = Card::persist($user, $language, $this->term, $this->context, $content);
 
             // Known words are never linked; already-present and new ones both resolve below.
             foreach ($this->linkedWords($present, $known) as $candidate) {
+                // A present word has no details here, and needs none: resolve() reuses its row.
+                $details = $content['words'][$candidate->lemma.'|'.$candidate->part_of_speech] ?? [];
+
                 $baseWord = BaseWord::resolve(
                     $user,
                     $language,
                     $candidate->lemma,
                     $candidate->part_of_speech,
-                    $candidate->grammar_attributes,
-                    $candidate->translation,
-                    $candidate->dictionary_form,
+                    $details['grammar_attributes'] ?? null,
+                    $details['translation'] ?? '',
+                    $details['dictionary_form'] ?? null,
                 );
 
                 $card->baseWords()->attach($baseWord->id);

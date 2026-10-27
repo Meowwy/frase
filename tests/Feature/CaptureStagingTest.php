@@ -56,18 +56,33 @@ class CaptureStagingTest extends TestCase
             'language' => 'Swedish',
             'term' => 'hur mycket kostar det',
             'base_words' => [
-                ['lemma' => 'hur', 'part_of_speech' => 'adverb', 'translation' => 'how', 'gender' => '', 'dictionary_form' => ''],
-                ['lemma' => 'mycket', 'part_of_speech' => 'adverb', 'translation' => 'much', 'gender' => '', 'dictionary_form' => ''],
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
-                ['lemma' => 'det', 'part_of_speech' => 'pronoun', 'translation' => 'it', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'hur', 'part_of_speech' => 'adverb'],
+                ['lemma' => 'mycket', 'part_of_speech' => 'adverb'],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb'],
+                ['lemma' => 'det', 'part_of_speech' => 'pronoun'],
             ],
         ], $overrides);
     }
 
+    /**
+     * CALL 2's answer. Its `base_words` default to a description of every word the tests
+     * propose, which is more than any one approval asks about: the extras are ignored.
+     */
     private function cardContent(array $overrides = []): array
     {
+        $word = fn (string $lemma, string $pos, string $translation, string $gender = '', string $dictionaryForm = '') => [
+            'lemma' => $lemma, 'part_of_speech' => $pos, 'translation' => $translation, 'gender' => $gender, 'dictionary_form' => $dictionaryForm,
+        ];
+
         return array_replace([
             'translation' => 'how much does it cost',
+            'base_words' => [
+                $word('hur', 'adverb', 'how'),
+                $word('mycket', 'adverb', 'much'),
+                $word('kosta', 'verb', 'to cost', dictionaryForm: 'kost|a -ar'),
+                $word('det', 'pronoun', 'it'),
+                ...array_map(fn ($n) => $word('ord'.$n, 'noun', 'word'.$n), range(1, 4)),
+            ],
         ], $overrides);
     }
 
@@ -131,8 +146,8 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'in spite of',
             'base_words' => [
-                ['lemma' => 'in', 'part_of_speech' => 'preposition', 'translation' => 'v', 'gender' => ''],
-                ['lemma' => 'of', 'part_of_speech' => 'preposition', 'translation' => 'z', 'gender' => ''],
+                ['lemma' => 'in', 'part_of_speech' => 'preposition'],
+                ['lemma' => 'of', 'part_of_speech' => 'preposition'],
             ],
         ]), $this->cardContent());
 
@@ -148,8 +163,7 @@ class CaptureStagingTest extends TestCase
 
     /**
      * The Term is kept exactly as typed, a lone inflected word included: the card shows
-     * "kostade" while the base word gets the lemma. Swedish nouns also carry a gender,
-     * which is what makes a chip read "ett hus" rather than bare "hus".
+     * "kostade" while the base word gets the lemma.
      */
     public function test_an_inflected_lone_word_is_stored_as_typed_while_its_base_word_gets_the_lemma(): void
     {
@@ -157,7 +171,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'kostade',
             'base_words' => [
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb'],
             ],
         ]), $this->cardContent(['translation' => 'cost']));
 
@@ -173,21 +187,170 @@ class CaptureStagingTest extends TestCase
         $this->assertSame('kosta', $card->baseWords->sole()->lemma);
     }
 
-    public function test_a_swedish_noun_carries_its_gender(): void
+    /**
+     * CALL 1 names the word and nothing more, so a chip reads the bare lemma; the gender
+     * arrives with CALL 2 at approval and from then on the entry reads "ett hus".
+     */
+    public function test_a_swedish_nouns_gender_arrives_with_call_two_at_approval(): void
     {
         [$user] = $this->learner();
         $this->fakeOpenAi($this->analysis([
             'term' => 'hus',
             'base_words' => [
-                ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house', 'gender' => 'neuter'],
+                ['lemma' => 'hus', 'part_of_speech' => 'noun'],
             ],
-        ]));
+        ]), $this->cardContent(['base_words' => [
+            ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house', 'gender' => 'neuter', 'dictionary_form' => ''],
+        ]]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'hus']);
 
-        $word = $user->proposals()->sole()->baseWords->sole();
-        $this->assertSame(['gender' => 'neuter'], $word->grammar_attributes);
-        $this->assertSame('ett hus', $word->displayForm());
+        $proposal = $user->proposals()->sole();
+        $word = $proposal->baseWords->sole();
+        $this->assertNull($word->grammar_attributes);
+        $this->assertSame('hus', $word->displayForm());
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $entry = BaseWord::sole();
+        $this->assertSame(['gender' => 'neuter'], $entry->grammar_attributes);
+        $this->assertSame('house', $entry->translation);
+        $this->assertSame('ett hus', $entry->displayForm());
+    }
+
+    /**
+     * CALL 1 is only asked for the words, so its schema has no room for anything else; and
+     * CALL 2 is asked about the words the base lacks, not the one it already holds.
+     */
+    public function test_call_one_names_the_words_and_call_two_describes_only_the_new_ones(): void
+    {
+        [$user, $language] = $this->learner('A2');
+        $this->baseWord($user, $language, 'kosta', 'verb');
+        $this->fakeOpenAi($this->analysis(), $this->cardContent());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'hur mycket kostar det']);
+        $proposal = $user->proposals()->sole();
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        [$callOne, $callTwo] = Http::recorded()->map(fn ($pair) => $pair[0]->data())->all();
+
+        $words = $callOne['response_format']['json_schema']['schema']['properties']['base_words']['items'];
+        $this->assertSame(['lemma', 'part_of_speech'], $words['required']);
+
+        $asked = $callTwo['messages'][1]['content'];
+        $this->assertStringContainsString('"hur" (adverb)', $asked);
+        $this->assertStringNotContainsString('"kosta"', $asked);
+        // Nothing new is a noun or a verb, so there is no grammar left to ask for.
+        $this->assertSame(['lemma', 'part_of_speech', 'translation'], $callTwo['response_format']['json_schema']['schema']['properties']['base_words']['items']['required']);
+        $this->assertStringNotContainsString('Swedish nouns', $callTwo['messages'][0]['content']);
+    }
+
+    /**
+     * What the lexicon answers with a single value is not asked of the AI: a lexicon noun and
+     * verb need only a translation, and are stored with the dictionary's gender and form.
+     */
+    public function test_call_two_is_not_asked_what_the_lexicon_already_answers(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('hus', 'noun', gender: 'neuter');
+        $this->lexicon('komma', 'verb', dictionaryForm: 'komm|a -er');
+        $this->fakeOpenAi($this->analysis([
+            'term' => 'komma till ett hus',
+            'base_words' => [
+                ['lemma' => 'hus', 'part_of_speech' => 'noun'],
+                ['lemma' => 'komma', 'part_of_speech' => 'verb'],
+            ],
+        ]), $this->cardContent(['base_words' => [
+            ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house'],
+            ['lemma' => 'komma', 'part_of_speech' => 'verb', 'translation' => 'to come'],
+        ]]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'komma till ett hus']);
+        $proposal = $user->proposals()->sole();
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $callTwo = Http::recorded()[1][0]->data();
+        $this->assertSame(['lemma', 'part_of_speech', 'translation'], $callTwo['response_format']['json_schema']['schema']['properties']['base_words']['items']['required']);
+
+        $this->assertSame('ett hus', BaseWord::firstWhere('lemma', 'hus')->displayForm());
+        $this->assertSame('komm|a -er', BaseWord::firstWhere('lemma', 'komma')->displayForm());
+    }
+
+    /**
+     * A word the lexicon lacks, and a homograph it can't settle, are still asked; the word it
+     * does settle is marked as needing a translation only.
+     */
+    public function test_call_two_is_asked_only_for_the_words_the_lexicon_cannot_settle(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('hus', 'noun', gender: 'neuter');
+        $this->lexicon('plan', 'noun', gender: 'neuter');
+        $this->lexicon('plan', 'noun', gender: 'common');
+        $this->fakeOpenAi($this->analysis([
+            'term' => 'hus bil plan',
+            'base_words' => [
+                ['lemma' => 'hus', 'part_of_speech' => 'noun'],
+                ['lemma' => 'bil', 'part_of_speech' => 'noun'],
+                ['lemma' => 'plan', 'part_of_speech' => 'noun'],
+            ],
+        ]), $this->cardContent(['base_words' => [
+            ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house', 'gender' => ''],
+            ['lemma' => 'bil', 'part_of_speech' => 'noun', 'translation' => 'car', 'gender' => 'common'],
+            ['lemma' => 'plan', 'part_of_speech' => 'noun', 'translation' => 'plan', 'gender' => 'common'],
+        ]]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'hus bil plan']);
+        $proposal = $user->proposals()->sole();
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $callTwo = Http::recorded()[1][0]->data();
+        $this->assertSame(['lemma', 'part_of_speech', 'translation', 'gender'], $callTwo['response_format']['json_schema']['schema']['properties']['base_words']['items']['required']);
+        $this->assertStringContainsString('"hus" (noun; translation only)', $callTwo['messages'][1]['content']);
+        $this->assertStringContainsString('"bil" (noun)', $callTwo['messages'][1]['content']);
+        $this->assertStringContainsString('"plan" (noun)', $callTwo['messages'][1]['content']);
+
+        $this->assertSame(['gender' => 'neuter'], BaseWord::firstWhere('lemma', 'hus')->grammar_attributes);
+        $this->assertSame(['gender' => 'common'], BaseWord::firstWhere('lemma', 'bil')->grammar_attributes);
+        $this->assertSame(['gender' => 'common'], BaseWord::firstWhere('lemma', 'plan')->grammar_attributes);
+    }
+
+    /**
+     * A new word CALL 2 leaves undescribed would be an entry with nothing to show, so the
+     * approval fails and the proposal stays in staging.
+     */
+    public function test_an_approval_fails_when_call_two_leaves_a_new_word_undescribed(): void
+    {
+        [$user, $language] = $this->learner();
+        Queue::fake();
+        $proposal = $this->completedProposal($user, $language);
+
+        $this->fakeOpenAi($this->cardContent(['base_words' => []]));
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(500);
+
+        $this->assertSame(0, Card::count());
+        $this->assertSame(0, BaseWord::count());
+        $this->assertModelExists($proposal);
+    }
+
+    /**
+     * A native-language card has no translation to write, so with every word already in the
+     * base there is nothing left to ask the AI.
+     */
+    public function test_a_native_language_card_with_no_new_words_makes_no_ai_call(): void
+    {
+        [$user] = $this->learner();
+        $english = Language::firstWhere('code', 'en');
+        $user->languages()->attach($english->id, ['users_level' => 'B1']);
+        Queue::fake();
+        $this->baseWord($user, $english, 'house', 'noun');
+        $proposal = $user->proposals()->create(['language_id' => $english->id, 'raw_input' => 'a house', 'term' => 'a house', 'status' => Proposal::STATUS_COMPLETED]);
+        $proposal->baseWords()->create(['lemma' => 'house', 'part_of_speech' => 'noun']);
+        Http::fake();
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertSame('', Card::sole()->translation);
+        Http::assertNothingSent();
     }
 
     public function test_approving_writes_the_card_its_links_and_the_base_entries(): void
@@ -260,7 +423,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'kostade',
             'base_words' => [
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb'],
             ],
         ]), $this->cardContent());
 
@@ -321,7 +484,7 @@ class CaptureStagingTest extends TestCase
 
         foreach (range(1, 4) as $n) {
             $proposal->baseWords()->create([
-                'lemma' => 'ord'.$n, 'part_of_speech' => 'noun', 'translation' => 'word'.$n,
+                'lemma' => 'ord'.$n, 'part_of_speech' => 'noun',
             ]);
         }
 
@@ -446,7 +609,7 @@ class CaptureStagingTest extends TestCase
                 ['part_of_speech' => 'noun', 'gloss' => 'a rule passed by parliament', 'translation' => 'law'],
             ],
             'base_words' => [
-                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'translation' => 'team', 'gender' => 'neuter', 'dictionary_form' => ''],
+                ['lemma' => 'lag', 'part_of_speech' => 'noun'],
             ],
         ]);
     }
@@ -479,7 +642,7 @@ class CaptureStagingTest extends TestCase
             'term' => 'lag',
             'senses' => [],
             'base_words' => [
-                ['lemma' => 'lag', 'part_of_speech' => 'noun', 'translation' => 'law', 'gender' => 'common', 'dictionary_form' => ''],
+                ['lemma' => 'lag', 'part_of_speech' => 'noun'],
             ],
         ]));
 
@@ -493,7 +656,7 @@ class CaptureStagingTest extends TestCase
         $proposal->refresh();
         $this->assertSame('lag (noun): a rule passed by parliament', $proposal->context);
         $this->assertNull($proposal->senses);
-        $this->assertSame('law', $proposal->baseWords->sole()->translation);
+        $this->assertSame('lag', $proposal->baseWords->sole()->lemma);
         $this->assertTrue($proposal->isApprovable());
     }
 
@@ -503,7 +666,7 @@ class CaptureStagingTest extends TestCase
         $proposal = $this->completedProposal($user, $language);
         $this->fakeOpenAi($this->analysis([
             'base_words' => [
-                ['lemma' => 'kosta', 'part_of_speech' => 'verb', 'translation' => 'to cost', 'gender' => '', 'dictionary_form' => 'kost|a -ar'],
+                ['lemma' => 'kosta', 'part_of_speech' => 'verb'],
             ],
         ]));
 
@@ -556,7 +719,7 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi(
             $this->analysis(['term' => 'bad', 'other_languages' => ['German']]),
             $this->analysis(['language' => 'German', 'term' => 'bad', 'base_words' => [
-                ['lemma' => 'Bad', 'part_of_speech' => 'noun', 'translation' => 'bath', 'gender' => '', 'dictionary_form' => ''],
+                ['lemma' => 'Bad', 'part_of_speech' => 'noun'],
             ]]),
         );
 
@@ -708,7 +871,8 @@ class CaptureStagingTest extends TestCase
     /**
      * Swedish verbs are learned in dictionary style, and unlike a noun's gender that string
      * cannot be derived from the lemma — so it is stored. With an empty lexicon (as here)
-     * CALL 1 supplies it. The chip and every later screen read "komm|a -er", not bare "komma".
+     * CALL 2 supplies it at approval, so a chip reads the bare "komma" until then and every
+     * later screen reads "komm|a -er".
      */
     public function test_a_swedish_verb_is_staged_and_stored_in_dictionary_style(): void
     {
@@ -716,16 +880,16 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'komma',
             'base_words' => [
-                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+                ['lemma' => 'komma', 'part_of_speech' => 'verb'],
             ],
-        ]), $this->cardContent());
+        ]), $this->cardContent(['base_words' => [
+            ['lemma' => 'komma', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+        ]]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'komma']);
 
         $proposal = $user->proposals()->sole();
-        $word = $proposal->baseWords->sole();
-        $this->assertSame('komm|a -er', $word->dictionary_form);
-        $this->assertSame('komm|a -er', $word->displayForm());
+        $this->assertSame('komma', $proposal->baseWords->sole()->displayForm());
 
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
 
@@ -740,34 +904,57 @@ class CaptureStagingTest extends TestCase
         ]);
     }
 
-    private function captureWord(User $user, array $baseWord): Proposal
+    /**
+     * Capture one word and approve it, with CALL 2 answering $baseWord about it. Returns the
+     * base entry that was written.
+     */
+    private function approveWord(User $user, array $baseWord): BaseWord
     {
         $this->fakeOpenAi($this->analysis([
             'term' => $baseWord['lemma'],
+            'base_words' => [['lemma' => $baseWord['lemma'], 'part_of_speech' => $baseWord['part_of_speech']]],
+        ]), $this->cardContent([
             'base_words' => [array_replace(['translation' => 'x', 'gender' => '', 'dictionary_form' => ''], $baseWord)],
         ]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => $baseWord['lemma']]);
+        $proposal = $user->proposals()->sole();
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
 
-        return $user->proposals()->sole();
+        return BaseWord::sole();
     }
 
     /**
-     * Where the lexicon knows the word, its gender wins over a wrong CALL 1 answer.
+     * Where the lexicon knows the word, its gender wins over a wrong CALL 2 answer — and a
+     * chip already reads "ett hus", since that needs no AI.
      */
     public function test_the_lexicon_overrides_a_wrong_swedish_noun_gender(): void
     {
         [$user] = $this->learner();
         $this->lexicon('hus', 'noun', gender: 'neuter');
 
-        $word = $this->captureWord($user, ['lemma' => 'hus', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+        $word = $this->approveWord($user, ['lemma' => 'hus', 'part_of_speech' => 'noun', 'gender' => 'common']);
 
         $this->assertSame(['gender' => 'neuter'], $word->grammar_attributes);
         $this->assertSame('ett hus', $word->displayForm());
     }
 
     /**
-     * Homographs ("ett plan" / "en plan") leave the sense to CALL 1, but only among the
+     * The lexicon is a free lookup, so a chip reads "ett hus" at capture where it knows the word.
+     */
+    public function test_a_chip_reads_the_lexicons_gender_at_capture(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('hus', 'noun', gender: 'neuter');
+        $this->fakeOpenAi($this->analysis(['term' => 'hus', 'base_words' => [['lemma' => 'hus', 'part_of_speech' => 'noun']]]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'hus']);
+
+        $this->assertSame('ett hus', $user->proposals()->sole()->baseWords->sole()->displayForm());
+    }
+
+    /**
+     * Homographs ("ett plan" / "en plan") leave the sense to CALL 2, but only among the
      * values the dictionary allows — an answer outside them falls back to the first.
      */
     public function test_a_homograph_keeps_the_ai_choice_among_the_lexicon_options(): void
@@ -776,9 +963,27 @@ class CaptureStagingTest extends TestCase
         $this->lexicon('plan', 'noun', gender: 'neuter');
         $this->lexicon('plan', 'noun', gender: 'common');
 
-        $noun = $this->captureWord($user, ['lemma' => 'plan', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+        $noun = $this->approveWord($user, ['lemma' => 'plan', 'part_of_speech' => 'noun', 'gender' => 'common']);
 
         $this->assertSame(['gender' => 'common'], $noun->grammar_attributes);
+    }
+
+    /**
+     * A chip shows a lexicon value only when it is the one answer: homographs stay bare
+     * until CALL 2 has picked a sense.
+     */
+    public function test_a_homograph_chip_stays_bare_until_call_two_chooses(): void
+    {
+        [$user] = $this->learner();
+        $this->lexicon('plan', 'noun', gender: 'neuter');
+        $this->lexicon('plan', 'noun', gender: 'common');
+        $this->fakeOpenAi($this->analysis(['term' => 'plan', 'base_words' => [['lemma' => 'plan', 'part_of_speech' => 'noun']]]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'plan']);
+
+        $word = $user->proposals()->sole()->baseWords->sole();
+        $this->assertNull($word->grammar_attributes);
+        $this->assertSame('plan', $word->displayForm());
     }
 
     public function test_a_verb_form_outside_the_lexicon_options_falls_back_to_the_lexicon(): void
@@ -786,7 +991,7 @@ class CaptureStagingTest extends TestCase
         [$user] = $this->learner();
         $this->lexicon('komma', 'verb', dictionaryForm: 'komm|a -er');
 
-        $verb = $this->captureWord($user, ['lemma' => 'komma', 'part_of_speech' => 'verb', 'dictionary_form' => 'kom|ma -er'])->baseWords->sole();
+        $verb = $this->approveWord($user, ['lemma' => 'komma', 'part_of_speech' => 'verb', 'dictionary_form' => 'kom|ma -er']);
 
         $this->assertSame('komm|a -er', $verb->dictionary_form);
     }
@@ -799,7 +1004,7 @@ class CaptureStagingTest extends TestCase
         [$user] = $this->learner();
         $this->lexicon('hus', 'noun', gender: 'neuter');
 
-        $compound = $this->captureWord($user, ['lemma' => 'sommarhus', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+        $compound = $this->approveWord($user, ['lemma' => 'sommarhus', 'part_of_speech' => 'noun', 'gender' => 'common']);
 
         $this->assertSame(['gender' => 'neuter'], $compound->grammar_attributes);
     }
@@ -809,15 +1014,15 @@ class CaptureStagingTest extends TestCase
         [$user] = $this->learner();
         $this->lexicon('hus', 'noun', gender: 'neuter');
 
-        $unknown = $this->captureWord($user, ['lemma' => 'bil', 'part_of_speech' => 'noun', 'gender' => 'common'])->baseWords->sole();
+        $unknown = $this->approveWord($user, ['lemma' => 'bil', 'part_of_speech' => 'noun', 'gender' => 'common']);
 
         $this->assertSame(['gender' => 'common'], $unknown->grammar_attributes);
     }
 
     /**
      * The dictionary form is kept only where the detected language's guideline asks for it.
-     * CALL 1's schema carries the property across every language the learner has, so the
-     * model can offer one for a part of speech — or a language — that writes none.
+     * The schema's property is as wide for a language without the convention, so the model
+     * can offer one for a part of speech — or a language — that writes none.
      */
     public function test_a_dictionary_form_is_dropped_where_the_guideline_asks_for_none(): void
     {
@@ -826,24 +1031,28 @@ class CaptureStagingTest extends TestCase
         $this->fakeOpenAi($this->analysis([
             'term' => 'komma till ett hus',
             'base_words' => [
-                // A Swedish noun: Swedish declares a dictionary form for verbs only.
-                ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house', 'gender' => 'neuter', 'dictionary_form' => 'hus, -et'],
-                ['lemma' => 'komma', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+                ['lemma' => 'hus', 'part_of_speech' => 'noun'],
+                ['lemma' => 'komma', 'part_of_speech' => 'verb'],
             ],
-        ]));
+        ]), $this->cardContent(['base_words' => [
+            // A Swedish noun: Swedish declares a dictionary form for verbs only.
+            ['lemma' => 'hus', 'part_of_speech' => 'noun', 'translation' => 'house', 'gender' => 'neuter', 'dictionary_form' => 'hus, -et'],
+            ['lemma' => 'komma', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'komm|a -er'],
+        ]]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'komma till ett hus']);
+        $proposal = $user->proposals()->sole();
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
 
-        $words = $user->proposals()->sole()->baseWords;
-        $noun = $words->firstWhere('lemma', 'hus');
+        $noun = BaseWord::firstWhere('lemma', 'hus');
         $this->assertNull($noun->dictionary_form);
         $this->assertSame('ett hus', $noun->displayForm());
-        $this->assertSame('komm|a -er', $words->firstWhere('lemma', 'komma')->dictionary_form);
+        $this->assertSame('komm|a -er', BaseWord::firstWhere('lemma', 'komma')->dictionary_form);
     }
 
     /**
-     * An English verb gets none either: the property only reaches CALL 1's schema because
-     * the learner also has Swedish, so the answer has to be discarded per language.
+     * An English verb gets none either: English declares no dictionary form, so an answer
+     * for one is discarded.
      */
     public function test_an_english_verb_is_shown_as_a_bare_lemma(): void
     {
@@ -855,13 +1064,17 @@ class CaptureStagingTest extends TestCase
             'language' => 'English',
             'term' => 'come',
             'base_words' => [
-                ['lemma' => 'come', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'com|e -es'],
+                ['lemma' => 'come', 'part_of_speech' => 'verb'],
             ],
-        ]));
+        ]), $this->cardContent(['base_words' => [
+            ['lemma' => 'come', 'part_of_speech' => 'verb', 'translation' => 'to come', 'gender' => '', 'dictionary_form' => 'com|e -es'],
+        ]]));
 
         $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'come']);
+        $proposal = $user->proposals()->sole();
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
 
-        $word = $user->proposals()->sole()->baseWords->sole();
+        $word = BaseWord::sole();
         $this->assertNull($word->dictionary_form);
         $this->assertSame('come', $word->displayForm());
     }
@@ -927,7 +1140,7 @@ class CaptureStagingTest extends TestCase
         $lone = $this->cardUsing($user, $language, 'hur gammal', $hur);
 
         $proposal = $this->completedProposal($user, $language);
-        $proposal->baseWords()->create(['lemma' => 'pris', 'part_of_speech' => 'noun', 'translation' => 'price']);
+        $proposal->baseWords()->create(['lemma' => 'pris', 'part_of_speech' => 'noun']);
         $related = $proposal->load('baseWords')->relatedCards(Proposal::presenceIndex(collect([$proposal])));
 
         $this->assertCount(Proposal::MAX_RELATED_CARDS, $related);
@@ -1119,15 +1332,15 @@ class CaptureStagingTest extends TestCase
         ]);
 
         $candidates = [
-            ['hur', 'adverb', 'how', null],
-            ['mycket', 'adverb', 'much', null],
-            ['kosta', 'verb', 'to cost', 'kost|a -ar'],
+            ['hur', 'adverb', null],
+            ['mycket', 'adverb', null],
+            ['kosta', 'verb', 'kost|a -ar'],
         ];
 
-        foreach ($candidates as [$lemma, $pos, $translation, $dictionaryForm]) {
+        foreach ($candidates as [$lemma, $pos, $dictionaryForm]) {
             $proposal->baseWords()->create([
                 'lemma' => $lemma, 'part_of_speech' => $pos,
-                'translation' => $translation, 'dictionary_form' => $dictionaryForm,
+                'dictionary_form' => $dictionaryForm,
             ]);
         }
 

@@ -112,7 +112,6 @@ class PageRendersTest extends TestCase
             'lemma' => 'hus',
             'part_of_speech' => 'noun',
             'grammar_attributes' => ['gender' => 'neuter'],
-            'translation' => 'house',
         ]);
 
         $response = $this->actingAs($this->user)->get('/staging');
@@ -166,7 +165,6 @@ class PageRendersTest extends TestCase
             $proposal->baseWords()->create([
                 'lemma' => $lemma,
                 'part_of_speech' => $partOfSpeech,
-                'translation' => 'to cost',
             ]);
         }
 

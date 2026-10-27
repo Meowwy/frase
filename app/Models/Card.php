@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\Jobs\GenerateEmbeddingJob;
+use App\Support\LanguageGuideline;
+use App\Support\Lexicon;
+use App\Support\WordDetails;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -114,19 +117,37 @@ class Card extends Model
     }
 
     /**
-     * CALL 2: write the card's fields, without persisting anything. Shared by a
-     * proposal's approval (Proposal::approve) and regenerate(), so the native-language and
-     * level resolution lives in one place.
+     * CALL 2: write the card's fields and, for the proposal's `$newWords`, their details,
+     * without persisting anything. Shared by a proposal's approval (Proposal::approve) and
+     * regenerate() (which has no new words), so the native-language resolution lives in one
+     * place. Returns the translation (unless native) and `words`: the details of each new word,
+     * keyed "lemma|part_of_speech" (see WordDetails).
      *
      * Returns null on a refusal, a failed request or an unparseable answer, so the caller
      * can show a plain retry message rather than a 500.
      */
-    public static function generateContent(User $user, Language $language, string $term, ?string $context): ?array
+    public static function generateContent(User $user, Language $language, string $term, ?string $context, array $newWords = []): ?array
     {
         $nativeLanguage = self::nativeLanguageFor($user, $language);
 
-        // A native-language card has nothing to translate, so nothing to generate.
-        return is_null($nativeLanguage) ? [] : AI::generateCard($term, $language->name, $nativeLanguage, $context);
+        // A native-language card has no translation, so with no new words it has nothing to generate.
+        if (is_null($nativeLanguage) && ! $newWords) {
+            return [];
+        }
+
+        // The lexicon answers what it can for free; CALL 2 is only asked for the rest.
+        $lexicon = Lexicon::lookup($language->code, $newWords);
+        $asked = WordDetails::fieldsToAsk(LanguageGuideline::for($language->code), $newWords, $lexicon);
+
+        $content = AI::generateCard($term, $language->name, $language->code, $nativeLanguage, $context, $asked);
+
+        if (is_null($content) || ! $newWords) {
+            return $content;
+        }
+
+        $words = WordDetails::forNewWords($language, $newWords, $content['base_words'] ?? [], $lexicon);
+
+        return is_null($words) ? null : ['words' => $words] + $content;
     }
 
     /**

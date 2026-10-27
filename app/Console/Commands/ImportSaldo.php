@@ -6,28 +6,38 @@ use App\Models\LexiconEntry;
 use App\Support\Lexicon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use XMLReader;
 
 /**
  * Loads Swedish noun genders and verb dictionary forms from SALDO's morphology
- * (Språkbanken, CC BY 4.0) into `lexicon_entries`. Download saldom.xml from
- * https://svn.spraakbanken.gu.se/sb-arkiv/pub/lmf/saldom/saldom.xml — it is ~250 MB and
- * never committed. Re-running replaces the Swedish rows. See docs/cards.md "The lexicon".
+ * (Språkbanken, CC BY 4.0) into `lexicon_entries`. saldom.xml is ~250 MB and never
+ * committed: pass its path, or --download to fetch it first (what a Fly machine uses, where
+ * the file would otherwise have to be uploaded). Re-running replaces the Swedish rows. See
+ * docs/cards.md "The lexicon".
  */
 class ImportSaldo extends Command
 {
-    protected $signature = 'lexicon:import-saldo {path : Path to saldom.xml}';
+    protected $signature = 'lexicon:import-saldo {path? : Path to saldom.xml} {--download : Download saldom.xml first, and delete it after the import}';
 
     protected $description = 'Import Swedish noun genders and verb forms from SALDO into the lexicon';
+
+    private const SOURCE = 'https://svn.spraakbanken.gu.se/sb-arkiv/pub/lmf/saldom/saldom.xml';
 
     private const CHUNK = 1000;
 
     public function handle(): int
     {
-        $path = $this->argument('path');
+        $download = $this->option('download');
+        $path = $download ? storage_path('app/saldom.xml') : $this->argument('path');
 
-        if (! is_file($path)) {
-            $this->error("No file at {$path}");
+        if ($download) {
+            $this->info('Downloading saldom.xml…');
+            Http::timeout(900)->sink($path)->get(self::SOURCE)->throw();
+        }
+
+        if (! $path || ! is_file($path)) {
+            $this->error($path ? "No file at {$path}" : 'Give the path to saldom.xml, or --download.');
 
             return self::FAILURE;
         }
@@ -64,6 +74,10 @@ class ImportSaldo extends Command
         });
 
         $reader->close();
+
+        if ($download) {
+            unlink($path);
+        }
 
         $this->info("Imported {$count} Swedish lexicon entries.");
 

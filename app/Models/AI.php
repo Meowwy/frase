@@ -140,8 +140,10 @@ class AI
     /**
      * CALL 1 of card creation, and the whole of what a capture pays for. It detects the
      * language, fixes the Term's spelling and extracts the Term's words as candidate base
-     * words. It writes no card content — that is CALL 2, which runs only once the proposal
-     * is approved, so nothing is spent generating content for a discarded proposal.
+     * words — just their lemma and part of speech, enough for staging to tell which the
+     * learner already has. It writes no card content and describes no word — that is CALL 2,
+     * which runs only once the proposal is approved and only for the words that are new, so
+     * nothing is spent on a discarded proposal or on a word the base already holds.
      *
      * `term` is produced HERE and passed INTO call 2 as an input, so "never swap the
      * learner's term" is structural rather than a prompt rule. It is the Term as typed with
@@ -152,14 +154,13 @@ class AI
      *
      * $candidateLanguages is the learner's own target (plus optionally native) set, as
      * [['code' => 'sv', 'name' => 'Swedish'], ...] — detection picks from it rather than
-     * from every language there is, and each one's guideline file steers the extraction
-     * for its own language (see App\Support\LanguageGuideline).
+     * from every language there is.
      *
      * Returns ['language' => string, 'other_languages' => [string, ...] (only offered with
      * two or more candidate languages), 'term' => string, 'senses' => [['part_of_speech',
      * 'gloss', 'translation'], ...], 'fixed_expressions' => [['form',
-     * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech', 'translation',
-     * <attributes>], ...]] or null on failure.
+     * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech'], ...]] or null on
+     * failure.
      *
      * @param  array<int, array{code:string, name:string}>  $candidateLanguages
      */
@@ -168,24 +169,11 @@ class AI
         logger('Analyzing term '.$term);
 
         $names = array_column($candidateLanguages, 'name');
-        $guidelines = array_filter(array_map(
-            fn ($language) => LanguageGuideline::for($language['code']),
-            $candidateLanguages
-        ));
-        $baseWordProperties = self::baseWordProperties($guidelines, $nativeLanguage);
 
         $system = "You are a vocabulary tutor reading a learner's Term before a flashcard is written for it. You do not write any card content here. You decide which language it is in, fix its spelling, and list which of the Term's own words are worth collecting as vocabulary. Never swap the Term for a different one and never change its form — you only correct spelling mistakes.";
 
         if (! is_null($context)) {
             $system .= ' The learner also supplied the context they met the Term in. It fixes WHICH sense or domain the Term is used in. It is NOT part of the Term: never take a word from the context into the Term or into the extracted words — "collateral" met in "collateral damage" must not contribute "damage" Context can also contain any other information for you.';
-        }
-
-        // Each language's own grammar rules, quoted from its guideline file, so the model
-        // tags the attributes that language actually has instead of guessing at a shared set.
-        foreach ($guidelines as $guideline) {
-            if ($note = $guideline->promptNote()) {
-                $system .= ' '.$note;
-            }
         }
 
         $user = "Term: \"{$term}\". The learner's languages: \"".implode('", "', $names).'".';
@@ -257,8 +245,18 @@ class AI
                     'description' => 'The Term\'s own words, one entry each, in the order the Term spells them. Take words ONLY from the term field above — never from the context. Skip a word that repeats one already listed. Skip a word that occurs in the Term only inside one of the fixed_expressions above — it is learnt as part of that whole. Never list an article (definite or indefinite, e.g. "the", "a", "an", "en", "ett", "der", "le").',
                     'items' => [
                         'type' => 'object',
-                        'properties' => $baseWordProperties,
-                        'required' => array_keys($baseWordProperties),
+                        'properties' => [
+                            'lemma' => [
+                                'type' => 'string',
+                                'description' => 'This word reduced to its lemma — the canonical dictionary spelling it would be looked up under (kostade => kosta, mice => mouse, broken => break). Deduplication happens on the lemma, so an inflected form here would split one vocabulary item in two.',
+                            ],
+                            'part_of_speech' => [
+                                'type' => 'string',
+                                'enum' => LanguageGuideline::PARTS_OF_SPEECH,
+                                'description' => 'This word\'s grammatical category, judged from the role it plays IN THE TERM — "run" in "go for a run" is a noun, in "run fast" a verb. It is part of the vocabulary entry\'s identity.',
+                            ],
+                        ],
+                        'required' => ['lemma', 'part_of_speech'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -268,19 +266,18 @@ class AI
     }
 
     /**
-     * The per-word schema for CALL 1's `base_words`, plus a `dictionary_form` when any of
-     * the learner's languages writes one and one property per grammatical attribute any of
-     * them defines.
+     * The per-word schema for CALL 2's `base_words`: the word's translation, and the
+     * `dictionary_form` and grammatical attributes named in $fields — only those some word
+     * still lacks after the lexicon (see WordDetails::fieldsToAsk()), so a word the dictionary
+     * fully answers costs a translation and nothing more.
      *
-     * The attributes have to be a UNION across the candidate languages: strict structured
-     * outputs need the schema up front, and which language the Term is in is something
-     * this same call decides. Each attribute's enum therefore carries an empty string for
-     * "this word's language and part of speech don't have this one", which is what the
-     * majority of words return.
+     * `lemma` and `part_of_speech` are echoed back, not decided, so the answer can be matched
+     * to the word it describes. An attribute's enum carries an empty string for "this word's
+     * part of speech doesn't have this one", which is what the majority of words return.
      *
-     * @param  array<int, LanguageGuideline>  $guidelines
+     * @param  array<int, string>  $fields
      */
-    private static function baseWordProperties(array $guidelines, ?string $nativeLanguage): array
+    private static function baseWordProperties(?LanguageGuideline $guideline, ?string $nativeLanguage, array $fields): array
     {
         $translationLanguage = $nativeLanguage
             ? "in {$nativeLanguage}"
@@ -289,39 +286,32 @@ class AI
         $properties = [
             'lemma' => [
                 'type' => 'string',
-                'description' => 'This word reduced to its lemma — the canonical dictionary spelling it would be looked up under (kostade => kosta, mice => mouse, broken => break). Deduplication happens on the lemma, so an inflected form here would split one vocabulary item in two.',
+                'description' => 'The listed lemma, exactly as listed.',
             ],
             'part_of_speech' => [
                 'type' => 'string',
                 'enum' => LanguageGuideline::PARTS_OF_SPEECH,
-                'description' => 'This word\'s grammatical category, judged from the role it plays IN THE TERM — "run" in "go for a run" is a noun, in "run fast" a verb. It is part of the vocabulary entry\'s identity.',
+                'description' => 'The listed part of speech, exactly as listed.',
             ],
             'translation' => [
                 'type' => 'string',
-                'description' => "The LEMMA's equivalent {$translationLanguage}, same part of speech: the word alone. At most 2 variants separated by \"; \". Translate the lemma, not the form the Term spells it in.",
+                'description' => "The LEMMA's equivalent {$translationLanguage}, same part of speech, in the sense the Term uses it: the word alone. At most 2 variants separated by \"; \". Translate the lemma, not the form the Term spells it in.",
             ],
         ];
 
-        // Only asked for when at least one of the learner's languages writes some part of
-        // speech in dictionary style, so an English-only learner's schema is unchanged.
-        if (array_filter($guidelines, fn (LanguageGuideline $g) => $g->usesDictionaryForms())) {
+        if (in_array('dictionary_form', $fields, true)) {
             $properties['dictionary_form'] = [
                 'type' => 'string',
-                'description' => 'The lemma written in the dictionary style of its own language, for the languages and parts of speech that have one — the exact format is given in the system message. Return an empty string for every other word, which is the normal answer.',
+                'description' => 'The lemma written in the dictionary style of its own language, for the parts of speech that have one — the exact format is given in the system message. Return an empty string for every other word and for a word marked "translation only", which is the normal answer.',
             ];
         }
 
-        foreach ($guidelines as $guideline) {
-            foreach ($guideline->allAttributes() as $name => $definition) {
-                $values = array_values(array_unique(array_merge(
-                    $properties[$name]['enum'] ?? [''],
-                    $definition['values'],
-                )));
-
+        foreach ($guideline?->allAttributes() ?? [] as $name => $definition) {
+            if (in_array($name, $fields, true)) {
                 $properties[$name] = [
                     'type' => 'string',
-                    'enum' => $values,
-                    'description' => "The word's \"{$name}\" attribute. Fill it in only when this word's own language and part of speech carry it, as explained in the system message; return an empty string otherwise, which is the normal answer for most words.",
+                    'enum' => ['', ...$definition['values']],
+                    'description' => "The word's \"{$name}\" attribute. Fill it in only when this word's part of speech carries it, as explained in the system message; return an empty string otherwise and for a word marked \"translation only\", which is the normal answer for most words.",
                 ];
             }
         }
@@ -330,34 +320,88 @@ class AI
     }
 
     /**
-     * CALL 2: the card's content, written around the Term CALL 1 settled. One generator
-     * for every Term, whether it is a single word, a phrase or a whole utterance — the
-     * Term is an input, never rewritten here. The translation is all it writes: a card has
-     * no other generated content, so a native-language card never gets here (see
-     * Card::generateContent()).
+     * CALL 2: the card's content, written around the Term CALL 1 settled, and the details of
+     * the Term's NEW words. One generator for every Term, whether it is a single word, a
+     * phrase or a whole utterance — the Term is an input, never rewritten here.
+     *
+     * It writes the Term's translation, unless $nativeLanguage is null (a native-language
+     * card has nothing to translate), and for each of $newWords — [['lemma',
+     * 'part_of_speech', 'ask' => [field, ...]], ...], the words CALL 1 found that are not in
+     * the learner's base yet — a translation, plus the dictionary form and grammar attributes
+     * named in its `ask`: what the lexicon couldn't answer for it. Words the base already
+     * has are not described again, and what the lexicon knows is not asked. Callers pass
+     * something to write (see Card::generateContent()).
+     *
+     * Returns ['translation' => string (unless native), 'base_words' => [['lemma',
+     * 'part_of_speech', 'translation', <attributes>], ...] (only with $newWords)] or null on
+     * failure.
      */
-    public static function generateCard(string $term, string $language, string $nativeLanguage, ?string $context = null): ?array
+    public static function generateCard(string $term, string $language, string $languageCode, ?string $nativeLanguage, ?string $context = null, array $newWords = []): ?array
     {
         logger('Generating a card for '.$term);
 
-        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term — a single word, a phrase or a whole utterance, exactly in the form the learner met it. The Term is already fixed and correctly spelled, so don't change it. Every field is about the WHOLE Term.";
+        $guideline = LanguageGuideline::for($languageCode);
+        $fields = array_values(array_unique(array_merge(...array_column($newWords, 'ask'))));
+
+        $system = "You are a vocabulary tutor writing one flashcard for a learner's Term — a single word, a phrase or a whole utterance, exactly in the form the learner met it. The Term is already fixed and correctly spelled, so don't change it.";
+
+        if (! is_null($nativeLanguage)) {
+            $system .= ' The translation is about the WHOLE Term.';
+        }
+
+        if ($newWords) {
+            $system .= ' The learner is also adding the listed words from the Term to their vocabulary. Each word\'s lemma and part of speech are already settled: describe exactly those, one entry per word in the listed order, and never add, drop or change one.';
+
+            // The language's own grammar rules, quoted from its guideline file, so the model
+            // fills in the attributes that language actually has instead of guessing at them —
+            // but only when there is something of that kind left to ask.
+            if ($fields && ($note = $guideline?->promptNote())) {
+                $system .= ' '.$note;
+            }
+        }
 
         if (! is_null($context)) {
             $system .= ' The context the learner supplied fixes WHICH sense, domain or situation this card is about, so every field must reflect ONLY that. The context might be in target, native language or in English. Context can also have any other information for you.';
         }
 
-        $user = "Term: \"{$term}\". Target language: \"{$language}\". Native language: \"{$nativeLanguage}\".";
+        $user = is_null($nativeLanguage)
+            ? "Term: \"{$term}\". Language: \"{$language}\"."
+            : "Term: \"{$term}\". Target language: \"{$language}\". Native language: \"{$nativeLanguage}\".";
         if (! is_null($context)) {
             $user .= " Context: \"{$context}\".";
         }
-
-        $translation = "The natural equivalent of the WHOLE Term in {$nativeLanguage}, exactly as typed — keep its inflection (tense, number, person), so a past-tense Term gets a past-tense translation. What a native speaker would really say for the same thing, never a word-by-word rendering. At most 2 variants separated by \"; \". Never an explanation.";
-
-        if (! is_null($context)) {
-            $translation .= ' In the meaning it has in the supplied context.';
+        if ($newWords) {
+            // A word with nothing left to ask is marked, so the model doesn't fill in what
+            // the dictionary already settled.
+            $user .= ' Words: '.implode('; ', array_map(fn (array $word) => "\"{$word['lemma']}\" ({$word['part_of_speech']}".($fields && ! $word['ask'] ? '; translation only' : '').')', $newWords)).'.';
         }
 
-        $properties = ['translation' => ['type' => 'string', 'description' => $translation]];
+        $properties = [];
+
+        if (! is_null($nativeLanguage)) {
+            $translation = "The natural equivalent of the WHOLE Term in {$nativeLanguage}, exactly as typed — keep its inflection (tense, number, person), so a past-tense Term gets a past-tense translation. What a native speaker would really say for the same thing, never a word-by-word rendering. At most 2 variants separated by \"; \". Never an explanation.";
+
+            if (! is_null($context)) {
+                $translation .= ' In the meaning it has in the supplied context.';
+            }
+
+            $properties['translation'] = ['type' => 'string', 'description' => $translation];
+        }
+
+        if ($newWords) {
+            $wordProperties = self::baseWordProperties($guideline, $nativeLanguage, $fields);
+
+            $properties['base_words'] = [
+                'type' => 'array',
+                'description' => 'One entry for each listed word, in the listed order.',
+                'items' => [
+                    'type' => 'object',
+                    'properties' => $wordProperties,
+                    'required' => array_keys($wordProperties),
+                    'additionalProperties' => false,
+                ],
+            ];
+        }
 
         return self::requestCardJson(
             [

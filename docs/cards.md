@@ -69,7 +69,7 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `part_of_speech` | enum (`noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `determiner`, `numeral`, `interjection`), not nullable — part of the dedup key, not a revisable property. *run* the verb and *run* the noun are two rows |
 | `dictionary_form` | nullable string — the lemma as that language's dictionaries write it, for the parts of speech whose guideline asks for one (Swedish `verb` → `komm|a -er`); null everywhere else, which is most words. Stored rather than computed from the lemma, because where a verb's stem ends and which present-tense ending it takes are facts about that one verb — unlike a noun's *en*/*ett*, which follows from `grammar_attributes`. Taken from the lexicon where it knows the verb (see "The lexicon" below). **Not** part of the dedup key: `komma` is one entry |
 | `grammar_attributes` | nullable JSON (`array` cast) — the extra grammatical facts this language's guideline defines for this part of speech (e.g. Swedish noun `{"gender": "neuter"}`); null for a part-of-speech/language pair with nothing to say. See [ai-integration](ai-integration.md) "Language guidelines". **Not** named plain `attributes`: that collides with Eloquent's own internal attribute bag, which would make the column unreadable as `$this->attributes` from inside the model |
-| `translation` | set once at creation from CALL 1, never revised — sense lives on cards, not here |
+| `translation` | set once at creation from CALL 2 (at the card's approval), never revised — sense lives on cards, not here |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
 | `frammenti_level`, `frammenti_due_on` | the Frammenti schedule, defaulting to level 0 and due (no due date) — see [frammenti](frammenti.md) |
 | `deleted` | boolean — set by deleting the entry from `/base`; see "Deleting an entry" below |
@@ -279,21 +279,31 @@ because homographs are separate rows.
 
 **Why it exists:** a Swedish noun's *en*/*ett* and a verb's *komm|a -er* are fixed facts about the
 word, not something to tailor — so they should come out the same every time, not be the model's
-guess. `AnalyzeProposalJob` looks every candidate up (**`App\Support\Lexicon::lookup()`**, one
-query per proposal) after CALL 1 returns, and where the lexicon knows the word its value wins:
+guess — and, since it costs no tokens, **it is used as far as it goes and the AI is asked only for
+what it can't answer**. It is looked up twice, one query each (**`App\Support\Lexicon::lookup()`**):
+at capture, `AnalyzeProposalJob` uses only the values that are certain, to label the staging chip
+(*ett hus*); at approval, `Card::generateContent()` looks up the new words, `WordDetails::fieldsToAsk()`
+drops from CALL 2's questions every field the lexicon answers with one value (see
+[ai-integration](ai-integration.md) "Call 2"), and `WordDetails::forNewWords()` stores the lexicon's
+value wherever it has one — over CALL 2's, should the model have answered anyway:
 
 - **Homographs** (*ett plan* the plane, *en plan* the plan): the lexicon can't tell senses apart,
-  CALL 1 can — so CALL 1's answer is kept **only if it is one of the lexicon's values**, else the
-  first one is used. The model picks the sense; it can never invent a value.
+  CALL 2 can — so its answer is kept **only if it is one of the lexicon's values**, else the
+  first one is used. The model picks the sense; it can never invent a value. A chip stays the
+  bare lemma until then.
 - **Compounds** the lexicon doesn't list fall back to their longest known last element (*sommarhus*
   → *hus* → *ett*): a Swedish compound always takes its last element's gender.
 - **A word it doesn't know at all**, a noun SALDO allows either article for, and every language
-  with no rows keep CALL 1's answer exactly as before.
+  with no rows keep CALL 2's answer exactly as before.
 
 **Source — Swedish only, from SALDO's morphology** (Språkbanken, University of Gothenburg,
 [CC BY 4.0](https://sprakbanken.se/en/resources/saldom)). Download `saldom.xml` (~250 MB, never
 committed) from `https://svn.spraakbanken.gu.se/sb-arkiv/pub/lmf/saldom/saldom.xml` and run
-`php artisan lexicon:import-saldo <path>` (~20 s; re-running replaces the Swedish rows). It keeps
+`php artisan lexicon:import-saldo <path>` (~20 s; re-running replaces the Swedish rows). `--download`
+fetches the file itself into `storage/app` and deletes it after the import — how it is loaded on
+Fly, where the 250 MB file would otherwise have to be uploaded:
+`fly ssh console -C "php /var/www/html/artisan lexicon:import-saldo --download"` (once; the table lives
+on the `storage_dir` volume's database, so it survives deploys). It keeps
 ~83k nouns and ~8k verbs; multiword entries (*komma ihåg*) are skipped for now.
 
 - **Gender** is the last letter of SALDO's inflection class: `nn_6n_hus` → `neuter`,
@@ -333,7 +343,12 @@ each row's group is derived live (above).
 | Column | Notes |
 |---|---|
 | `proposal_id` | |
-| `lemma`, `part_of_speech`, `dictionary_form`, `grammar_attributes`, `translation` | carried straight onto `base_words`/`card_base_word` at approval |
+| `lemma`, `part_of_speech` | what CALL 1 names; carried onto `base_words` at approval |
+| `dictionary_form`, `grammar_attributes` | **display only**: set at capture from the lexicon where it knows the word for certain (one value, no homograph), so a Swedish chip reads *ett hus*; null otherwise, and the chip is the bare lemma. Never carried onto the entry — CALL 2 and the lexicon decide those at approval |
+
+A candidate has no translation any more: CALL 1 only names the words, and describing them waits for
+approval, when it is paid for only the words the base lacks (see [ai-integration](ai-integration.md)
+"Why two calls").
 
 `known_words` — what the learner has struck, per learner and language: `user_id`, `language_id`,
 `lemma`, `part_of_speech`, unique on all four. Striking a new chip inserts a row; un-knowing deletes
@@ -345,7 +360,8 @@ expression is never remembered as known. Each chip is either **already present**
 `fixed_expressions` on form, case-insensitively, via `Proposal::expressionPresenceIndex()` — one
 query per list: green-bordered, not strikeable, linked) or **new** (strikeable; created unless struck).
 
-**`Proposal::approve()`** resolves the `base_words` rows for every candidate that isn't known
+**`Proposal::approve()`** first works out which linked candidates are new to the base and has CALL 2
+describe exactly those, then resolves the `base_words` rows for every candidate that isn't known
 (reusing an existing one per the check above) and first-or-creates the `fixed_expressions` row for
 every fixed expression that isn't struck (an already-present one is linked even if it was struck
 before it entered the base), writes the card and its `card_base_word` / `card_fixed_expression`
@@ -486,7 +502,7 @@ There are still **two** ways a card gets created — one AI-assisted, one manual
   This entry point has no nav link (reach it directly at `/add`) but is a real, working path.
 
 `Card::generateContent()` is CALL 2 without a write (`AI::generateCard`, plus the native-language
-and CEFR resolution), and `Card::persist()` maps its answer onto the columns and dispatches
+resolution and `WordDetails`), and `Card::persist()` maps its answer onto the columns and dispatches
 `GenerateEmbeddingJob` (see [search-and-linking](search-and-linking.md)), leaving `theme_id` null
 (the AI no longer assigns a theme at capture time — see
 [wordboxes-themes-tags](wordboxes-themes-tags.md)). Both are public because `Proposal::approve()`

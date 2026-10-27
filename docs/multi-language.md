@@ -49,8 +49,8 @@ specifically:
   in the pivot and strips native out of the table data before passing it to the view;
   `UserController@update` re-adds native to the sync set when the box is checked.
 - `Card::nativeLanguageFor()` returns `null` when the card's language **is** the user's native
-  language, which is the flag every CALL 2 generator reads to write a monolingual card (no AI call at all: it has no translation to write). That is the only other generation-time special-casing.
-  Its effect reaches CALL 1 too: with no native language to translate into, a base word's
+  language, which is the flag every CALL 2 generator reads to write a monolingual card (no translation of the Term; with no new words either, no AI call at all). That is the only other generation-time special-casing.
+  Its effect reaches the new words too: with no native language to translate into, a base word's
   `translation` is asked for as a short same-language gloss instead.
 
 ### `/profile/edit` (`UserController@edit`/`@update`)

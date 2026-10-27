@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\LexiconEntry;
 use App\Support\Lexicon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
@@ -69,5 +70,24 @@ class LexiconImportTest extends TestCase
         $this->assertSame('komm|a -er', LexiconEntry::where('lemma', 'komma')->sole()->dictionary_form);
 
         unlink($path);
+    }
+
+    public function test_download_fetches_the_file_imports_it_and_cleans_up(): void
+    {
+        Http::fake(['svn.spraakbanken.gu.se/*' => Http::response('<LexicalResource><Lexicon>
+            <LexicalEntry><Lemma><FormRepresentation>
+              <feat att="writtenForm" val="hus"/><feat att="partOfSpeech" val="nn"/><feat att="paradigm" val="nn_6n_system"/>
+            </FormRepresentation></Lemma></LexicalEntry>
+            </Lexicon></LexicalResource>')]);
+
+        $this->artisan('lexicon:import-saldo', ['--download' => true])->assertSuccessful();
+
+        $this->assertSame('neuter', LexiconEntry::where('lemma', 'hus')->sole()->gender);
+        $this->assertFileDoesNotExist(storage_path('app/saldom.xml'));
+    }
+
+    public function test_the_import_needs_a_path_or_download(): void
+    {
+        $this->artisan('lexicon:import-saldo')->assertFailed();
     }
 }

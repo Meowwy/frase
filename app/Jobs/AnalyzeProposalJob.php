@@ -7,6 +7,7 @@ use App\Models\Language;
 use App\Models\Proposal;
 use App\Support\LanguageGuideline;
 use App\Support\Lexicon;
+use App\Support\WordDetails;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Queue\Queueable;
@@ -159,17 +160,16 @@ class AnalyzeProposalJob implements ShouldQueue
         foreach ($candidates as $candidate) {
             $lemma = trim((string) $candidate['lemma']);
             $partOfSpeech = $candidate['part_of_speech'];
-            $key = mb_strtolower($lemma).'|'.$partOfSpeech;
+            $key = WordDetails::lexiconKey($lemma, $partOfSpeech);
+
+            // A chip reads "ett hus" where the lexicon knows the word for sure; any other
+            // word shows its bare lemma until approval, when CALL 2 describes it.
+            $sure = array_map(fn (array $options) => count($options) === 1 ? $options : [], $lexicon[$key] ?? []);
 
             // One chip per lemma + part of speech: the card/base-word link is unique per
             // pair, so a Term that repeats a word must not propose it twice.
-            $clean[$key] ??= [
-                'lemma' => $lemma,
-                'part_of_speech' => $partOfSpeech,
-                'grammar_attributes' => $this->grammarAttributes($guideline, $partOfSpeech, $candidate, $lexicon[$key] ?? []),
-                'dictionary_form' => $this->dictionaryForm($guideline, $partOfSpeech, $candidate, $lexicon[$key] ?? []),
-                'translation' => trim((string) ($candidate['translation'] ?? '')),
-            ];
+            $clean[$key] ??= ['lemma' => $lemma, 'part_of_speech' => $partOfSpeech]
+                + WordDetails::grammar($guideline, $partOfSpeech, [], $sure);
         }
 
         foreach ($this->applyProficiencyFilter($clean, $level) as $candidate) {
@@ -216,60 +216,5 @@ class AnalyzeProposalJob implements ShouldQueue
             $candidates,
             fn ($candidate) => ! in_array($candidate['part_of_speech'], LanguageGuideline::FUNCTION_WORD_PARTS, true)
         );
-    }
-
-    /**
-     * The dictionary-style form, kept only when this language writes this part of speech
-     * that way. CALL 1's schema carries the property across the learner's languages, so a
-     * Swedish verb's "komm|a -er" can come back on an English verb — dropping it here is
-     * what keeps a language without the convention showing plain lemmas.
-     */
-    private function dictionaryForm(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate, array $lexicon): ?string
-    {
-        if (! $guideline?->wantsDictionaryForm($partOfSpeech)) {
-            return null;
-        }
-
-        return $this->preferLexicon(trim((string) ($candidate['dictionary_form'] ?? '')), $lexicon['dictionary_form'] ?? []) ?: null;
-    }
-
-    /**
-     * The lexicon's value wherever it knows the word; CALL 1's answer only as a fallback
-     * for a word it doesn't, or as the tie-break between homographs ("ett plan" the plane,
-     * "en plan" the plan) — the model knows which sense the Term means, but may only pick
-     * one of the values the dictionary allows. See docs/cards.md "The lexicon".
-     */
-    private function preferLexicon(string $answer, array $options): string
-    {
-        if ($options === [] || in_array($answer, $options, true)) {
-            return $answer;
-        }
-
-        return $options[0];
-    }
-
-    /**
-     * Keep only the attributes this language's guideline actually defines for this part of
-     * speech. CALL 1's schema carries the union across the learner's languages (it decides
-     * the language in the same answer), so a Swedish `gender` can come back on an English
-     * noun — discarding it here is what keeps the stored attributes truthful.
-     */
-    private function grammarAttributes(?LanguageGuideline $guideline, string $partOfSpeech, array $candidate, array $lexicon): ?array
-    {
-        if (! $guideline) {
-            return null;
-        }
-
-        $attributes = [];
-
-        foreach ($guideline->attributesFor($partOfSpeech) as $name => $definition) {
-            $value = $this->preferLexicon((string) ($candidate[$name] ?? ''), $lexicon[$name] ?? []);
-
-            if (in_array($value, $definition['values'], true)) {
-                $attributes[$name] = $value;
-            }
-        }
-
-        return $attributes ?: null;
     }
 }

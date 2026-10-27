@@ -206,10 +206,11 @@ question: **does it depend only on source code, or on the environment it runs in
 
 ## Known rough edges (don't be surprised by these)
 
-- **The Swedish lexicon has to be imported by hand, and production has none yet.** `lexicon_entries`
-  is filled by `php artisan lexicon:import-saldo <path-to-saldom.xml>` (see
+- **The Swedish lexicon has to be imported by hand, and production has none until someone does.**
+  `lexicon_entries` is filled by `php artisan lexicon:import-saldo <path-to-saldom.xml>` or, on a
+  machine with no file, `lexicon:import-saldo --download` (see
   [cards](cards.md) "The lexicon"); a fresh database — and the Fly machine — has it empty. Nothing
-  breaks: Swedish then simply falls back to CALL 1's answers for gender and verb forms.
+  breaks: Swedish then simply falls back to CALL 2's answers for gender and verb forms, and its staging chips read the bare lemma (*hus*, not *ett hus*) until approval.
 
 - `RegisteredUserController@store` still validates against the legacy free-text
   `targetLanguage`/`nativeLanguage`/`code` fields (there's a hardcoded invite `code` = `delina`)

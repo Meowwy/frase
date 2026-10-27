@@ -45,12 +45,20 @@ fixed.
 
 ## Why two calls
 
-Card creation is **two calls**: `AI::analyzeTerm` (CALL 1) fixes the Term and extracts its base
-words at capture, and `AI::generateCard` (CALL 2) writes the card's content. The split exists so
-that **CALL 2 runs only at approval**, not right after CALL 1. Capture is CALL 1 alone — cheap, and
-the only thing standing between the learner and staging — while CALL 2's cost is paid only for
-proposals the learner actually keeps. A single-call design couldn't defer content generation like
-this at all.
+Card creation is **two calls**: `AI::analyzeTerm` (CALL 1) fixes the Term and names its base
+words at capture, and `AI::generateCard` (CALL 2) writes the card's translation and describes the
+words that are new to the learner. The split exists so that **CALL 2 runs only at approval**, not
+right after CALL 1. Capture is CALL 1 alone — cheap, and the only thing standing between the
+learner and staging — while CALL 2's cost is paid only for proposals the learner actually keeps. A
+single-call design couldn't defer content generation like this at all.
+
+**CALL 1 names the words and does not describe them.** A word is only a `{lemma, part_of_speech}`
+there: enough for staging to tell, with a database lookup, which the learner already has (see
+[cards](cards.md) "Staging"). Its translation, dictionary form and grammar attributes are
+CALL 2's job, and CALL 2 is asked only for the words the base lacks — a word already in the base
+keeps the details it was saved with, so describing it again would be paid for and thrown away. The
+language is settled by then, so CALL 2's schema also carries just that one language's attributes
+rather than the union CALL 1 would have needed.
 
 The other payoff is prompt rule #1 above: `term` is an **input** to the content call, so "never
 swap the learner's term" is guaranteed by construction rather than by instruction.
@@ -78,7 +86,7 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   term,
   senses: [{part_of_speech, gloss, translation}, ...],
   fixed_expressions: [{form, translation}, ...],
-  base_words: [{lemma, part_of_speech, translation, <attributes…>}, ...],
+  base_words: [{lemma, part_of_speech}, ...],
 }
 ```
 
@@ -140,7 +148,7 @@ Retired: **`word`** (no focus word to spell), **`submitted_form`** (its only con
 ### Language guidelines
 
 `resources/language-guidelines/` holds one PHP file per language code (`en.php`, `sv.php`, …),
-consulted by `AI::analyzeTerm`'s prompt builder when it extracts `base_words` for that language.
+consulted by `AI::generateCard`'s prompt builder when it describes the new `base_words` of that language.
 Each file declares, for the language it covers:
 
 - which parts of speech the language uses (a subset of the shared enum — see [cards](cards.md));
@@ -162,40 +170,56 @@ can do this from general knowledge), just no attributes and no dictionary form �
 
 **`App\Support\LanguageGuideline`** is the only reader. It is a plain class, not an Eloquent model
 — there is no row behind it — and besides the raw lookups it owns: `promptNote()` (the language-wide
-note plus one per attribute plus the dictionary-form rule, concatenated for CALL 1's system
-message), `allAttributes()` (the union used to build CALL 1's schema, above),
+note plus one per attribute plus the dictionary-form rule, concatenated for CALL 2's system
+message), `allAttributes()` (used to build CALL 2's word schema),
 `wantsDictionaryForm($partOfSpeech)` / `usesDictionaryForms()` (the per-part-of-speech and
-whole-language forms of the same question — the first filters CALL 1's answer in
-`AnalyzeProposalJob`, the second decides whether the schema carries the property at all), and
+whole-language forms of the same question — the first filters CALL 2's answer in
+`WordDetails`, the second decides whether the schema carries the property at all), and
 `displayForm()`, which turns `{lemma, part_of_speech, grammar_attributes, dictionary_form}` into
 what the learner actually sees (*"ett hus"*, *"komm|a -er"*; a stored dictionary form stands in for
 the lemma and the article prefixes still apply around it). `BaseWord::displayForm()` and
 `ProposalBaseWord::displayForm()` are thin wrappers over that last one, so staging chips, the
 vocabulary base and Frammenti can never disagree about how a word is spelled.
 
-Both the attribute properties and `dictionary_form` reach CALL 1's `base_words` schema as a **union
-across the learner's languages** — the call decides the language in the same answer, so the schema
-cannot be narrowed to one guideline up front. A Swedish verb's dictionary form can therefore come
-back on an English verb, which is why `AnalyzeProposalJob` discards any value the *detected*
-language's guideline does not ask for.
+The attribute properties and `dictionary_form` are part of **CALL 2's** `base_words` schema, built
+from the one guideline of the card's language (`AI::baseWordProperties()`), and the language's
+prose note is quoted in CALL 2's system message only when there are new words to describe. CALL 1
+quotes no guideline at all: it names lemmas and parts of speech, which need none of it. An answer
+for a part of speech the guideline doesn't define the attribute or dictionary form for (a verb's
+`komm|a -er` on a noun) is still discarded (`WordDetails::grammar()`).
 
-**For Swedish, CALL 1's attribute and dictionary-form answers are only a fallback.** Where the
-lexicon (a downloaded dictionary — see [cards](cards.md) "The lexicon") knows the word, its value
-wins; the model's answer survives only for a word the lexicon lacks, or as the tie-break between
-homographs, where it may pick only among the values the lexicon allows. The prompt and schema are
-unchanged — the model still has to answer, because it is that fallback and that tie-break. A
-language with no lexicon rows keeps the AI-only path as it was.
+**For Swedish, the lexicon comes first and the model only fills the gaps.** Where the lexicon (a
+downloaded dictionary — see [cards](cards.md) "The lexicon") knows the word with a single value,
+that value is stored and CALL 2 is not even asked for it. The model's answer is used only for a
+word the lexicon lacks, or as the tie-break between homographs, where it may pick only among the
+values the lexicon allows. A language with no lexicon rows keeps the AI-only path as it was.
 
-### Call 2 — `AI::generateCard($term, $language, $nativeLanguage, $context): ?array`
+### Call 2 — `AI::generateCard($term, $language, $languageCode, $nativeLanguage, $context, $newWords): ?array`
 
 Runs only once the proposal is **approved** — see [cards](cards.md) "Staging". `Card::generateContent()`
-resolves the native language and calls it; `Card::regenerate()` re-runs it alone, since a
-card already carries everything call 1 would decide (see [cards](cards.md) "Regenerate"). The
-schema has one field, for every Term:
+resolves the native language and calls it; `Card::regenerate()` re-runs it alone (with no new
+words), since a card already carries everything call 1 would decide (see [cards](cards.md)
+"Regenerate"). One schema for every Term:
 
 | Field | Rule |
 |---|---|
-| `translation` | a natural equivalent of the Term **as typed**, inflection included (a past-tense Term gets a past-tense translation — Translation mode asks for exactly that form), never word-by-word, ≤2 variants separated by `; ` |
+| `translation` | a natural equivalent of the Term **as typed**, inflection included (a past-tense Term gets a past-tense translation — Translation mode asks for exactly that form), never word-by-word, ≤2 variants separated by `; `. Left out for a native-language card |
+| `base_words` | only when `$newWords` is non-empty: one entry per new word, in the listed order, `lemma` and `part_of_speech` echoed back (the lemma and part of speech are CALL 1's, settled; the echo is only how the answer is matched to the word), then `translation` (the lemma's equivalent in the sense the Term uses it, ≤2 variants), `dictionary_form` and the language's attributes |
+
+`$newWords` is the proposal's linked candidates the base doesn't hold — `Proposal::approve()` works
+it out from the presence index, so a known or already-present word is never described. Each word
+carries an `ask` list: the dictionary form and grammar attributes its language defines for its part
+of speech, **minus every one the lexicon answers with a single value** (`WordDetails::fieldsToAsk()`).
+The schema holds only the fields some word still lacks, a word with an empty `ask` is marked
+*translation only* in the user message, and the language's prose note is quoted only when any field
+is left — so a Swedish noun or verb the lexicon lists once costs a translation and nothing more,
+and a Term whose new words are all such (or are adverbs, prepositions…) carries no grammar
+vocabulary in the prompt at all. A homograph (two values), a word the lexicon lacks, and a language
+with no lexicon rows are asked as before. `WordDetails::forNewWords()` reads the answer: it matches each word by lemma and part of speech,
+lets the lexicon override the grammar, and returns null when the model left a word out or gave it
+no translation, which fails the approval (a retry, like any CALL 2 failure) rather than saving an
+entry with nothing to show. A deleted base word still counts as new, as it does in staging, so its
+description is paid for and ignored when approval revives the row.
 
 **There used to be a second field, `definition`** (what the Term means, written in the native or
 target language by CEFR level, with a guard against the model swapping it with the translation).
@@ -203,9 +227,10 @@ It was dropped because nothing needed it any more — the Definitions learning m
 and every token of it was paid on every approval. `cards.definition` stays in the schema, `''` on
 new cards, and is shown nowhere; don't bring the field back without a screen that uses it.
 
-**A monolingual native-language card has nothing to generate**: with no translation and no
-definition, `Card::generateContent()` returns `[]` without calling the AI (`nativeLanguageFor()`
-is `null`). `$context === null` drops the sense-fixing clauses.
+**A monolingual native-language card has no translation to write**: it gets no `translation`
+field, and its words are glossed in their own language (`nativeLanguageFor()` is `null`). With no
+new words either, `Card::generateContent()` returns `[]` without calling the AI.
+`$context === null` drops the sense-fixing clauses.
 
 Both calls go through one private `requestCardJson()` helper, which checks `successful()` and `refusal`, logs,
 and returns a **decoded array** or `null`.
@@ -260,7 +285,7 @@ lemma — the display form as "dictionary entry" (*ett hus*, *komm|a -er*), then
   words, only really basic everyday words in short sentences, and up to 30 random other words of
   the learner's base in that language (`lemma (translation)`, not the gap words) that the model
   prefers wherever they fit, written as plain text. From B1 up there is no such list.
-- It does **not** quote `LanguageGuideline::promptNote()`: those notes tell CALL 1 how to tag and
+- It does **not** quote `LanguageGuideline::promptNote()`: those notes tell CALL 2 how to tag and
   write a base word (dictionary style with its `|`, "tag it as common or neuter") and would bleed
   into the story. The display form and attributes already carry what the model needs.
 
