@@ -84,6 +84,27 @@ class Lexicon
     }
 
     /**
+     * What is loaded, per language code: how many nouns (and how many of those have a gender)
+     * and verbs (with a dictionary form). A language with no rows is simply absent. For the
+     * status page.
+     *
+     * @return Collection<string, array{nouns: int, genders: int, verbs: int, forms: int}>
+     */
+    public static function summary(): Collection
+    {
+        return LexiconEntry::selectRaw('language_code, part_of_speech, count(*) as total, count(gender) as genders, count(dictionary_form) as forms')
+            ->groupBy('language_code', 'part_of_speech')
+            ->get()
+            ->groupBy('language_code')
+            ->map(fn (Collection $rows) => [
+                'nouns' => (int) $rows->firstWhere('part_of_speech', 'noun')?->total,
+                'genders' => (int) $rows->firstWhere('part_of_speech', 'noun')?->genders,
+                'verbs' => (int) $rows->firstWhere('part_of_speech', 'verb')?->total,
+                'forms' => (int) $rows->firstWhere('part_of_speech', 'verb')?->forms,
+            ]);
+    }
+
+    /**
      * A Swedish verb's dictionary form ("komm|a -er") from its infinitive and present
      * tense — the rule resources/language-guidelines/sv.php states for CALL 1, applied
      * here to the dictionary's own present form so it no longer depends on the model.

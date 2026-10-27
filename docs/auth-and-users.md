@@ -49,6 +49,13 @@ The account landing page: the user's themes, a short preview (up to 5) of their 
 (`$user->languages()->get(['languages.id', 'flag'])`) for a quick-glance language row. It links
 to `/profile/edit` and the wordbox ordering page. [Frammenti](frammenti.md) has no settings.
 
+## `/profile/status` (`StatusController`)
+
+A "System status" button on `/profile` opens a small page for answering "why isn't this working" without reading logs. It has two panels, open to any signed-in user (the app is invite-only, and nothing on it is secret):
+
+- **OpenAI** — the page renders first and then asks `GET /profile/status/openai` (JSON `{ok, message}`), which runs `AI::checkConnection()`: a `GET /v1/models/{model}` of the app's own chat model. OpenAI has no dedicated health endpoint, and this one is free (no tokens), needs the key, and so proves reachability, a valid key and that the model exists in one request, with a 5-second timeout. It names the failure: no key set, unreachable, key rejected (401), model unavailable (404), or the status it answered with.
+- **Lexicon** — per language the learner studies (and any other with rows): *Ready* with the number of nouns (and how many have a gender) and verbs (and how many have a dictionary form), from `Lexicon::summary()`, or *Not loaded*, meaning the AI answers that language's grammar. Only Swedish has an importer; see [cards](cards.md) "The lexicon".
+
 ## `/profile/edit`
 
 Covered in full in [multi-language](multi-language.md) (native-language picker, native-save checkbox, up-to-5

@@ -5,9 +5,12 @@
 {{--        <p class="text-lg">You can generate {{Auth::user()->currency_amount}} more cards.</p>--}}
         <p class="text-lg">The app is for invited people only. You can generate unlimited number of cards.</p>
     </div>
-    <div class="mt-3">
+    <div class="mt-3 flex flex-wrap gap-2">
         <a href="/profile/edit">
             <x-forms.button>Edit profile</x-forms.button>
+        </a>
+        <a href="{{ route('status') }}">
+            <x-forms.button>System status</x-forms.button>
         </a>
     </div>
 

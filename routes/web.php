@@ -11,6 +11,7 @@ use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\StatusController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\UserController;
@@ -98,6 +99,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile/wordboxes', [UserController::class, 'wordboxesOrder'])->name('wordboxes.order');
     Route::post('/profile/wordboxes', [UserController::class, 'updateWordboxesOrder'])->name('wordboxes.order.update');
     Route::post('/profile/timezone', [UserController::class, 'timezone']);
+    Route::get('/profile/status', [StatusController::class, 'index'])->name('status');
+    Route::get('/profile/status/openai', [StatusController::class, 'openai'])->name('status.openai');
 
     Route::get('/learning', function () {
         return view('learning.index');

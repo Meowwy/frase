@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\LanguageGuideline;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -56,6 +57,32 @@ class AI
         }
 
         return " The learner is CEFR level {$level}: {$description} Every word and structure around the term must stay at this level; the term itself may be harder. This caps difficulty, not length — never write less than a field asks for.";
+    }
+
+    /**
+     * Whether OpenAI answers, accepts the key and has the chat model: a GET of the model's own
+     * record, which spends no tokens (unlike a completion). For the status page.
+     *
+     * @return array{ok: bool, message: string}
+     */
+    public static function checkConnection(): array
+    {
+        if (blank(config('services.openai.secret'))) {
+            return ['ok' => false, 'message' => 'No API key is set (OPENAI_SECRET).'];
+        }
+
+        try {
+            $response = Http::timeout(5)->withToken(config('services.openai.secret'))->get('https://api.openai.com/v1/models/'.self::MODEL);
+        } catch (ConnectionException) {
+            return ['ok' => false, 'message' => 'OpenAI could not be reached.'];
+        }
+
+        return match (true) {
+            $response->successful() => ['ok' => true, 'message' => 'Reachable, the key is accepted and the model '.self::MODEL.' is available.'],
+            $response->status() === 401 => ['ok' => false, 'message' => 'OpenAI rejected the API key.'],
+            $response->status() === 404 => ['ok' => false, 'message' => 'Reachable, but the model '.self::MODEL.' is not available to this key.'],
+            default => ['ok' => false, 'message' => 'OpenAI answered with status '.$response->status().'.'],
+        };
     }
 
     public static function getEmbedding(string $text): ?array
