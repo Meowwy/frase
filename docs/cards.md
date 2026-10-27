@@ -49,7 +49,7 @@ word/phrase split inside a Term — `translation` and `definition` are always ab
 - **`Card::baseWords()`** — `belongsToMany(BaseWord::class, 'card_base_word')`,
   the card's linked vocabulary-base entries. See "The vocabulary base" below.
 
-Relations: `user()`, `theme()`, `language()`, `wordbox()` (belongs-to-many via `wordbox_card`),
+Relations: `user()`, `theme()`, `language()`,
 `tag()` (has-many — see note in [wordboxes-themes-tags](wordboxes-themes-tags.md) about `Tag`'s actual relation shape),
 `synonyms()` / `relatedTerms()` (see [search-and-linking](search-and-linking.md)), and `linkedCards()` — the
 user-manual link relation, see below. `scopeForLanguage($query, $languageId)` is the standard
@@ -155,7 +155,10 @@ Gap-fill. They are shown on the card detail page and in the `/base` list, alongs
 
 One list of both bases — base words and fixed expressions — in **one table, not one per base**:
 both are learnt the same way (no card schedule, coverage, Frammenti), so the learner shouldn't have to
-think about which table an entry lives in. The controller `UNION ALL`s the two (`kind`, `id`,
+think about which table an entry lives in. The table is built by the `ListsBaseEntries` controller
+trait (`baseTable()`) and rendered by `base/_table` (with `base/_rows` and `base/_panel`), because
+a wordbox's page lists its words in the very same table — base words only, its own language (see
+[wordboxes-themes-tags](wordboxes-themes-tags.md)). It `UNION ALL`s the two (`kind`, `id`,
 `lower(lemma|form)` as `sort_key` — `lower()` matching the expressions' NOCASE `form` — and
 `part_of_speech`, the literal `expression` for expressions, which have none), sorts by `sort_key`,
 `kind`, `id`, paginates, then hydrates that page's models. `FixedExpression::displayForm()` (just
@@ -177,7 +180,7 @@ shows at a time**. With nothing checked, tapping a row opens its panel as a **de
 the tab bar, capped at 55dvh and scrolling inside, closed by its handle or X, or by tapping that
 row again, which also deselects it (the script toggles `max-lg:hidden` on `#baseSide`). Checking a
 row closes the sheet: checked rows get **no panels** there, only a one-row **action bar** above
-the tab bar (`#baseActionBar`: count, **Mark synonyms**, **Delete**, clear) that never grows and
+the tab bar (`#baseActionBar`: count, **Mark synonyms**, the wordbox action, **Delete**, clear) that never grows and
 goes when the last check is cleared. While it shows, tapping a row checks or unchecks it rather
 than opening the sheet, so a selection is built by tapping. A spacer under the list keeps its last
 rows reachable. The table stacks into a list (see the responsive
@@ -189,6 +192,11 @@ The column headers are live filters, the same way as on `/cards`: search inputs 
 the parts of speech that language's base has — plus `expression` when it has any. An AJAX request to `/base` returns just the
 rows (`base/_rows`) and the pagination, which the panel script swaps in. Its empty row's
 `colspan="5"` has to be kept in step with the columns.
+
+Checked rows can be added to a wordbox of the page's language — a select in the checked-rows bar
+(desktop) and the action bar (mobile), offering that language's wordboxes; checked expressions are
+left out, since a wordbox holds base words only. On a wordbox's page the same place has **Remove
+from wordbox** instead.
 
 `?selected=word:<id>` or `?selected=expression:<id>` (ids collide across the two tables) opens
 with that row picked and its cards in the panel. The base runs to many pages, so the controller
@@ -424,7 +432,7 @@ proposal leaves the card alone.
 
 On approve, inside the transaction that writes the new card, each switched-on card that is
 **still** contained goes (a switch left on from before the words changed does nothing). Only its
-**note** is carried over (several are joined by a blank line); its review progress, wordboxes and
+**note** is carried over (several are joined by a blank line); its review progress and
 manual links are deleted with it by the FK cascades — the learner should actually review the longer
 Term, so it starts fresh. Containment is read off the presence indexes, whose cards carry their
 word and expression counts: a card is contained when the proposal reaches it through as many
@@ -457,8 +465,7 @@ There are still **two** ways a card gets created — one AI-assisted, one manual
   CALL 2) its content are written only on **approve**. The browser extension writes into the same
   `proposals` table — see [browser-extension](browser-extension.md).
   **`<x-capture-form>`** is the whole capture UI, self-contained (it posts over AJAX, toasts, and
-  bumps the nav's `.js-staged-count` badge) and used on the dashboard, `/staging` and a wordbox
-  page. Because CALL 1 is queued, capture needs a `queue:work` to make progress — see
+  bumps the nav's `.js-staged-count` badge) and used on the dashboard and `/staging`. Because CALL 1 is queued, capture needs a `queue:work` to make progress — see
   [overview](overview.md) "Known rough edges", which already applies to gap-fill.
 - **Manual, no AI** (`GET /add` → `cards/add.blade.php` → `POST /cards/new` →
   `CardController::save()`, via `StoreCardRequest`): the user types every field themselves
@@ -494,7 +501,7 @@ ago, and only the second one is authoritative.
 
 `Card::regenerate()` replaces an existing card's generated content while its review progress stays
 put: it `update()`s only the AI-written columns — `level`, `last_studied`, `next_study_at`, the
-`note`, the wordbox pivot, the base-word links and every manual link are never touched. It carries
+`note`, the base-word links and every manual link are never touched. It carries
 the caller's `context` if one is given, and otherwise falls back to the card's stored `context`, so
 a regeneration keeps the sense the card was originally captured in. A `null` from the call returns
 `false` and leaves the card exactly as it was; the embedding is re-dispatched, since the content it
@@ -525,7 +532,7 @@ The top row holds the **back** link on the left and **previous card** / **next c
 the right, same style as back (shortened to "previous" / "next" below lg, to fit a phone). `show()` resolves the two neighbours as the user's adjacent cards
 **in this card's language**, ordered by descending id — ids are monotonic with insertion, so that
 is the order `/cards` lists them in, and "previous" is the row above there while "next" is the row
-below. The nav deliberately ignores the list's wordbox/search filters; it walks the language,
+below. The nav deliberately ignores the list's search filter; it walks the language,
 not whatever view the learner arrived from. At either end the missing arrow is still rendered, just
 dimmed and non-clickable, so the row doesn't shift as the learner walks the list.
 
@@ -561,9 +568,9 @@ Endpoints (`CardController`), all authorized through `CardPolicy` (see [overview
 ## Vocabulary list (`/cards`, `CardController@index`)
 
 A single endpoint serves **both** the full page and its live updates: a normal request renders
-`cards/index.blade.php` (the shared `<x-wordbox-picker>` — see [multi-language](multi-language.md) — plus a table
-whose **Term** column header is itself a live search `<input>`, plus plain **Translation**,
-**Saved** and **Wordbox** headers); an AJAX request (`$request->ajax()`) returns JSON `{rows, pagination}`
+`cards/index.blade.php` (the shared `<x-language-switcher>` — see [multi-language](multi-language.md) — plus a table
+whose **Term** column header is itself a live search `<input>`, plus plain **Translation** and
+**Saved** headers); an AJAX request (`$request->ajax()`) returns JSON `{rows, pagination}`
 rendered from the `cards/_rows.blade.php` partial, which the page swaps into `#cardsTableBody` /
 `#cardsPagination` — the header input stays in the DOM the whole time, so focus is preserved
 while typing. **Saved** is the card's `created_at` date in the learner's timezone; the list is
@@ -573,33 +580,25 @@ Filters, all combinable and all preserved across pagination via `->appends($requ
 
 - `language_id` — defaults to `currentSaveLanguage()`. Falls back to that default if an invalid
   id is passed.
-- `wordbox` — `all` (default) \| `general` (no wordbox) \| a wordbox id.
 - `term` — substring match (`LIKE %…%`) against `term`.
 - The search input is debounced ~250ms client-side before firing the AJAX request.
 
-`cards/_rows.blade.php` has a fixed 6 columns (checkbox, Term, Translation, Saved, Wordbox,
-row menu), and its `@empty` row's hardcoded `colspan="6"` has to be kept in step with them.
+`cards/_rows.blade.php` has a fixed 5 columns (checkbox, Term, Translation, Saved, row menu), and
+its `@empty` row's hardcoded `colspan="5"` has to be kept in step with them.
 
 Below lg the same markup stacks into a list (the table-to-list convention in
 [frontend-patterns](frontend-patterns.md)): the checkbox, its whole left gutter a label, and the
 3-dot menu are always shown, since there is no hover; the header keeps only the Term search. The
-picker folds into one **Filter** control naming the selection, and the bulk bar sticks under the top
-bar.
+bulk bar sticks under the top bar.
 
 Legacy entry: the old dashboard theme card still links here as `GET /cards?theme=<name>`, which
-resolves that theme and pre-filters + scopes the picker to its language.
+resolves that theme and pre-filters + scopes the switcher to its language.
 
 ### Bulk row actions
 
 - `POST /cards/bulk-destroy` (`{ids: []}`) — deletes the given cards (ownership enforced by
-  scoping through `Auth::user()->cards()`; unowned ids are silently ignored), detaching their
-  wordbox pivot rows first so none are left orphaned. Also used for the single-row 3-dot-menu
-  delete, with a one-id array.
-- `POST /cards/assign-wordbox` (`{ids: [], wordbox_id}`) — (re)assigns the given cards to a
-  wordbox. A card is treated as belonging to **at most one** wordbox at a time in this action, so
-  it `sync()`s the pivot to just the target rather than attaching — moving a card out of whatever
-  wordbox it was already in. Defensively filtered to cards whose `language_id` matches the target
-  wordbox's language, since the list itself is single-language but the request is trusted input.
+  scoping through `Auth::user()->cards()`; unowned ids are silently ignored). Also used for the
+  single-row 3-dot-menu delete, with a one-id array.
 
-Both routes are registered **before** `POST /cards/{card:id}` in `web.php` so their literal paths
-aren't swallowed by the wildcard — see [overview](overview.md) "Routing".
+The route is registered **before** `POST /cards/{card:id}` in `web.php` so its literal path
+isn't swallowed by the wildcard — see [overview](overview.md) "Routing".

@@ -83,11 +83,6 @@ class Card extends Model
         return $query->whereRaw('LOWER(term) = ?', [mb_strtolower(trim($term))]);
     }
 
-    public function wordbox()
-    {
-        return $this->belongsToMany(Wordbox::class, 'wordbox_card', 'card_id', 'wordbox_id');
-    }
-
     public function synonyms()
     {
         return $this->hasMany(Synonym::class);
@@ -137,7 +132,7 @@ class Card extends Model
 
     /**
      * Rewrite this card's generated content in place. Everything the learner built up
-     * around it — SRS level and schedule, the note, its wordbox, its base-word links,
+     * around it — SRS level and schedule, the note, its base-word links,
      * every manual link — survives untouched, because contentColumns() covers only what
      * the AI writes.
      *

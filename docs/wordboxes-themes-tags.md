@@ -1,15 +1,30 @@
 # Wordboxes, Themes & Tags
 
-Three different ways cards get grouped in this app — they look similar but serve different
+Three different ways vocabulary gets grouped in this app — they look similar but serve different
 purposes and are at very different levels of completeness.
 
-## Wordboxes — the real, actively-developed grouping
+## Wordboxes — groups of base words for gap-fill
 
 A `Wordbox` (`wordboxes` table: `name`, `user_id`, `description`, `exam_text`, `language_id`,
-`position`) is a user-created, named collection of cards in one language — the closest thing to a
-"deck". `Wordbox::cards()` is `belongsToMany(Card::class, 'wordbox_card', ...)`, so a card can in
-principle belong to more than one wordbox, though the bulk "assign wordbox" UI in [cards](cards.md)
-treats a card as belonging to at most one at a time by `sync()`-ing rather than `attach()`-ing.
+`position`) is a user-created, named group of **base words** in one language
+(`Wordbox::baseWords()` / `BaseWord::wordboxes()`, pivot `base_word_wordbox`, one row per pair).
+It exists to feed [gap-fill](gap-fill.md), which practises a word in the forms a sentence needs —
+something a word, not a whole Term, can be inflected into. So it holds:
+
+- **no cards** — a card is a whole Term with its own SRS schedule; a wordbox has no SRS role at
+  all (it is not a learning filter on `/setLearning`, not a filter on `/cards`, and no card shows
+  one);
+- **no fixed expressions** — an expression is learnt as a fixed form, with nothing to inflect;
+- **only words of its own language** — every endpoint that attaches words validates each id as
+  one of the learner's own, not-deleted base words in `wordbox.language_id`.
+
+A base word deleted from the base (the `deleted` flag, see [cards](cards.md) "Deleting an entry")
+drops out of every wordbox through its global scope, but its pivot row stays, so it is back in
+its wordboxes when it comes back.
+
+When this replaced the old card wordboxes (`wordbox_card`), the existing wordboxes and their
+gap-fill exercises were deleted rather than converted — a card's Term doesn't map onto one base
+word.
 
 - **Creation**: `POST /wordbox/new` (`WordboxController@store`, via `StoreWordboxRequest`:
   `name` required, `description` nullable ≤1000 chars, optional `language_id`). If a
@@ -25,20 +40,29 @@ treats a card as belonging to at most one at a time by `sync()`-ing rather than 
   wordboxes grouped by language; `POST /profile/wordboxes` (`@updateWordboxesOrder`) takes
   `order[languageId] = [wordboxId, ...]` and writes sequential `position` values, scoped to
   wordboxes the user actually owns (`$user->wordboxes()->pluck('id')->flip()` as a guard).
-- **Detail/edit pages**: `GET /wordbox/{id}` (show) and `/wordbox/{id}/edit` both list the
-  wordbox's cards. `PATCH /wordbox/{id}` (`@updateName`) renames it. `POST /saveCards/{id}`
-  (`@update`) takes a JSON `cards` array from the edit page and diffs it against the current
-  pivot rows — `array_diff` on ids to compute detach/attach sets — rather than a full
-  detach-then-reattach, so unrelated pivot rows (and their `created_at`) aren't churned.
-- Gap-fill exercises are generated per-wordbox — see [gap-fill](gap-fill.md).
-- `WordboxController@index`/`create`/`destroy` are empty stock-scaffold methods; wordboxes aren't
-  currently deletable through the UI.
+- **Show page** (`GET /wordbox/{id}`, `@show`): the wordbox's details, its gap-fill card (the
+  latest exercise, and the generate form — see [gap-fill](gap-fill.md)), and its words in the
+  vocabulary base's own table (`base._table`, built by the `ListsBaseEntries` trait that
+  `/base` uses too — see [cards](cards.md) "The vocabulary base"), so a word looks and behaves
+  the same in both places: its cards and synonyms in the side panel, the live search and
+  filters, delete, mark as synonyms. Its checked-rows action is **Remove from wordbox**
+  (`POST /wordbox/{id}/words/remove`, `{ids}`), which leaves the words in the base.
+- **Adding words**, two ways:
+  - from `/base`: check rows and pick a wordbox of the page's language in **Add to wordbox**
+    (`POST /wordbox/{id}/words/add`, `{ids}`, `syncWithoutDetaching`). Checked expressions are
+    left out client-side, with a note;
+  - from the edit page (`GET /wordbox/{id}/edit`): a search over the learner's base words of the
+    wordbox's language (`GET /wordbox/{id}/search?searchTerm=`, lemma match, JSON, limit 10)
+    builds a list client-side, saved as a whole by `POST /wordbox/{id}/words` (`@update`,
+    `ids[]`, `sync()` — rows of words that stay aren't churned). The same page renames the
+    wordbox (`PATCH /wordbox/{id}`, `@updateName`).
+- Wordboxes aren't deletable through the UI.
 
 ## Themes — legacy grouping, still live but not actively extended
 
-A `Theme` (`themes` table, per-language like everything else) is an older, flatter category.
-`Theme::cards()` is a plain `hasMany` — a card has **at most one** theme (`cards.theme_id`,
-nullable, `onDelete('set null')`), unlike the many-to-many wordbox relationship.
+A `Theme` (`themes` table, per-language like everything else) is an older, flatter category of
+cards. `Theme::cards()` is a plain `hasMany` — a card has **at most one** theme (`cards.theme_id`,
+nullable, `onDelete('set null')`).
 
 The AI no longer assigns a theme at capture time — `Proposal::approve()` creates every new card
 with `theme_id` unset (see [ai-integration](ai-integration.md)/[cards](cards.md) "Capture flow").
@@ -60,9 +84,8 @@ from all three.
   language's themes.
 - There is no AI theme generation: `AI::generateThemes` and everything that called it have been
   removed. If AI-suggested theme names is ever wanted as a real feature, it needs a proper UI.
-- Wordboxes have mostly superseded themes as the primary organizing concept for new work; themes
-  are kept because existing cards/UI depend on them, not because they're the preferred pattern
-  going forward.
+- Themes are kept because existing cards/UI depend on them, not because they're the preferred
+  pattern going forward.
 
 ## Tags — present in the schema, essentially unused
 
@@ -74,7 +97,7 @@ actually a `hasMany`, not the `belongsToMany` you'd expect from the pivot table'
 skeleton with every method **empty** except `__invoke()` (used by the single wired route,
 `GET cards/{tag:name}`) and `store()` (via `StoreTagRequest`, itself empty rules). There's no UI
 to create or assign a tag — treat tags as present-but-dormant infrastructure, not a feature to
-extend without first deciding whether it should be finished or removed in favor of wordboxes.
+extend without first deciding whether it should be finished or removed.
 
 `tags` has **no `user_id` column** — a tag name is shared/global, not owned by a user — so
 `__invoke()` can't use a `CardPolicy`-style ownership check the way [cards](cards.md)'s other

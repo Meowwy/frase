@@ -29,7 +29,8 @@ right or wrong. All three tiers are production, so every correct answer stamps `
 
 **Tier I** has one gap, whatever the item: a base word with its article (*en skola*) is one gap.
 Only a fixed expression whose parts stand apart (*inte bara … utan också*) gets one gap per part.
-It is checked on the client, since fragments are not stored. Case, extra spaces and surrounding
+It is checked on the client, since fragments are not stored, by the matching in `<x-answer-check>`
+that [gap-fill](gap-fill.md) shares. Case, extra spaces and surrounding
 punctuation never count, and a near miss (Levenshtein distance 1, or equal without diacritics) gets
 one "check your spelling" retry; a correct retry counts as correct. An answer in the gap's
 `synonym_answers` (a form of one of the item's [synonym links](cards.md#synonym-links) that also

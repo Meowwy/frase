@@ -1,11 +1,14 @@
-{{-- /base's side panels, and the live search over the table. The first panel is
-     empty until a row is clicked, then it shows the Terms of the cards that word or expression
-     is part of, and its synonyms. Each row carries its own content in a template (the cards are
-     eager-loaded with the page), so a click costs no request. The panel's bin deletes the entry,
-     after a dialog that for a base word also offers marking it known.
+{{-- /base's side panels, and the live search over the table — a wordbox's page has the same
+     (base._table). The first panel is empty until a row is clicked, then it shows the Terms of
+     the cards that word or expression is part of, and its synonyms. Each row carries its own
+     content in a template (the cards are eager-loaded with the page), so a click costs no
+     request. The panel's bin deletes the entry, after a dialog that for a base word also offers
+     marking it known.
 
      Each checked row gets a panel of its own below, kept across searches and pages, and two
-     checked entries can be marked as synonyms.
+     checked entries can be marked as synonyms. On /base checked words can be added to a
+     wordbox of the page's language (expressions never go in one); on a wordbox's page they can
+     be taken out of it.
 
      Below lg the two jobs come apart, so neither can cover the list, and only one of them is
      ever on screen:
@@ -13,17 +16,27 @@
        the tab bar (scrolling inside, closed by its handle or X); tapping that row again closes
        it and deselects the row;
      - once a row is checked, the sheet closes and checked rows get no panels, only a slim action
-       bar above the tab bar (#baseActionBar: count, Mark synonyms, Delete, clear) that never
-       grows; while it shows, tapping a row checks or unchecks it instead of opening the sheet,
-       and clearing the last check takes the bar away. --}}
+       bar above the tab bar (#baseActionBar: count, Mark synonyms, the wordbox action, Delete,
+       clear) that never grows; while it shows, tapping a row checks or unchecks it instead of
+       opening the sheet, and clearing the last check takes the bar away. --}}
 <div id="baseSide" class="space-y-4 lg:sticky lg:top-24 lg:w-72 lg:shrink-0 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(4rem_+_env(safe-area-inset-bottom))] max-lg:z-30 max-lg:flex max-lg:hidden max-lg:max-h-[55dvh] max-lg:flex-col max-lg:space-y-0 max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:rounded-t-2xl max-lg:border-t max-lg:border-white/10 max-lg:bg-[#111] max-lg:px-4 max-lg:pb-4 max-lg:shadow-2xl">
     <aside id="basePanel" class="rounded-xl border border-white/10 bg-white/5 p-4 text-sm max-lg:border-0 max-lg:bg-transparent max-lg:p-0 max-lg:text-base">
         <p class="text-white/40">Select a row to see the cards it is part of.</p>
     </aside>
 
     {{-- Desktop only: below lg the action bar takes these over. --}}
-    <div id="synonymBar" class="hidden max-lg:hidden">
+    <div id="checkedBar" class="hidden space-y-2 max-lg:hidden">
         <x-forms.button id="markSynonyms" type="button" class="w-full">Mark as synonyms</x-forms.button>
+        @isset($wordbox)
+            <x-forms.button type="button" class="js-wordbox-remove w-full">Remove from wordbox</x-forms.button>
+        @elseif($wordboxes->isNotEmpty())
+            <select class="js-wordbox-add w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-sm text-white focus:outline-none">
+                <option value="" selected disabled>Add to wordbox…</option>
+                @foreach($wordboxes as $box)
+                    <option value="{{ $box->id }}">{{ $box->name }}</option>
+                @endforeach
+            </select>
+        @endisset
     </div>
 
     <div id="checkedPanels" class="space-y-4 max-lg:hidden"></div>
@@ -58,6 +71,19 @@
                 class="min-h-11 shrink-0 rounded bg-blue-800 px-3 text-sm font-bold transition-colors hover:bg-blue-600 disabled:opacity-40">
             Mark synonyms
         </button>
+        @isset($wordbox)
+            <button type="button"
+                    class="js-wordbox-remove min-h-11 shrink-0 rounded bg-white/10 px-3 text-sm font-bold transition-colors hover:bg-white/20">
+                Remove
+            </button>
+        @elseif($wordboxes->isNotEmpty())
+            <select class="js-wordbox-add min-h-11 w-28 shrink-0 rounded border border-white/10 bg-[#111] px-2 text-base text-white focus:outline-none">
+                <option value="" selected disabled>Wordbox…</option>
+                @foreach($wordboxes as $box)
+                    <option value="{{ $box->id }}">{{ $box->name }}</option>
+                @endforeach
+            </select>
+        @endisset
         <button type="button" id="baseBarDelete"
                 class="min-h-11 shrink-0 rounded bg-red-800 px-3 text-sm font-bold transition-colors hover:bg-red-600">
             Delete
@@ -136,7 +162,7 @@
                 $panel.find('.js-base-uncheck').removeClass('hidden');
                 $('#checkedPanels').append($panel);
             });
-            $('#synonymBar').toggleClass('hidden', checked.size === 0);
+            $('#checkedBar').toggleClass('hidden', checked.size === 0);
             $('#markSynonyms, #baseBarSynonyms').prop('disabled', checked.size !== 2);
             $('#baseActionBar, #baseActionSpacer').toggleClass('hidden', checked.size === 0);
             $('#baseCheckedCount').text(checked.size + ' selected');
@@ -231,6 +257,37 @@
             });
         });
 
+        // Only words go in a wordbox: checked expressions are left out.
+        $('.js-wordbox-add').on('change', function () {
+            const wordbox = $(this).val();
+            $(this).val('');
+            const ids = [...checked.keys()].filter(key => key.startsWith('word:')).map(key => key.split(':')[1]);
+            if (! ids.length) {
+                if (window.toastr) { toastr.error('Only words go in a wordbox, not expressions.'); }
+                return;
+            }
+            const skipped = checked.size > ids.length;
+            $.post('/wordbox/' + wordbox + '/words/add', { _token: csrf, ids }).done(function (r) {
+                uncheckAll();
+                if (window.toastr) { toastr.success('Added to ' + r.wordbox + '.' + (skipped ? ' Expressions stay out of wordboxes.' : '')); }
+            }).fail(function () {
+                if (window.toastr) { toastr.error('Could not add them to the wordbox.'); }
+            });
+        });
+
+        @isset($wordbox)
+            // The words stay in the base; the page reloads so its gap-fill checklist follows.
+            $('.js-wordbox-remove').on('click', function () {
+                const ids = [...checked.keys()].map(key => key.split(':')[1]);
+                if (! ids.length) { return; }
+                $.post('/wordbox/{{ $wordbox->id }}/words/remove', { _token: csrf, ids }).done(function () {
+                    location.reload();
+                }).fail(function () {
+                    if (window.toastr) { toastr.error('Could not remove them from the wordbox.'); }
+                });
+            });
+        @endisset
+
         // An expression can't be known, so a dialog that touches one offers plain delete only.
         function askDelete(keys, title) {
             pendingKeys = keys;
@@ -284,7 +341,7 @@
         function fetchRows(url) {
             const params = { language_id: '{{ $activeLanguageId }}' };
             $('.js-base-filter').each(function () { params[this.name] = $(this).val(); });
-            currentUrl = url || '{{ route('base') }}?' + $.param(params);
+            currentUrl = url || '{{ url()->current() }}?' + $.param(params);
 
             $.get(currentUrl, function (data) {
                 $('#baseRows').html(data.rows);

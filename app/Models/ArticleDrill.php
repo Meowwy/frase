@@ -55,7 +55,7 @@ class ArticleDrill
         return self::due($user, $language)->with('language')
             ->withCount('cards')->orderByDesc('cards_count')->orderBy('id')
             ->take(self::SESSION)->get()
-            ->map(fn (BaseWord $noun) => ['id' => $noun->id, 'front' => $noun->lemma, 'back' => $noun->displayForm(), 'hint' => '', 'wordbox' => ''])
+            ->map(fn (BaseWord $noun) => ['id' => $noun->id, 'front' => $noun->lemma, 'back' => $noun->displayForm(), 'hint' => ''])
             ->all();
     }
 

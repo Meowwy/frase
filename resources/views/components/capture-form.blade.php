@@ -4,7 +4,7 @@
      else — no language, no wordbox. The language is detected by CALL 1 and corrected in
      staging, which is why the save-destination picker that used to sit here is gone.
 
-     Self-contained, like <x-wordbox-picker>: it posts over AJAX and returns immediately,
+     Self-contained, like <x-language-switcher>: it posts over AJAX and returns immediately,
      so the learner is never left waiting on the AI. The instant feedback is a note beside
      the staging link plus the nav's staging badge; the proposal itself resolves in staging. --}}
 

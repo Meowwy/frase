@@ -463,8 +463,8 @@ class Proposal extends Model
             }
 
             // Replace: only a card that is still contained goes, so a mark left from before the
-            // words changed does nothing. Its note moves to the new card; its review progress,
-            // wordboxes and manual links go with it — deleting cascades every link.
+            // words changed does nothing. Its note moves to the new card; its review progress
+            // and manual links go with it — deleting cascades every link.
             $replaced = $this->replaceableCards($present, $known, $presentExpressions)
                 ->filter(fn (Card $old) => $this->isMarkedForReplace($old));
 

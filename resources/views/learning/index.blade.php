@@ -18,9 +18,6 @@
 
     <div class="flex justify-center items-center max-lg:flex-1">
         <div class="flex-col items-center max-lg:w-full">
-            <div class="flex justify-center items-center gap-2 mb-4">
-                <span id="wordboxName" class="invisible text-lg mr-1 font-bold bg-orange-800 text-white rounded-full px-3 py-1">&nbsp;</span>
-            </div>
             <div class="flashcard" id="flashcard">
                 <div class="front" id="front">
                     No cards loaded.
@@ -76,7 +73,6 @@
         const results = [];
         let currentIndex = 0;
 
-        const wordboxName = document.getElementById('wordboxName');
         const exitBtn = document.getElementById('exitBtn');
         const hintElement = document.getElementById('hint');
         const hintText = document.getElementById('hintText');
@@ -105,17 +101,6 @@
             queueInfo.innerText   = cards.filter(c => !isReviewed(c)).length.toString();
             wrongInfo.innerText   = cards.filter(isReviewed).length.toString();
             correctInfo.innerText = (totalCards - cards.length).toString();
-        }
-
-        function showWordbox() {
-            if (cards[currentIndex].wordbox) {
-                wordboxName.textContent = cards[currentIndex].wordbox;
-                wordboxName.classList.remove('invisible');
-            } else {
-                // Keep the pill's space reserved so nothing shifts, just hide it.
-                wordboxName.innerHTML = '&nbsp;';
-                wordboxName.classList.add('invisible');
-            }
         }
 
         // Grade the current card and move on: a correct answer clears it from the deck,
@@ -162,7 +147,6 @@
         function showCard() {
             flashcard.classList.remove('is-flipped');
             front.textContent = cards[currentIndex].front;
-            showWordbox();
             wrongBtn.classList.add('hidden');
             correctBtn.classList.add('hidden');
             flipBtn.classList.remove('hidden');

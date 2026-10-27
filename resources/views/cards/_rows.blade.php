@@ -1,6 +1,6 @@
 {{-- Below lg each row stacks into a list item: the checkbox fills a left gutter (the whole
-     gutter is its label, a full-height tap target), Term over translation, then the date and
-     wordbox, and the 3-dot menu in a right gutter. With no hover on touch, both controls are
+     gutter is its label, a full-height tap target), Term over translation, then the date, and
+     the 3-dot menu in a right gutter. With no hover on touch, both controls are
      always shown there. --}}
 @forelse($cards as $card)
     <tr class="group hover:bg-white/10 cursor-pointer js-card-row max-lg:relative max-lg:flex max-lg:flex-wrap max-lg:items-baseline max-lg:gap-x-2 max-lg:py-3 max-lg:pl-12 max-lg:pr-12"
@@ -16,7 +16,6 @@
         <td class="px-6 py-2 text-sm text-gray-300 max-lg:basis-full max-lg:p-0">{{ $card->translation }}</td>
         {{-- In the learner's timezone, so a card saved late at night shows the day they saved it. --}}
         <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300 max-lg:mt-1 max-lg:p-0 max-lg:text-xs max-lg:text-white/40">{{ $card->created_at->timezone(Auth::user()->timezone ?? config('app.timezone'))->format('j M Y') }}</td>
-        <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-300 max-lg:mt-1 max-lg:p-0 max-lg:text-xs max-lg:text-white/40 max-lg:before:mr-2 max-lg:before:content-['·'] max-lg:empty:hidden">{{ $card->wordbox->first()?->name }}</td>
         <td class="w-10 px-4 py-2 text-right relative js-card-actions max-lg:absolute max-lg:right-0 max-lg:top-1/2 max-lg:-translate-y-1/2 max-lg:p-0">
             <button type="button"
                     class="js-card-menu-btn text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center max-lg:opacity-100"
@@ -34,6 +33,6 @@
     </tr>
 @empty
     <tr class="max-lg:block">
-        <td colspan="6" class="px-6 py-6 text-center text-sm text-gray-400 max-lg:block">No terms found.</td>
+        <td colspan="5" class="px-6 py-6 text-center text-sm text-gray-400 max-lg:block">No terms found.</td>
     </tr>
 @endforelse

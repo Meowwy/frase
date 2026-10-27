@@ -42,7 +42,7 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 - **A term that makes an old card redundant** — all the old card's words and expressions are in it
   (*Sverige* when you capture *Jag kommer från Sverige*) — shows that card on its own line with a
   **Replace it on approve** switch, off by default. Switched on, approving deletes the old card and
-  moves its note to the new one; its review progress, wordboxes and links go with it.
+  moves its note to the new one; its review progress and links go with it.
 - **A term that adds nothing** — all its words and expressions are already on one of your cards
   (*book* when you have *She is reading a book*) — is refused: staging says so and links that card,
   and you can only clear it.
@@ -87,6 +87,9 @@ bring up a slim bar above the tabs to mark them as synonyms or delete them. Fram
 never puts two synonyms in one batch, and when you answer with the synonym instead of the word it
 asks for another way rather than marking you wrong.
 
+**Wordboxes**: checked words can also be added to one of that language's wordboxes (expressions
+stay out — see "Wordboxes & themes" below).
+
 Fixed expressions are picked out of the terms you capture and shown in staging as their own chips
 (strike one to skip it for that capture).
 
@@ -96,26 +99,27 @@ is what Frammenti drills (below), word by word on its own schedule. See [cards](
 
 ## Cards list (nav: "Cards")
 
-`/cards` — every saved term in one searchable, filterable table: filter by language, by wordbox
-(or "general vocabulary" = no wordbox), and search by term as you type. Each row shows the term, its translation, the date you saved it
-and its wordbox, newest first. Select multiple cards to bulk-delete or bulk-move them into a wordbox. Opening a card
+`/cards` — every saved term in one searchable table: filter by language and search by term as you
+type. Each row shows the term, its translation and the date you saved it, newest first. Select
+multiple cards to bulk-delete them. Opening a card
 gives you **previous/next** arrows to walk that language's terms in the same order the list shows
 them, without going back to the list each time. See [cards](cards.md).
 
 ## Wordboxes & themes
 
-- **Wordboxes** are user-created named decks (e.g. "Travel", "Chapter 3") — the main way to
-  organize vocabulary into study sets, reorderable by drag-and-drop.
-- **Themes** are an older, simpler auto-assigned category (the AI picks one per card at capture
-  time); still visible on the dashboard and usable as a filter, but wordboxes are the primary
-  organizing tool for new vocabulary.
+- **Wordboxes** are user-created named groups of words from your vocabulary base (e.g. "Travel",
+  "Chapter 3"), one language each, made for gap-fill exercises (below) — not for flashcard review.
+  Add words from the base (check them, then **Add to wordbox**) or by searching on the wordbox's
+  edit page; a wordbox's page lists its words in the same table as the base, where you can take
+  them out again. Reorderable by drag-and-drop.
+- **Themes** are an older, simpler category of cards; still visible on the dashboard and usable
+  as a filter.
 - See [wordboxes-themes-tags](wordboxes-themes-tags.md).
 
 ## Reviewing with flashcards
 
-`/setLearning` — the study-session builder: pick a language, a scope (a specific wordbox,
-"general vocabulary", or everything), due-only vs. cram (everything regardless of schedule), then
-a mode:
+`/setLearning` — the study-session builder: pick a language, due-only vs. cram (everything
+regardless of schedule), then a mode:
 
 - **Translation** (the first mode) — see the translation, recall the term, flip to check. The
   classic Anki-style review; a card in your own native language shows its definition instead.
@@ -167,9 +171,10 @@ a mode:
 
 ## Gap-fill exercises
 
-Generate a short AI-written story per wordbox that naturally works in that wordbox's own phrases,
-with each one replaced by a blank you fill in — a different way to practice the same vocabulary
-in context, with a reusable "words to use" bank if you get stuck. See [gap-fill](gap-fill.md).
+Tick up to 30 words in a wordbox and generate a short AI-written story that works them in, each
+replaced by a blank you fill in **the form the sentence needs** (a plural, a past tense, a
+definite form…). The "words to use" bank shows the words as you learnt them; checking tells you
+which gaps are right, almost right, or the right word in the wrong form. See [gap-fill](gap-fill.md).
 
 ## Linking related cards
 
@@ -180,13 +185,13 @@ each other's detail pages. See [cards](cards.md) "Manual card linking".
 ## Search
 
 A quick term search from the nav bar (`/search`), and a separate search box on a wordbox's edit
-page for finding existing cards to add to it. See [search-and-linking](search-and-linking.md).
+page for finding words of your base to add to it. See [search-and-linking](search-and-linking.md).
 
 ## On a phone
 
 Every screen works one-handed on a phone. A slim top bar holds the logo, the search box and a menu
 (Frammenti, Conversation, your account, log out); a tab bar at the bottom leads to Home (capture),
-Staging (with its count), Cards, Base and Learn. Lists become tappable rows, filters fold away, and
+Staging (with its count), Cards, Base and Learn. Lists become tappable rows, and
 the screens where you practise — flashcards, Frammenti, the chats — go full screen with their main
 buttons or message box at the bottom, within thumb reach. See
 [frontend-patterns](frontend-patterns.md) "Responsive / mobile".

@@ -1,4 +1,4 @@
-@props(["card", "theme", "wordbox", "linkedCards", "previousCard", "nextCard"])
+@props(["card", "theme", "linkedCards", "previousCard", "nextCard"])
 <x-html-layout>
     <div class="max-w-4xl mx-auto p-6 shadow-lg rounded-lg max-lg:px-0 max-lg:py-2" id="cardShow" data-card-id="{{ $card->id }}">
         {{-- Back on the left, the prev/next walk through this language's cards on the
@@ -105,10 +105,6 @@
 
         <!-- Definition Section -->
         <div class="mb-6">
-            @if(!is_null($wordbox))
-                <a href="{{ route('wordbox.show', $wordbox->id) }}"
-                   class="capitalize text-sm mr-1 font-bold bg-orange-700 hover:bg-orange-600 text-white rounded-full px-3 py-1">{{$wordbox->name}}</a>
-            @endif
             <span class="">{{$card->definition}}</span>
         </div>
 

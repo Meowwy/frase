@@ -9,8 +9,7 @@ class Learning
 {
     /**
      * The cards a session serves. Takes either the structured selection from the builder,
-     * or a legacy string filter from the older entry points: 'due', a wordbox id (that
-     * wordbox's own page — always cram) or a theme name.
+     * or a legacy string filter from the older entry points: 'due' or a theme name.
      */
     public static function getCardsForLearning($filter)
     {
@@ -18,13 +17,7 @@ class Learning
             return self::getCardsForSelection($filter);
         }
 
-        $query = Auth::user()->cards()->with('wordbox:id,name');
-
-        if (is_numeric($filter)) {
-            session(['more_cards_available' => false]);
-
-            return $query->whereHas('wordbox', fn ($q) => $q->where('wordboxes.id', $filter))->get()->shuffle();
-        }
+        $query = Auth::user()->cards();
 
         if ($filter !== 'due') {
             $theme = Auth::user()->themes()->where('name', $filter)->first();
@@ -58,30 +51,18 @@ class Learning
     }
 
     /**
-     * Build a learning set from the card-set builder selection:
-     * language + (all | general vocabulary | a wordbox) + (due | cram).
+     * Build a learning set from the card-set builder selection: language + (due | cram).
      */
     protected static function getCardsForSelection(array $filter)
     {
         $languageId = $filter['language_id'] ?? null;
-        $wordbox = $filter['wordbox'] ?? 'all';
         $scope = $filter['scope'] ?? 'due';
 
-        $query = Auth::user()->cards()->with('wordbox:id,name');
+        $query = Auth::user()->cards();
 
         if ($languageId) {
             $query->where('language_id', $languageId);
         }
-
-        if ($wordbox === 'general') {
-            // "General vocabulary" = terms not attached to any wordbox.
-            $query->whereDoesntHave('wordbox');
-        } elseif (is_numeric($wordbox)) {
-            $query->whereHas('wordbox', function ($q) use ($wordbox) {
-                $q->where('wordboxes.id', $wordbox);
-            });
-        }
-        // 'all' → no wordbox constraint (every term in the language).
 
         if ($scope === 'due') {
             self::onlyDue($query);
@@ -99,16 +80,12 @@ class Learning
         return redirect('/setLearning');
     }
 
-    public static function startLearning($wbid, $mode)
+    /**
+     * Start a session on the filter already in the session — the legacy theme flow, and
+     * "continue with another set" once a capped due session ends.
+     */
+    public static function startLearning($mode)
     {
-        if ($wbid != 0) {
-            $hasWordbox = Auth::user()->wordboxes()->where('id', $wbid)->first();
-            if ($hasWordbox) {
-                session(['learning_filter' => $wbid]);
-            } else {
-                abort(403, 'Unauthorized action.');
-            }
-        }
         if (! session()->has('learning_filter')) {
             return redirect('/');
         }
@@ -118,28 +95,16 @@ class Learning
 
     /**
      * Start a learning session from the card-set builder (/setLearning).
-     * Selection comes in as query params: language_id, wordbox, scope.
+     * Selection comes in as query params: language_id, scope.
      */
     public static function startLearningSet(\Illuminate\Http\Request $request, $mode)
     {
         $user = Auth::user();
         $languageId = $request->query('language_id');
-        $wordbox = $request->query('wordbox', 'all');
         $scope = $request->query('scope', 'due');
 
         if ($languageId && ! $user->languages()->where('languages.id', $languageId)->exists()) {
             abort(403, 'Unauthorized action.');
-        }
-
-        if (is_numeric($wordbox)) {
-            $box = $user->wordboxes()->where('id', $wordbox)->first();
-            if (! $box) {
-                abort(403, 'Unauthorized action.');
-            }
-            // Keep language consistent with the chosen wordbox.
-            $languageId = $box->language_id;
-        } elseif (! in_array($wordbox, ['all', 'general'], true)) {
-            $wordbox = 'all';
         }
 
         if (! in_array($scope, ['due', 'cram'], true)) {
@@ -148,7 +113,6 @@ class Learning
 
         session(['learning_filter' => [
             'language_id' => $languageId,
-            'wordbox' => $wordbox,
             'scope' => $scope,
         ]]);
 
@@ -195,7 +159,7 @@ class Learning
                 default => abort(404),
             };
 
-            $entries[] = ['id' => $card->id] + $entry + ['wordbox' => $card->wordbox->first()?->name ?? ''];
+            $entries[] = ['id' => $card->id] + $entry;
         }
 
         return $entries;

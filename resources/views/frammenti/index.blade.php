@@ -78,7 +78,7 @@
 
                 <p id="feedback" class="my-4 min-h-6"></p>
 
-                <div class="flex flex-wrap gap-2 max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-4 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-3 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div class="flex flex-wrap gap-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-3 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     <x-forms.button id="checkBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Check</x-forms.button>
                     <x-forms.button id="revealBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Show answer</x-forms.button>
                     <x-forms.button id="evalBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Evaluate</x-forms.button>
@@ -87,17 +87,20 @@
                     <x-forms.button id="missedBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">I didn't</x-forms.button>
                     <x-forms.button id="nextBtn" type="button" class="hidden max-lg:min-h-12 max-lg:flex-1">Next</x-forms.button>
                 </div>
-                <p id="gradeNote" class="hidden mt-2 text-sm text-white/50">This is one way to say it — mark whether you used the highlighted word correctly.</p>
+                {{-- Room for the fixed button bar. --}}
+                <div class="h-24 lg:hidden" aria-hidden="true"></div>
+                <p id="gradeNote"class="hidden mt-2 text-sm text-white/50">This is one way to say it — mark whether you used the highlighted word correctly.</p>
             </div>
 
             <div id="recap" class="hidden">
                 <h3 id="recapTitle" class="mt-6 text-center text-2xl font-bold"></h3>
                 <ul id="recapList" class="my-4 space-y-2"></ul>
                 <div id="summary" class="hidden mb-6 space-y-2 rounded-xl bg-white/5 border border-white/10 p-4"></div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-3 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     <x-forms.button id="nextBatchBtn" type="button" class="max-lg:min-h-12 max-lg:flex-1"></x-forms.button>
                     <a href="/" class="max-lg:flex-1"><x-forms.button type="button" class="max-lg:min-h-12 max-lg:w-full">Done</x-forms.button></a>
                 </div>
+                <div class="h-24 lg:hidden" aria-hidden="true"></div>
             </div>
 
             {{-- The article drill: flip cards over the nouns, only for a language whose nouns
@@ -115,6 +118,7 @@
                 </x-panel>
             @endif
 
+            <x-answer-check />
             <script>
                 $(function () {
                     const csrf = '{{ csrf_token() }}';
@@ -225,20 +229,7 @@
                         if (r.recap) recapData = r.recap;
                     }
 
-                    // Case, extra spaces and surrounding punctuation never count.
-                    const normalize = s => s.toLowerCase().trim().replace(/\s+/g, ' ').replace(/^[\p{P}\s]+|[\p{P}\s]+$/gu, '');
-                    const bare = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
-                    function distance(a, b) {
-                        let row = Array.from({ length: b.length + 1 }, (_, i) => i);
-                        for (let i = 1; i <= a.length; i++) {
-                            const next = [i];
-                            for (let j = 1; j <= b.length; j++) {
-                                next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-                            }
-                            row = next;
-                        }
-                        return row[b.length];
-                    }
+                    const { normalize, near } = AnswerCheck;
 
                     // Tier I: each gap is right, a linked synonym, a near miss (one character
                     // or one accent off), or wrong. A synonym is cleared and asked for again,
@@ -251,7 +242,7 @@
                             const accepted = f.accepted[i].map(normalize);
                             if (accepted.includes(typed)) return 'right';
                             if (f.synonym_answers[i].map(normalize).includes(typed)) return 'synonym';
-                            return accepted.some(a => distance(a, typed) === 1 || bare(a) === bare(typed)) ? 'near' : 'wrong';
+                            return near(accepted, typed) ? 'near' : 'wrong';
                         }).get();
 
                         if (verdicts.every(v => v === 'right')) {

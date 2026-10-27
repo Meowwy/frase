@@ -12,9 +12,6 @@ fixed expressions are a separate table, `entry_synonyms` (see [cards](cards.md) 
 - `GET /search` (`@index`) — validates `searchTerm` (min 2 chars), does a `LIKE %term%` match on
   `term` scoped to the current user, ordered so **prefix matches sort first**
   (`ORDER BY CASE WHEN term LIKE 'term%' THEN 0 ELSE 1 END`), limited to 15 results.
-- `GET /searchWordbox/{wbid}` (`@searchWordbox`) — a similar but separate search scoped for the
-  wordbox edit page: returns matches (limit 10) either as JSON (AJAX request) for an inline
-  results dropdown, or as part of a full `wordbox.edit` render otherwise.
 - This is a plain `LIKE` query, not embedding-based — the embedding pipeline described below is
   unrelated to what powers the search box in the nav.
 

@@ -19,7 +19,7 @@
             <x-panel class="w-48 max-lg:relative max-lg:w-full">
                 <div class="py-8">
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                        <a href="/startLearning/0/translation" class="max-lg:after:absolute max-lg:after:inset-0">Translation</a>
+                        <a href="/startLearning/translation" class="max-lg:after:absolute max-lg:after:inset-0">Translation</a>
                     </h3>
                     <p class="text-sm mt-4">Recall the term from its translation.</p>
                 </div>
@@ -27,7 +27,7 @@
             <x-panel class="w-48 max-lg:relative max-lg:w-full">
                 <div class="py-8">
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                        <a href="/startLearning/0/conversation" class="max-lg:after:absolute max-lg:after:inset-0">Conversation</a>
+                        <a href="/startLearning/conversation" class="max-lg:after:absolute max-lg:after:inset-0">Conversation</a>
                     </h3>
                     <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
                 </div>
@@ -35,7 +35,7 @@
             <x-panel class="w-48 max-lg:relative max-lg:w-full">
                 <div class="py-8">
                     <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                        <a href="/startLearning/0/definitions" class="max-lg:after:absolute max-lg:after:inset-0">Definitions</a>
+                        <a href="/startLearning/definitions" class="max-lg:after:absolute max-lg:after:inset-0">Definitions</a>
                     </h3>
                     <p class="text-sm mt-4">Recall the term from its definition.</p>
                 </div>
@@ -49,12 +49,9 @@
             </div>
         </div>
     @else
-        {{-- Card-set builder: language → wordbox selection → due/cram → mode. --}}
+        {{-- Card-set builder: language → due/cram → mode. --}}
         <div class="max-w-3xl mx-auto">
-            <x-wordbox-picker :target-languages="$targetLanguages"
-                              :wordboxes-by-language="$wordboxesByLanguage"
-                              :active-language-id="$activeLanguageId"
-                              heading="Wordboxes" />
+            <x-language-switcher :target-languages="$targetLanguages" :active-language-id="$activeLanguageId" />
 
             <div class="mt-6 flex gap-2">
                 <button type="button"
@@ -66,7 +63,7 @@
             </div>
 
             <x-section-heading>
-                <span id="reviewSentence" class="max-lg:leading-loose">Review <span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> from <span id="startTarget" class="text-blue-400">all terms</span> by...</span>
+                <span id="reviewSentence" class="max-lg:leading-loose">Review <span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> by...</span>
                 <span id="noCardsSentence" class="hidden">No cards to review</span>
             </x-section-heading>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-center">
@@ -98,29 +95,21 @@
         </div>
 
         <script>
-            // Card-set builder: the shared wordbox picker handles language + wordbox;
-            // here we add the scope toggle and fold everything into the mode links + heading.
+            // Card-set builder: the shared switcher handles the language; here we add the
+            // scope toggle and fold both into the mode links + heading.
             $(document).ready(function () {
-                // Per-selection card counts precomputed server-side; keyed by language id,
-                // then 'all' | 'general' | wordbox id, each with {total, due}.
+                // Card counts precomputed server-side, {total, due} keyed by language id.
                 const counts = @json($cardCounts);
 
-                const init = window.WordboxPicker.current();
                 const state = {
-                    languageId: init.languageId,
-                    wordbox: init.wordbox,
-                    label: init.label,     // wordbox name / 'general vocabulary' / null
+                    languageId: '{{ $activeLanguageId }}',
                     scope: 'due',          // 'due' | 'cram'
                 };
 
                 // How many cards the current selection yields. For 'due' we mirror the
                 // backend cap (more than 20 due → only 15 are studied).
                 function selectionCount() {
-                    const lang = counts[state.languageId];
-                    if (!lang) return 0;
-                    const entry = state.wordbox === 'all' ? lang.all
-                        : state.wordbox === 'general' ? lang.general
-                        : (lang.wordboxes && lang.wordboxes[state.wordbox]);
+                    const entry = counts[state.languageId];
                     if (!entry) return 0;
                     if (state.scope === 'due') {
                         return entry.due > 20 ? 15 : entry.due;
@@ -129,8 +118,8 @@
                 }
 
                 // Fold the current selection into the "Review ... by..." heading: the count
-                // + scope in the orange pill, the selected target in blue. When the selection
-                // yields nothing, swap in "No cards to review" and disable the mode options.
+                // + scope in the orange pill. When the selection yields nothing, swap in
+                // "No cards to review" and disable the mode options.
                 // due  → "15 due cards"     cram → "all 15 cards"
                 function updateStartHeading() {
                     const n = selectionCount();
@@ -142,7 +131,6 @@
                     if (!empty) {
                         const noun = 'card' + (n === 1 ? '' : 's');
                         $('#startScope').text(state.scope === 'due' ? `${n} due ${noun}` : `all ${n} ${noun}`);
-                        $('#startTarget').text(state.label || 'all terms');
                     }
 
                     // Gray out and inert the mode cards when there is nothing to review;
@@ -153,7 +141,6 @@
                 function updateModeLinks() {
                     const params = $.param({
                         language_id: state.languageId,
-                        wordbox: state.wordbox,
                         scope: state.scope,
                     });
                     $('.mode-link').each(function () {
@@ -161,11 +148,9 @@
                     });
                 }
 
-                // Language / wordbox selection comes from the shared picker.
-                document.addEventListener('wordboxpicker:change', function (e) {
+                // Language selection comes from the shared switcher.
+                document.addEventListener('languageswitcher:change', function (e) {
                     state.languageId = e.detail.languageId;
-                    state.wordbox = e.detail.wordbox;
-                    state.label = e.detail.label;
                     updateStartHeading();
                     updateModeLinks();
                 });

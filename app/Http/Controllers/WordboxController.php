@@ -2,28 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ListsBaseEntries;
 use App\Http\Requests\StoreWordboxRequest;
-use App\Models\Card;
+use App\Models\BaseWord;
+use App\Models\Wordbox;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
+/**
+ * A wordbox: a named group of base words in one language, made to feed gap-fill. See
+ * docs/wordboxes-themes-tags.md.
+ */
 class WordboxController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index($id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
+    use ListsBaseEntries;
 
     /**
      * Store a newly created resource in storage.
@@ -62,43 +55,51 @@ class WordboxController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * The wordbox's words in the vocabulary base's own table (ListsBaseEntries), beside its
+     * gap-fill exercises and the checklist a new one is generated from.
      */
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        $cards = Auth::user()->wordboxes()
-            ->where('id', $id)
-            ->firstOrFail()
-            ->cards()
-            ->get();
+        $user = Auth::user();
+        $wordbox = $user->wordboxes()->with('language')->findOrFail($id);
 
-        $wordbox = Auth::user()->wordboxes()->where('id', $id)->first();
+        return $this->baseTable($request, $user->baseWords()->whereHas('wordboxes', fn ($q) => $q->whereKey($wordbox->id)), null, $wordbox->language_id, 'wordbox.index', [
+            'wordbox' => $wordbox,
+            'activeLanguageId' => $wordbox->language_id,
+            'words' => $wordbox->baseWords()->with('language')->orderBy('lemma')->get(),
+        ]);
+    }
 
-        if (! $wordbox) {
-            return redirect('/');
-        }
+    public function edit(string $id)
+    {
+        $wordbox = Auth::user()->wordboxes()->findOrFail($id);
 
-        return view('wordbox.index', ['cards' => $cards, 'wordbox' => $wordbox]);
+        return view('wordbox.edit', [
+            'wordbox' => $wordbox,
+            'words' => $wordbox->baseWords()->with('language')->orderBy('lemma')->get()->map($this->row(...)),
+        ]);
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * The edit page's search: the learner's base words of the wordbox's language whose lemma
+     * matches.
      */
-    public function edit(string $id)
+    public function search(Request $request, string $id)
     {
-        $cards = Auth::user()->wordboxes()
-            ->where('id', $id)
-            ->firstOrFail()
-            ->cards()
+        $request->validate([
+            'searchTerm' => ['required', 'string', 'min:2'],
+        ]);
+
+        $wordbox = Auth::user()->wordboxes()->findOrFail($id);
+
+        $words = Auth::user()->baseWords()->with('language')
+            ->where('language_id', $wordbox->language_id)
+            ->where('lemma', 'like', '%'.$request->input('searchTerm').'%')
+            ->orderBy('lemma')
+            ->limit(10)
             ->get();
 
-        $wordbox = Auth::user()->wordboxes()->where('id', $id)->first();
-
-        if (! $wordbox) {
-            return redirect('/');
-        }
-
-        return view('wordbox.edit', ['cards' => $cards, 'wordbox' => $wordbox]);
+        return response()->json(['words' => $words->map($this->row(...))]);
     }
 
     /**
@@ -124,45 +125,60 @@ class WordboxController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Save the edit page's list: the wordbox holds exactly these words afterwards. sync()
+     * leaves the rows of the words that stay untouched.
      */
     public function update(Request $request, string $id)
     {
-        $updatedCardsString = $request->input('cards');
-        $updatedCardIds = collect(json_decode($updatedCardsString, true))
-            ->pluck('id')
-            ->unique()
-            ->values()
-            ->toArray();
+        $wordbox = Auth::user()->wordboxes()->findOrFail($id);
 
-        $user = Auth::user();
-
-        // Ensure the wordbox belongs to the authenticated user
-        $wordbox = $user->wordboxes()->where('id', $id)->firstOrFail();
-
-        // Get currently mapped card IDs in the wordbox
-        $existingCardIds = $wordbox->cards()->pluck('cards.id')->toArray();
-
-        // Determine cards to remove (exist in DB but not in updated list)
-        $cardsToRemove = array_diff($existingCardIds, $updatedCardIds);
-        foreach ($cardsToRemove as $cardId) {
-            $wordbox->cards()->detach($cardId);
-        }
-
-        // Determine new cards to add (exist in updated list but not in DB)
-        $cardsToAdd = array_diff($updatedCardIds, $existingCardIds);
-        foreach ($cardsToAdd as $cardId) {
-            $wordbox->cards()->attach($cardId);
-        }
+        $wordbox->baseWords()->sync($this->wordIds($request, $wordbox, ['array']));
 
         return redirect()->route('wordbox.show', ['id' => $id]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    /** /base's bulk "Add to wordbox": checked words already in the box stay as they are. */
+    public function addWords(Request $request, string $id)
     {
-        //
+        $wordbox = Auth::user()->wordboxes()->findOrFail($id);
+        $ids = $this->wordIds($request, $wordbox, ['required', 'array']);
+
+        $wordbox->baseWords()->syncWithoutDetaching($ids);
+
+        return response()->json(['added' => count($ids), 'wordbox' => $wordbox->name]);
+    }
+
+    /** The wordbox page's bulk "Remove from wordbox": the words stay in the base. */
+    public function removeWords(Request $request, string $id)
+    {
+        $wordbox = Auth::user()->wordboxes()->findOrFail($id);
+        $data = $request->validate(['ids' => ['required', 'array'], 'ids.*' => ['integer']]);
+
+        $wordbox->baseWords()->detach($data['ids']);
+
+        return response()->noContent();
+    }
+
+    /**
+     * The request's base word ids. Each has to be one of the learner's own words in the
+     * wordbox's language — anything else fails validation.
+     */
+    private function wordIds(Request $request, Wordbox $wordbox, array $rules): array
+    {
+        $data = $request->validate([
+            'ids' => $rules,
+            'ids.*' => ['integer', 'distinct', Rule::exists('base_words', 'id')->where(fn ($q) => $q
+                ->where('user_id', $wordbox->user_id)
+                ->where('language_id', $wordbox->language_id)
+                ->where('deleted', false))],
+        ]);
+
+        return $data['ids'] ?? [];
+    }
+
+    /** One word as the edit page lists it. */
+    private function row(BaseWord $word): array
+    {
+        return ['id' => $word->id, 'form' => $word->displayForm(), 'translation' => $word->translation];
     }
 }

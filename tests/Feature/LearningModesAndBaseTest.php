@@ -10,7 +10,6 @@ use App\Models\Language;
 use App\Models\Learning;
 use App\Models\Theme;
 use App\Models\User;
-use App\Models\Wordbox;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -82,7 +81,7 @@ class LearningModesAndBaseTest extends TestCase
         $this->cardWithWords($user, $language, 'I would rather not', [], ['definition' => 'Said to politely refuse an offer.']);
 
         $deck = $this->deck($this->actingAs($user)
-            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
+            ->withSession(['learning_filter' => ['language_id' => $language->id, 'scope' => 'due']])
             ->get('/startLearningSet/definitions')->getContent());
 
         $this->assertCount(1, $deck);
@@ -96,7 +95,7 @@ class LearningModesAndBaseTest extends TestCase
         $this->cardWithWords($user, $language, 'kostade', [['kosta', 'verb', null]], ['translation' => 'cost (past)']);
 
         $deck = $this->deck($this->actingAs($user)
-            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
+            ->withSession(['learning_filter' => ['language_id' => $language->id, 'scope' => 'due']])
             ->get('/startLearningSet/translation')->getContent());
 
         $this->assertCount(1, $deck);
@@ -114,23 +113,11 @@ class LearningModesAndBaseTest extends TestCase
         $this->cardWithWords($user, $language, 'hus', [], ['translation' => '', 'definition' => 'En byggnad att bo i.']);
 
         $deck = $this->deck($this->actingAs($user)
-            ->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
+            ->withSession(['learning_filter' => ['language_id' => $language->id, 'scope' => 'due']])
             ->get('/startLearningSet/translation')->getContent());
 
         $this->assertSame('En byggnad att bo i.', $deck[0]['front']);
         $this->assertSame('hus', $deck[0]['back']);
-    }
-
-    public function test_translation_mode_is_accepted_by_the_legacy_wordbox_entry_point(): void
-    {
-        [$user, $language] = $this->learner();
-        $card = $this->cardWithWords($user, $language, 'hus', [], ['translation' => 'house']);
-        $wordbox = Wordbox::factory()->create(['user_id' => $user->id, 'language_id' => $language->id]);
-        $wordbox->cards()->attach($card->id);
-
-        $deck = $this->deck($this->actingAs($user)->get('/startLearning/'.$wordbox->id.'/translation')->getContent());
-
-        $this->assertSame('house', $deck[0]['front']);
     }
 
     /**
@@ -145,12 +132,12 @@ class LearningModesAndBaseTest extends TestCase
         $this->cardWithWords($user, $language, 'bil', [], ['translation' => 'car']);
 
         $deck = $this->deck($this->actingAs($user)->withSession(['learning_filter' => 'Home'])
-            ->get('/startLearning/0/translation')->getContent());
+            ->get('/startLearning/translation')->getContent());
         $this->assertSame(['house'], array_column($deck, 'front'));
 
         [$other] = $this->learner();
         $this->assertSame([], $this->deck($this->actingAs($other)->withSession(['learning_filter' => 'Home'])
-            ->get('/startLearning/0/translation')->getContent()));
+            ->get('/startLearning/translation')->getContent()));
     }
 
     /**

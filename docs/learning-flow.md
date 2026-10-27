@@ -10,22 +10,21 @@ in [conversation-challenge](conversation-challenge.md)'s sibling doc, the SRS-sp
 
 The **Learn** nav link goes to `/setLearning`, a language-aware card-set builder (closure in
 `web.php`, not a controller — see [overview](overview.md) "Routing"). Flow: pick a target language (the
-`<x-wordbox-picker>` switcher row — multi-language users only, client-side toggle, no DB calls —
-see [multi-language](multi-language.md)) → a wordbox scope (**nothing selected = all terms in the language**, the
-*General vocabulary* node = terms in no wordbox, or a specific wordbox) → **Due** (default) vs.
-**Cram** → a learning mode.
+`<x-language-switcher>` row — multi-language users only, client-side toggle, no DB calls —
+see [multi-language](multi-language.md)) → **Due** (default) vs. **Cram** → a learning mode. A
+session is always every card of the language; wordboxes group base words for gap-fill and play no
+part here (see [wordboxes-themes-tags](wordboxes-themes-tags.md)).
 
-The route precomputes **per-selection card counts** (total + due, for "all", "general", and every
-wordbox in every language) in one pass so the builder can show "N due cards" for every possible
-choice without a round trip per click. These counts intentionally mirror the exact rules in
+The route precomputes **per-language card counts** (total + due) in one pass so the builder can
+show "N due cards" for every possible choice without a round trip per click. These counts intentionally mirror the exact rules in
 `Learning::getCardsForSelection` (due = `next_study_at` on/before today and `level < 8`) — if you change one, you
 must change the other, or the counts shown in the builder will disagree with what a session
 actually serves.
 
-Selection is submitted to `GET /startLearningSet/{mode}` as `language_id` / `wordbox`
-(`all|general|<id>`) / `scope` (`due|cram`) query params, handled by
+Selection is submitted to `GET /startLearningSet/{mode}` as `language_id` / `scope`
+(`due|cram`) query params, handled by
 **`Learning::startLearningSet()`** (a static method used directly as the route action — see
-[overview](overview.md)). It validates ownership of the language/wordbox, normalizes `wordbox`/`scope` to a
+[overview](overview.md)). It validates ownership of the language, normalizes `scope` to a
 known value, and stores a **structured array** in `session('learning_filter')` before rendering.
 
 ### Legacy entry points (still live, don't remove)
@@ -34,22 +33,22 @@ known value, and stores a **structured array** in `session('learning_filter')` b
   the filter (theme name or `'due'`) as a **plain string** in the session and redirects to
   `/setLearning`, which renders a **simple mode picker** (no builder UI) whenever the session
   filter turns out to be a theme name it recognizes.
-- Wordbox detail page: links straight to `GET /startLearning/{wbid}/{mode}` (always **cram**
-  scope) → `Learning::startLearning()`.
+- `GET /startLearning/{mode}` → `Learning::startLearning()` starts a session on whatever filter
+  is already in the session: the theme picker's mode links, and "Continue learning another set"
+  on `/completeLearning` once a capped due session ends.
 - Both of these, and the builder path, ultimately converge on
   **`Learning::renderLearningView($mode)`**, the single shared flashcard renderer.
 
 ## `Learning::getCardsForLearning()` — two calling conventions
 
 Accepts **either** the structured array from the builder (dispatches to
-`getCardsForSelection()`) **or** the legacy string filter (`'due'`, a numeric wordbox id, or a
-theme name) for the old entry points — kept as one method so `renderLearningView()` doesn't need
+`getCardsForSelection()`) **or** the legacy string filter (`'due'` or a theme name) for the old entry points — kept as one method so `renderLearningView()` doesn't need
 to know which flow it's serving.
 
 Both code paths share the same **due-set cap**, `Learning::onlyDue()`: if more than 20 cards are
 due, only **15** are served and `session(['more_cards_available' => true])` is set (the UI can then
-show a "there are more due" hint); otherwise all due cards are served. `cram` scope — and a
-wordbox's own page, which is always cram — returns everything, uncapped. A theme is looked up
+show a "there are more due" hint); otherwise all due cards are served. `cram` scope returns
+everything, uncapped. A theme is looked up
 among the learner's own themes; an unknown one serves nothing. The returned collection is always
 `->shuffle()`d.
 
@@ -60,7 +59,7 @@ it.
 ## Rendering a session (`Learning::renderLearningView($mode)`)
 
 `Learning::cardEntries()` builds each entry **per card**,
-`{id, front, back, hint, wordbox}`:
+`{id, front, back, hint}`:
 
 | Mode | front | back | hint |
 |---|---|---|---|
@@ -121,9 +120,6 @@ a one-pass countdown.
 
 ## Flashcard view details (`learning/index.blade.php`)
 
-- Shows the card's **wordbox name** in an orange pill above the card
-  (`$card->wordbox->first()?->name`); a card in no wordbox keeps the pill's space reserved but
-  `invisible`, so cards don't visually jump around depending on whether they have one.
 - "Save and quit" is the standard back-button style (arrow + text), absolutely positioned
   top-left, rather than a full-width strip.
 - **Below lg** it is laid out like a native flashcard app, since this is the screen most used on a

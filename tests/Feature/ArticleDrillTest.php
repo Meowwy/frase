@@ -125,7 +125,7 @@ class ArticleDrillTest extends TestCase
         $session = ArticleDrill::session($user, $language);
 
         $this->assertCount(ArticleDrill::SESSION, $session);
-        $this->assertSame(['id' => $popular->id, 'front' => 'skola', 'back' => 'en skola', 'hint' => '', 'wordbox' => ''], $session[0]);
+        $this->assertSame(['id' => $popular->id, 'front' => 'skola', 'back' => 'en skola', 'hint' => ''], $session[0]);
         $this->assertSame([$nouns[21]->id, $nouns[0]->id], [$session[1]['id'], $session[2]['id']]);
         $this->assertSame('ett ord1', $session[2]['back']);
         $this->assertSame(23, ArticleDrill::due($user, $language)->count());

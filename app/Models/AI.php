@@ -406,91 +406,90 @@ class AI
         );
     }
 
-    public static function generateTextWithGaps(string $phrases, string $targetLanguage, string $wordboxName, ?string $themePreference = null, ?string $level = null): ?array
+    /**
+     * One gap-fill story over a wordbox's ticked base words (docs/gap-fill.md). Each word
+     * comes as its lemma with the data that pins it down — display form, part of speech,
+     * grammar attributes and native translation — and the story inflects it as its sentence
+     * needs: a gap-fill of bare dictionary forms tests nothing a flashcard doesn't. The
+     * translation anchors the sense, so the word keeps its part of speech and meaning in
+     * whatever form it takes. No word may appear outside its own gap, the title included, or
+     * the text would give the answers away.
+     *
+     * $words: [['base_word_id', 'lemma', 'display_form', 'part_of_speech', 'grammar',
+     * 'translation'], ...]. Returns ['title', 'text', 'answers' => [index => ['phrase',
+     * 'accepted', 'base_word_id']]] — `phrase` the form the story used, `accepted` every form
+     * that fills the gap, the phrase among them — or null on failure, including a story whose
+     * placeholders don't match its answers.
+     */
+    public static function generateTextWithGaps(array $words, string $targetLanguage, ?string $themePreference = null, ?string $level = null): ?array
     {
-        Log::info('Generating text with gaps for wordbox: '.$wordboxName);
-        $themePrompt = $themePreference ? " Theme preference: \"{$themePreference}\"." : '';
+        $system = "You are a language learning expert. Write a short, coherent story in {$targetLanguage} that works in every listed word once. "
+            .'Each word is given as its dictionary lemma: use it in whatever form its sentence naturally needs (tense, person, number, definiteness, case, comparison), never the bare lemma where the grammar wants another form. '
+            .'Keep each word\'s part of speech and the sense its translation gives it. '
+            .'Replace each word with a numbered placeholder [1], [2], … in order of appearance, one per word, and never write a listed word anywhere else in the story or the title. '
+            .'The words around each gap make the missing form unambiguous. '
+            ."Also give the story a short title (max 5 words) in {$targetLanguage}."
+            .self::levelInstruction($level);
 
-        $response = Http::withToken(config('services.openai.secret'))->post('https://api.openai.com/v1/chat/completions', [
-            'model' => self::MODEL,
-            'reasoning_effort' => self::REASONING_EFFORT,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => 'You are a language learning expert. Write a short, coherent story in the target language that naturally works in every provided phrase. You do not have to use each phrase word-for-word: adapt its form (inflection, conjugation, or a natural variant) so the text reads naturally, but keep the same meaning and context the phrase carries as a vocabulary item. Replace the part of the text that corresponds to each phrase with a numbered placeholder [1], [2], … (numbered in order of appearance) and return, for each placeholder, the exact text that belongs in that gap. Also give the story a short title (max 5 words) in the target language that reflects its content.'.self::levelInstruction($level),
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "Wordbox name: \"{$wordboxName}\". Target language: \"{$targetLanguage}\".{$themePrompt} Phrases to use: \"{$phrases}\". Write the story in {$targetLanguage}, replacing each phrase (or its adapted form) with its [n] placeholder.",
+        $lines = array_map(function (array $word) {
+            $grammar = implode(', ', array_map(fn ($name, $value) => "{$name}: {$value}", array_keys($word['grammar']), $word['grammar']));
+
+            return "- id {$word['base_word_id']}: \"{$word['lemma']}\" ({$word['part_of_speech']}".($grammar ? ", {$grammar}" : '')
+                .($word['display_form'] !== $word['lemma'] ? ", dictionary entry \"{$word['display_form']}\"" : '')
+                .") = \"{$word['translation']}\"";
+        }, $words);
+
+        $user = "Words:\n".implode("\n", $lines).($themePreference ? "\n\nTheme: \"{$themePreference}\"" : '');
+
+        $result = self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'generate_text_with_gaps',
+            [
+                'title' => ['type' => 'string', 'description' => "A short title for the story (max 5 words) in {$targetLanguage}, using none of the words."],
+                'text' => ['type' => 'string', 'description' => 'The story with numbered placeholders [1], [2], etc.'],
+                'answers' => [
+                    'type' => 'array',
+                    'description' => 'One entry per placeholder.',
+                    'items' => self::object([
+                        'index' => ['type' => 'integer', 'description' => 'The placeholder index, e.g. 1 for [1].'],
+                        'base_word_id' => ['type' => 'integer', 'description' => 'The id of the word this gap is.'],
+                        'phrase' => ['type' => 'string', 'description' => 'The exact form of the word the story uses in this gap.'],
+                        'accepted' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Every form of the word that correctly fills this gap, the phrase among them.'],
+                    ]),
                 ],
             ],
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'name' => 'generate_text_with_gaps',
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'text' => [
-                                'type' => 'string',
-                                'description' => 'The story with numbered placeholders [1], [2], etc.',
-                            ],
-                            'title' => [
-                                'type' => 'string',
-                                'description' => 'A short title for the story (max 5 words) in the target language.',
-                            ],
-                            'answers' => [
-                                'type' => 'array',
-                                'description' => 'A list of objects, each with an index and the correct phrase.',
-                                'items' => [
-                                    'type' => 'object',
-                                    'properties' => [
-                                        'index' => [
-                                            'type' => 'integer',
-                                            'description' => 'The placeholder index, e.g., 1 for [1].',
-                                        ],
-                                        'phrase' => [
-                                            'type' => 'string',
-                                            'description' => 'The exact text that belongs in this gap (the adapted form actually used, if you changed it).',
-                                        ],
-                                    ],
-                                    'required' => ['index', 'phrase'],
-                                    'additionalProperties' => false,
-                                ],
-                            ],
-                        ],
-                        'required' => ['text', 'title', 'answers'],
-                        'additionalProperties' => false,
-                    ],
-                ],
-            ],
-        ]);
+        );
 
-        if ($response->json('choices.0.message.refusal') != null) {
-            Log::error('AI refused to generate text with gaps: '.$response->json('choices.0.message.refusal'));
+        if (! $result) {
+            return null;
+        }
+
+        preg_match_all('/\[(\d+)\]/', $result['text'], $placeholders);
+        $answers = [];
+        foreach ($result['answers'] as $answer) {
+            $answers[$answer['index']] = [
+                'phrase' => $answer['phrase'],
+                'accepted' => array_values(array_unique([$answer['phrase'], ...$answer['accepted']])),
+                'base_word_id' => $answer['base_word_id'],
+            ];
+        }
+
+        $placeholders = array_map('intval', $placeholders[1]);
+        sort($placeholders);
+        $indexes = array_keys($answers);
+        sort($indexes);
+        if (! $placeholders || $placeholders !== $indexes || array_diff(array_column($answers, 'base_word_id'), array_column($words, 'base_word_id'))) {
+            Log::error('generate_text_with_gaps returned answers that do not match its text: '.json_encode($result));
 
             return null;
         }
 
-        if (! $response->successful()) {
-            Log::error('AI request failed: '.$response->status().' - '.$response->body());
+        $result['answers'] = $answers;
 
-            return null;
-        }
-
-        $data = json_decode($response->json('choices.0.message.content'), true);
-
-        // Convert array of answers back to the expected key-value format if necessary
-        if (isset($data['answers']) && is_array($data['answers']) && ! empty($data['answers']) && isset($data['answers'][0]['index'])) {
-            $formattedAnswers = [];
-            foreach ($data['answers'] as $answer) {
-                $formattedAnswers[$answer['index']] = $answer['phrase'];
-            }
-            $data['answers'] = $formattedAnswers;
-        }
-
-        return $data;
+        return $result;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\AI;
+use App\Models\BaseWord;
 use App\Models\GapFillExercise;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -24,37 +25,35 @@ class GenerateGapFillJob implements ShouldQueue
             $wordbox = $this->exercise->wordbox;
             $user = $wordbox->user;
 
-            // Limit to max 30 random words
-            $phrases = $wordbox->cards()
-                ->inRandomOrder()
-                ->limit(30)
-                ->pluck('term')
-                ->implode(', ');
+            // The words ticked for this exercise that are still in the box and the base.
+            $words = $wordbox->baseWords()->with('language')->whereKey($this->exercise->base_word_ids)->get()
+                ->map(fn (BaseWord $word) => [
+                    'base_word_id' => $word->id,
+                    'lemma' => $word->lemma,
+                    'display_form' => $word->displayForm(),
+                    'part_of_speech' => $word->part_of_speech,
+                    'grammar' => $word->grammar_attributes ?? [],
+                    'translation' => $word->translation,
+                ])
+                ->all();
 
-            if (empty($phrases)) {
+            if (empty($words)) {
                 $this->exercise->update(['status' => 'failed']);
 
                 return;
             }
 
-            $targetLanguage = optional($wordbox->language)->name
-                ?? $user->target_language
-                ?? 'English';
-
-            // Match the exercise difficulty to the user's proficiency in this language.
-            $level = $user->levelForLanguage($wordbox->language);
-
             $result = AI::generateTextWithGaps(
-                $phrases,
-                $targetLanguage,
-                $wordbox->name,
+                $words,
+                $wordbox->language->name,
                 $this->exercise->theme_preference,
-                $level
+                // Match the exercise difficulty to the user's proficiency in this language.
+                $user->levelForLanguage($wordbox->language)
             );
 
             if ($result) {
                 $this->exercise->update([
-                    'title' => $result['title'] ?? null,
+                    'title' => $result['title'],
                     'text_with_gaps' => $result['text'],
                     'correct_answers' => $result['answers'],
                     'status' => 'completed',

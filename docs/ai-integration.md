@@ -243,17 +243,41 @@ negatives plus a worked `schön` example each.
 
 ## Related generators
 
-- **`AI::generateTextWithGaps($phrases, $targetLanguage, $wordboxName, $themePreference = null,
-  $level = null)`** — writes a short story that naturally works in every supplied phrase
-  (adapting inflection/form as needed, not requiring verbatim use), replaces each with a numbered
-  `[n]` placeholder, and returns `{text, title, answers}` where `answers` maps each index to the
-  exact text that belongs in that gap. Runs on the queue (`GenerateGapFillJob`), not
-  synchronously — see [gap-fill](gap-fill.md).
+- **`AI::generateTextWithGaps($words, $targetLanguage, $themePreference = null, $level = null)`**
+  — one gap-fill story; see "Gap-fill" below.
 - **`AI::generateFragments($slots, $targetLanguage, $nativeLanguage, $level, $ownWords)`** — one
   Frammenti batch, and **`AI::evaluateSentence()`** — one
   Frammenti tier III verdict; see "Frammenti" below.
 - **`AI::getEmbedding($text)`** / **`AI::cosineSimilarity($a, $b)`** — embedding + similarity
   helpers used for (currently paused) automatic card linking. See [search-and-linking](search-and-linking.md).
+
+### Gap-fill — `AI::generateTextWithGaps()`
+
+Runs on the queue (`GenerateGapFillJob`, see [gap-fill](gap-fill.md)), through `requestCardJson()`
+at the default reasoning effort. `$words` are a wordbox's ticked base words, each as
+`{base_word_id, lemma, display_form, part_of_speech, grammar, translation}`, sent one per line:
+id, lemma, part of speech, grammar attributes (`gender: neuter`) and — when it differs from the
+lemma — the display form as "dictionary entry" (*ett hus*, *komm|a -er*), then the translation.
+
+- **The words are lemmas to inflect.** The story uses each in whatever form its sentence needs,
+  never the bare lemma where the grammar wants another. A gap-fill of dictionary forms would test
+  nothing a flashcard doesn't; producing the right form in context is the exercise. The words
+  around each gap must make that form unambiguous.
+- **Part of speech and sense are kept**, and the translation is what anchors the sense: a lemma
+  alone doesn't say which of its meanings the learner saved.
+- **No word appears outside its own gap**, the title included — anywhere else it gives the answer
+  away.
+- The CEFR rule (rule 2 above) applies through `levelInstruction()`.
+- It does **not** quote `LanguageGuideline::promptNote()`: those notes tell CALL 1 how to tag and
+  write a base word (dictionary style with its `|`, "tag it as common or neuter") and would bleed
+  into the story. The display form and attributes already carry what the model needs.
+
+Strict schema: `title`, `text` (with `[1]`, `[2]`, … in order of appearance) and `answers[]` of
+`{index, base_word_id, phrase, accepted[]}`, all required — `phrase` the form the story used,
+`accepted` every form that fills the gap. PHP reshapes `answers` into
+`[index => {phrase, accepted, base_word_id}]`, always counting `phrase` among `accepted`, and
+returns `null` when the placeholders in `text` aren't exactly the answers' indexes or an answer
+names a word that wasn't sent — such a story can't be checked.
 
 ### Frammenti — `AI::generateFragments()` and `AI::evaluateSentence()`
 

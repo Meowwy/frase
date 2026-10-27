@@ -13,17 +13,16 @@ use Illuminate\Support\Facades\Auth;
 class CardController extends Controller
 {
     /**
-     * Display the vocabulary list, filtered by language + wordbox + live search.
+     * Display the vocabulary list, filtered by language + live search.
      *
      * One endpoint serves both the full page and the live updates: a normal request
      * renders the page, an AJAX request returns just the rows + pagination so the
-     * shared <x-wordbox-picker> and the header search input can refresh in place.
+     * shared <x-language-switcher> and the header search input can refresh in place.
      */
     public function index(\Illuminate\Http\Request $request)
     {
         $user = Auth::user();
 
-        $wordbox = $request->query('wordbox', 'all'); // 'all' | 'general' | <wordbox id>
         $term = trim((string) $request->query('term', ''));
 
         // Legacy entry: dashboard theme card links here with ?theme=<name>. Pre-filter
@@ -39,19 +38,13 @@ class CardController extends Controller
             $languageId = $user->currentSaveLanguage()?->id;
         }
 
-        $query = $user->cards()->with('wordbox:id,name');
+        $query = $user->cards();
 
         if ($languageId) {
             $query->where('language_id', $languageId);
         }
         if ($theme) {
             $query->where('theme_id', $theme->id);
-        }
-
-        if ($wordbox === 'general') {
-            $query->whereDoesntHave('wordbox');
-        } elseif (is_numeric($wordbox)) {
-            $query->whereHas('wordbox', fn ($q) => $q->where('wordboxes.id', $wordbox));
         }
 
         if ($term !== '') {
@@ -69,18 +62,9 @@ class CardController extends Controller
             ]);
         }
 
-        $targetLanguages = $user->languages()->orderBy('name')->get();
-        $wordboxesByLanguage = $user->wordboxes()
-            ->select('id', 'name', 'language_id', 'position')
-            ->orderBy('position')
-            ->orderBy('name')
-            ->get()
-            ->groupBy('language_id');
-
         return view('cards.index', [
             'cards' => $cards,
-            'targetLanguages' => $targetLanguages,
-            'wordboxesByLanguage' => $wordboxesByLanguage,
+            'targetLanguages' => $user->languages()->orderBy('name')->get(),
             'activeLanguageId' => $languageId,
             'term' => $term,
         ]);
@@ -130,7 +114,6 @@ class CardController extends Controller
             ->get(['cards.id', 'term', 'translation']);
 
         $card->load(['language', 'baseWords', 'fixedExpressions']);
-        $wordbox = $card->wordbox()->first();
 
         // Neighbours for the prev/next arrows: the user's other cards in this card's
         // language, newest first — the same order /cards lists them in, so "previous"
@@ -143,7 +126,6 @@ class CardController extends Controller
         return view('cards.show', [
             'card' => $card,
             'theme' => $theme,
-            'wordbox' => $wordbox,
             'linkedCards' => $linkedCards,
             'previousCard' => $previousCard,
             'nextCard' => $nextCard,
@@ -206,7 +188,7 @@ class CardController extends Controller
      * to a Term the learner already has, instead of ever making a second card.
      *
      * The card is rewritten in place rather than replaced, so its SRS progress, note,
-     * wordbox, base-word links and manual links all survive; see Card::regenerate().
+     * base-word links and manual links all survive; see Card::regenerate().
      */
     public function regenerate(\Illuminate\Http\Request $request, Card $card)
     {
@@ -286,42 +268,9 @@ class CardController extends Controller
         // Scoping through cards() enforces ownership; ids not owned are ignored.
         $cards = Auth::user()->cards()->whereIn('id', $data['ids'])->get();
 
-        foreach ($cards as $card) {
-            $card->wordbox()->detach(); // drop pivot rows so none are orphaned
-            $card->delete();
-        }
+        $cards->each->delete();
 
         return response()->json(['deleted' => $cards->count()]);
-    }
-
-    /**
-     * (Re)assign the selected cards to a wordbox (bulk row action from /cards).
-     * A card is treated as belonging to a single wordbox, so we sync the pivot
-     * to just the target — moving cards that were already in another wordbox.
-     */
-    public function assignWordbox(\Illuminate\Http\Request $request)
-    {
-        $data = $request->validate([
-            'ids' => ['required', 'array'],
-            'ids.*' => ['integer'],
-            'wordbox_id' => ['required', 'integer'],
-        ]);
-
-        $user = Auth::user();
-        $wordbox = $user->wordboxes()->where('id', $data['wordbox_id'])->firstOrFail();
-
-        // The list is single-language; guard defensively so a card can't be
-        // moved into a wordbox of a different language.
-        $cards = $user->cards()
-            ->whereIn('id', $data['ids'])
-            ->where('language_id', $wordbox->language_id)
-            ->get();
-
-        foreach ($cards as $card) {
-            $card->wordbox()->sync([$wordbox->id]);
-        }
-
-        return response()->json(['assigned' => $cards->count(), 'wordbox' => $wordbox->name]);
     }
 
     /**

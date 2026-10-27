@@ -137,7 +137,7 @@
                     <div class="w-1/4 p-6 flex flex-col justify-center max-lg:w-full max-lg:p-2 max-lg:items-start">
                         <h2 class="text-lg font-bold mb-2">Create Wordbox</h2>
                         <p class="text-sm mb-4">
-                            Wordboxes let you create separate decks of learning cards.
+                            Wordboxes group words from your vocabulary base for gap-fill exercises.
                         </p>
                         <x-forms.button onclick="openModal('create-wordbox')">Create a wordbox</x-forms.button>
                     </div>
@@ -151,7 +151,7 @@
                                     <div>
                                         <h3 class="text-xl font-bold mb-2 truncate" title="{{ $wordbox->name }}">{{ $wordbox->name }}</h3>
                                         <p class="text-sm text-white/70 line-clamp-2 mb-2">{{ $wordbox->description }}</p>
-                                        <p class="text-xs font-semibold text-blue-400 uppercase tracking-wider">Cards: {{ $wordbox->cards_count }}</p>
+                                        <p class="text-xs font-semibold text-blue-400 uppercase tracking-wider">Words: {{ $wordbox->base_words_count }}</p>
                                     </div>
                                     <a href="/wordbox/{{ $wordbox->id }}" class="mt-4">
                                         <x-forms.button-small class="w-full">View details</x-forms.button-small>
@@ -183,7 +183,7 @@
                                 <span id="wbLangLabel"></span>
                                 <span class="text-white/50 text-xs">▾</span>
                             </button>
-                            <div id="wbLangMenu" class="hidden absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1">
+                            <div id="wbLangMenu" class="hidden mt-1 max-h-60 overflow-auto rounded-xl bg-neutral-900 border border-white/10 shadow-xl py-1">
                                 @foreach($targetLanguages as $lang)
                                     <button type="button"
                                             class="wb-lang-option w-full text-left text-sm px-3 py-2 hover:bg-blue-600/30 transition-colors max-lg:py-3 max-lg:text-base"

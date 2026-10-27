@@ -1,7 +1,7 @@
 # Multi-language Vocabulary
 
 How Frase supports learning several languages at once, the native-language-vocabulary opt-in, and
-the shared UI component that switches between languages/wordboxes everywhere.
+the shared UI component that switches between languages in place.
 
 ## Data model
 
@@ -22,8 +22,7 @@ the shared UI component that switches between languages/wordboxes everywhere.
   `RegisteredUserController@store` writes on signup — see [overview](overview.md) "Known rough edges". A
   brand-new user has no pivot rows and no `native_language_id` until they visit `/profile/edit`.
 - `cards`, `wordboxes`, and `themes` each carry their own `language_id` — a card belongs to
-  exactly **one** language. "**General vocabulary**" means cards in that language that aren't
-  attached to any wordbox, not a separate table.
+  exactly **one** language, and a wordbox holds only base words of its own.
 - A feature only some languages have is **derived from the language guideline**, never a flag on
   `languages`: Frammenti's [article drill](frammenti.md#article-drill) exists for a language whose
   guideline gives nouns a gender (`ArticleDrill::available()`).
@@ -76,9 +75,7 @@ migration convenience for accounts that predate the language system.
 **Capture has no language input at all.** CALL 1 detects which of the learner's own languages the
 Term is in, and staging is where a wrong detection gets corrected (see [cards](cards.md)
 "Staging"). The vocabulary-base redesign therefore retired the save-destination picker, `POST
-/capture-target` and the `capture_language_id`/`capture_wordbox_id` session keys outright — a
-captured term also no longer lands in a chosen wordbox, so it starts in General vocabulary and is
-moved from `/cards` if the learner wants it somewhere.
+/capture-target` and the `capture_language_id`/`capture_wordbox_id` session keys outright.
 
 What remains is `User::currentSaveLanguage()`, which answers a narrower question: which language a
 screen that shows one language at a time (`/cards`, `/base`, `/frammenti`, the Learn builder) should
@@ -86,31 +83,24 @@ open on. It resolves `active_language_id` → first target language, and may ret
 brand-new user with no languages set up. The name is now slightly wider than the job; every caller
 passes an explicit `language_id` when the user has picked one.
 
-## Shared wordbox picker component
+## Shared language switcher component
 
-`<x-wordbox-picker :target-languages :wordboxes-by-language :active-language-id :heading>`
-(`resources/views/components/wordbox-picker.blade.php`) is the language switcher + wordbox tag
-picker (general vocabulary | divider | wordbox tags + overflow "More" dropdown) used on the Learn
-builder (`/setLearning`) and the vocabulary list (`/cards`). It is **self-contained and
-page-agnostic**:
+`<x-language-switcher :target-languages :active-language-id>`
+(`resources/views/components/language-switcher.blade.php`) is the row of language tabs on the
+pages that re-filter in place — the Learn builder (`/setLearning`) and the vocabulary list
+(`/cards`). (`/base` and Frammenti switch language with plain links instead, a page load each.) It
+is **self-contained and page-agnostic**:
 
-- It owns all of its own selection and overflow-layout JS (jQuery). The language switcher row
-  itself only renders when the user has more than one target language.
-- It exposes the current selection two ways so a consuming page never needs to reach into its
-  DOM: `window.WordboxPicker.current()` → `{languageId, wordbox, label}`, and a
-  `wordboxpicker:change` **DOM event** with the same detail fired on every change. Pages read
-  `current()` on init (no dependency on event timing) and listen for the event afterward.
-- The overflow layout (`layoutTagRow`) keeps "general vocabulary" and the divider **pinned** (they
-  never overflow), keeps the **currently selected** wordbox tag visible even if that means
-  demoting up to two other visible tags into the "More" dropdown to make room, and re-lays-out on
-  window resize (debounced) and on language switch.
-- Switching the active language tab is **pure client-side state** (just shows/hides the matching
-  `.lang-group`) — no request round-trip, since all languages' wordbox lists are rendered
-  up-front by the server.
+- It only renders when the user has more than one target language.
+- Switching tabs is **pure client-side state** — no request of its own. It fires a
+  `languageswitcher:change` **DOM event** (`{languageId}`), and the page decides what to do with
+  it (re-fetch its rows, rebuild its mode links). Pages start from their own server-rendered
+  `activeLanguageId`, so there is nothing to read on init.
 
-**Gotcha**: never write the literal `<x-wordbox-picker>` tag inside a Blade `<script>` comment on
-a consuming page — Blade parses component tags before the browser ever sees the `<script>` block,
-so it gets rendered as a real (empty) component invocation instead of staying a comment.
+**Gotcha**: never write a literal component tag (`<x-language-switcher>`) inside a Blade
+`<script>` comment on a consuming page — Blade parses component tags before the browser ever sees
+the `<script>` block, so it gets rendered as a real (empty) component invocation instead of
+staying a comment.
 
 ## Queue jobs and language
 

@@ -12,6 +12,7 @@ class GapFillExercise extends Model
 
     protected $fillable = [
         'wordbox_id',
+        'base_word_ids',
         'theme_preference',
         'title',
         'text_with_gaps',
@@ -22,6 +23,7 @@ class GapFillExercise extends Model
     protected function casts(): array
     {
         return [
+            'base_word_ids' => 'array',
             'correct_answers' => 'array',
         ];
     }

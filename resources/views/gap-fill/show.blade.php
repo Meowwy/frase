@@ -1,9 +1,16 @@
+@php
+    // Each gap's word, as the bank and the checker know it.
+    $gapWords = $words->map(fn ($word) => ['lemma' => $word->lemma, 'form' => $word->displayForm(), 'part_of_speech' => $word->part_of_speech, 'translation' => $word->translation]);
+@endphp
 <x-html-layout>
+    <x-answer-check />
     <div class="container mx-auto p-6 max-w-4xl"
          x-data="{
-            answers: {{ json_encode($exercise->correct_answers ?? []) }},
+            answers: @js((object) ($exercise->correct_answers ?? [])),
+            words: @js((object) $gapWords->all()),
             status: '{{ $exercise->status }}',
             feedback: {},
+            message: '',
             showHistory: false,
             lastInput: null,
             deleteUrl: null,
@@ -28,37 +35,62 @@
                 }
                 if (target) { target.value = word; this.feedback[target.dataset.index] = null; }
             },
+            // Each gap is right (any accepted form), the right word in the wrong form (its bare
+            // lemma or dictionary entry), a near miss (one character or one accent off), or
+            // wrong — matched as Frammenti matches tier I.
             check() {
+                const { normalize, near } = AnswerCheck;
+                const notes = [];
                 document.querySelectorAll('input[data-index]').forEach(i => {
-                    let idx = i.dataset.index;
-                    this.feedback[idx] = this.answers[idx].toLowerCase().trim() === i.value.toLowerCase().trim() ? 'correct' : 'wrong';
+                    const idx = i.dataset.index;
+                    const answer = this.answers[idx];
+                    const word = this.words[answer.base_word_id];
+                    const typed = normalize(i.value);
+                    const accepted = answer.accepted.map(normalize);
+                    let verdict = 'wrong';
+                    if (accepted.includes(typed)) {
+                        verdict = 'correct';
+                    } else if (word && [word.lemma, word.form].map(normalize).includes(typed)) {
+                        verdict = 'form';
+                        notes.push('[' + idx + '] right word, wrong form');
+                    } else if (typed && near(accepted, typed)) {
+                        verdict = 'near';
+                        notes.push('[' + idx + '] almost, check your spelling');
+                    }
+                    this.feedback[idx] = verdict;
                 });
+                const verdicts = Object.values(this.feedback);
+                this.message = verdicts.filter(v => v === 'correct').length + ' of ' + verdicts.length + ' correct' + (notes.length ? ': ' + notes.join('; ') : '') + '.';
             },
             reset() {
                 this.feedback = {};
+                this.message = '';
                 document.querySelectorAll('input[data-index]').forEach(i => i.value = '');
             }
          }"
          x-init="if (status !== 'completed' && status !== 'failed') poll()">
 
-        <div class="flex justify-between items-center mb-8">
+        <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-2 mb-8 max-lg:mb-4">
             <div>
-                <h1 class="text-3xl font-bold">{{ $exercise->title ?? 'Gap-Fill #'.$exercise->id }}</h1>
+                <h1 class="text-3xl font-bold max-lg:text-2xl">{{ $exercise->title ?? 'Gap-Fill #'.$exercise->id }}</h1>
                 <p class="text-sm text-white/50 mt-1">Gap-Fill &middot; {{ $exercise->wordbox->name }}</p>
             </div>
-            <a href="{{ route('wordbox.show', $exercise->wordbox_id) }}" class="text-blue-400 hover:text-blue-300">
+            <a href="{{ route('wordbox.show', $exercise->wordbox_id) }}" class="text-blue-400 hover:text-blue-300 max-lg:py-2">
                 &larr; Back to Wordbox
             </a>
         </div>
 
-        <div class="bg-white/10 p-8 rounded-2xl border border-white/10 mb-8 leading-relaxed text-xl">
+        <div class="bg-white/10 p-8 rounded-2xl border border-white/10 mb-8 leading-relaxed text-xl max-lg:p-4 max-lg:mb-4 max-lg:text-lg">
             @if($exercise->status === 'completed')
-                {!! preg_replace_callback('/\[(\d+)\]/', function($matches) {
+                {{-- Hovering a gap names its word's part of speech and dictionary entry. --}}
+                {!! preg_replace_callback('/\[(\d+)\]/', function($matches) use ($exercise, $words) {
+                    $word = $words[$exercise->correct_answers[$matches[1]]['base_word_id'] ?? null] ?? null;
                     return '<input type="text" data-index="'.$matches[1].'"
+                            title="'.e($word ? $word->part_of_speech.' · '.$word->displayForm() : '').'"
                             @focus="lastInput = $event.target"
                             @input="feedback['.$matches[1].'] = null"
-                            class="bg-transparent border-b-2 border-white/20 px-2 py-0 w-40 focus:outline-none focus:border-blue-500 transition-colors mx-1 text-blue-400 font-medium"
-                            :class="feedback['.$matches[1].'] === \'correct\' ? \'!border-green-500 !text-green-500\' : (feedback['.$matches[1].'] === \'wrong\' ? \'!border-red-500 !text-red-500\' : \'\')"
+                            class="bg-transparent border-b-2 border-white/20 px-2 py-0 w-40 max-lg:w-28 max-lg:py-1 max-lg:text-base focus:outline-none focus:border-blue-500 transition-colors mx-1 text-blue-400 font-medium"
+                            :class="{ \'!border-green-500 !text-green-500\': feedback['.$matches[1].'] === \'correct\', \'!border-red-500 !text-red-500\': feedback['.$matches[1].'] === \'wrong\', \'!border-amber-500 !text-amber-500\': [\'near\', \'form\'].includes(feedback['.$matches[1].']) }"
                             placeholder="'.$matches[1].'">';
                 }, $exercise->text_with_gaps) !!}
             @elseif($exercise->status === 'failed')
@@ -79,14 +111,17 @@
             @endif
         </div>
 
-        <div class="p-6 bg-white/5 rounded-2xl border border-white/10 mb-8">
+        <div class="p-6 bg-white/5 rounded-2xl border border-white/10 mb-8 max-lg:p-4 max-lg:mb-4">
+            {{-- The words as the learner learnt them, not the forms the gaps need: putting each
+                 one in its form is the exercise. A click puts the bare lemma in a gap, to inflect. --}}
             <h2 class="text-sm font-bold mb-4 text-white/50 uppercase tracking-widest text-center">Words to use</h2>
             <div class="flex flex-wrap justify-center gap-3">
                 @if($exercise->status === 'completed')
-                    @foreach(collect($exercise->correct_answers)->values()->shuffle() as $word)
-                        <button type="button" @click="fill(@js($word))"
-                                class="bg-white/5 hover:bg-blue-600/30 text-blue-300 font-medium px-4 py-2 rounded-lg border border-white/10 hover:border-blue-500/50 transition-all">
-                            {{ $word }}
+                    @foreach($gapWords->shuffle() as $word)
+                        <button type="button" @click="fill(@js($word['lemma']))"
+                                class="bg-white/5 hover:bg-blue-600/30 text-blue-300 font-medium px-4 py-2 rounded-lg border border-white/10 hover:border-blue-500/50 transition-all max-lg:min-h-11">
+                            {{ $word['form'] }}
+                            <span class="ml-1 text-sm font-normal text-white/40">{{ $word['translation'] }}</span>
                         </button>
                     @endforeach
                 @else
@@ -99,42 +134,43 @@
 
         @if($exercise->status === 'completed')
             <div class="flex flex-col items-center gap-6">
-                <div class="flex gap-4">
-                    <button @click="check()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20">
+                <div class="flex gap-4 max-lg:w-full max-lg:gap-2">
+                    <button @click="check()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 max-lg:flex-1 max-lg:px-4 max-lg:min-h-12 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20">
                         Check Answers
                     </button>
-                    <button @click="reset()" class="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-xl font-bold transition-all border border-white/10">
+                    <button @click="reset()" class="bg-white/10 hover:bg-white/20 text-white px-8 py-3 max-lg:flex-1 max-lg:px-4 max-lg:min-h-12 rounded-xl font-bold transition-all border border-white/10">
                         Clear All
                     </button>
                 </div>
+                <p x-show="message" x-text="message" class="text-center text-white/70"></p>
             </div>
         @endif
 
-        <div class="mt-12 pt-8 border-t border-white/10">
-            <button @click="showHistory = !showHistory" class="flex items-center gap-2 text-white/50 hover:text-white transition-colors mx-auto uppercase tracking-widest text-sm font-bold">
+        <div class="mt-12 pt-8 border-t border-white/10 max-lg:mt-6 max-lg:pt-4">
+            <button @click="showHistory = !showHistory" class="flex items-center gap-2 text-white/50 hover:text-white transition-colors mx-auto uppercase tracking-widest text-sm font-bold max-lg:min-h-11">
                 <svg class="w-4 h-4 transition-transform" :class="showHistory ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
                 Show all exercises for this wordbox
             </button>
 
-            <div x-show="showHistory" x-transition class="mt-8 bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+            <div x-show="showHistory" x-transition class="mt-8 bg-white/5 rounded-2xl border border-white/10 overflow-x-auto max-lg:mt-4">
                 <table class="min-w-full divide-y divide-white/10">
                     <thead class="bg-white/5">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider w-16">#</th>
-                            <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Title (ID)</th>
-                            <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Created At</th>
-                            <th class="px-6 py-3 text-right text-xs font-bold text-white/50 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 max-lg:px-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider w-16">#</th>
+                            <th class="px-6 py-3 max-lg:px-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Title (ID)</th>
+                            <th class="px-6 py-3 max-lg:px-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Created At</th>
+                            <th class="px-6 py-3 max-lg:px-3 text-right text-xs font-bold text-white/50 uppercase tracking-wider">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/5">
                         @foreach($allExercises as $index => $item)
                             <tr class="transition-colors {{ $exercise->id === $item->id ? 'bg-blue-900 text-white font-bold' : 'hover:bg-white/5 text-white/70' }}">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $index + 1 }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $item->title ?? 'Exercise #'.$item->id }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $item->created_at->format('Y-m-d H:i') }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                <td class="px-6 py-4 max-lg:px-3 whitespace-nowrap text-sm">{{ $index + 1 }}</td>
+                                <td class="px-6 py-4 max-lg:px-3 whitespace-nowrap text-sm">{{ $item->title ?? 'Exercise #'.$item->id }}</td>
+                                <td class="px-6 py-4 max-lg:px-3 whitespace-nowrap text-sm">{{ $item->created_at->format('Y-m-d H:i') }}</td>
+                                <td class="px-6 py-4 max-lg:px-3 whitespace-nowrap text-right text-sm">
                                     <div class="flex items-center justify-end gap-4">
                                         @if($exercise->id !== $item->id)
                                             <a href="{{ route('gap-fill.show', $item) }}" class="text-blue-400 hover:text-blue-300">View &rarr;</a>
@@ -143,7 +179,7 @@
                                         @endif
                                         <button type="button"
                                                 @click="deleteUrl = '{{ route('gap-fill.destroy', $item) }}'; deleteTitle = @js($item->title ?? 'Exercise #'.$item->id)"
-                                                class="text-red-500 hover:text-red-400 font-medium">
+                                                class="text-red-500 hover:text-red-400 font-medium max-lg:p-2">
                                             Delete
                                         </button>
                                     </div>
@@ -166,14 +202,14 @@
                 </p>
                 <div class="flex justify-end gap-3">
                     <button type="button" @click="deleteUrl = null"
-                            class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
+                            class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12">
                         Cancel
                     </button>
                     <form :action="deleteUrl" method="POST">
                         @csrf
                         @method('DELETE')
                         <button type="submit"
-                                class="px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all">
+                                class="px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all max-lg:min-h-12">
                             Delete
                         </button>
                     </form>

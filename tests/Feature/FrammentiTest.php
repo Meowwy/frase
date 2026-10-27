@@ -591,7 +591,7 @@ class FrammentiTest extends TestCase
         Http::assertNothingSent();
         $this->actingAs($user)->get('/')->assertSee("Today's Frammenti", false)->assertSee('Daily active-vocabulary drill')
             ->assertSee(route('frammenti', ['language_id' => $language->id]), false);
-        $this->actingAs($user)->withSession(['learning_filter' => ['language_id' => $language->id, 'wordbox' => 'all', 'scope' => 'due']])
+        $this->actingAs($user)->withSession(['learning_filter' => ['language_id' => $language->id, 'scope' => 'due']])
             ->get('/completeLearning')->assertSee(route('frammenti', ['language_id' => $language->id]), false);
     }
 

@@ -28,35 +28,6 @@ class SearchController extends Controller
         return view('search.index', ['cards' => $cards, 'searchTerm' => $searchTerm]);
     }
 
-    public function searchWordbox(Request $request, $wbid)
-    {
-        $request->validate([
-            'searchTerm' => ['required', 'string', 'min:2'],
-        ]);
-
-        $searchTerm = $request->input('searchTerm');
-        $foundCards = Card::where('user_id', Auth::id())
-            ->where('term', 'like', "%$searchTerm%")
-            ->limit(10)
-            ->get();
-
-        if ($request->ajax()) {
-            return response()->json([
-                'cards' => $foundCards,
-            ]);
-        }
-
-        $cards = Auth::user()->wordboxes()
-            ->where('id', $wbid)
-            ->firstOrFail()
-            ->cards()
-            ->get();
-
-        $wordbox = Auth::user()->wordboxes()->where('id', $wbid)->first();
-
-        return view('wordbox.edit', ['foundCards' => $foundCards, 'searchTermWb' => $searchTerm, 'cards' => $cards, 'wordbox' => $wordbox]);
-    }
-
     /**
      * Show the form for creating a new resource.
      */

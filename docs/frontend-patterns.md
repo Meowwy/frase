@@ -1,7 +1,7 @@
 # Frontend Patterns
 
 Styling, Blade component conventions, and the JS stack. For a specific page's own JS behaviour
-(chat views, the flashcard session, the wordbox picker), see that feature's own doc — this file
+(chat views, the flashcard session, the language switcher), see that feature's own doc — this file
 covers the patterns shared across all of them.
 
 ## Styling
@@ -31,17 +31,19 @@ covers the patterns shared across all of them.
   `button-small`, `button-confirm`, `button-delete`, `label`, `field`, `error`, `divider`, `form`,
   `option` — the whole form-control vocabulary. Reach for these before writing a raw `<input>`.
   `<x-forms.button disabled="true">` renders dimmed with a not-allowed cursor.
-- Reusable UI: `<x-panel>`, `<x-card>` / `<x-card-small>` / `<x-card-text>` / `<x-card-wordbox>`
-  (different card-rendering contexts — list row, small preview, plain text, wordbox-page tile),
+- Reusable UI: `<x-panel>`, `<x-card>` / `<x-card-small>` / `<x-card-text>`
+  (different card-rendering contexts — list row, small preview, plain text),
   `<x-section-heading>`, `<x-page-heading>`, `<x-modal>`, `<x-tag>`, `<x-theme-card>`,
   `<x-number-display>`, `<x-learning-due-card>`, `<x-kbd>` (a keyboard-shortcut badge, styled
   translucent-white to sit inside a coloured button; it hides itself below lg).
-- `<x-wordbox-picker>` is the one component that owns significant client-side behaviour of its
-  own rather than just rendering markup — see [multi-language](multi-language.md) for its full contract
-  (`window.WordboxPicker.current()` + the `wordboxpicker:change` event). It's the model to follow
-  if another shared, stateful picker is ever needed: keep the state and DOM-manipulation JS
-  inside the component's own `<script>` block, and communicate outward only through a small,
-  documented JS/event surface, never by having the consuming page reach into the component's DOM.
+- `<x-language-switcher>` owns client-side behaviour of its own rather than just rendering
+  markup — see [multi-language](multi-language.md) for its contract (the `languageswitcher:change`
+  event). It's the model to follow if another shared, stateful picker is ever needed: keep the
+  state and DOM-manipulation JS inside the component's own `<script>` block, and communicate
+  outward only through a small, documented JS/event surface, never by having the consuming page
+  reach into the component's DOM.
+- `<x-answer-check>` is script only: `window.AnswerCheck` (`normalize`, `near`), the typed-answer
+  matching Frammenti's tier I and gap-fill share — see [frammenti](frammenti.md).
 
 ## Responsive / mobile
 
@@ -71,7 +73,8 @@ exactly as designed**; everything below lg is added on top of it.
   screen with `min-h-app-screen` (a `tailwind.config.js` height: the dynamic viewport minus the
   top bar, main's margin and the body padding) so the composer starts at the bottom edge, and the
   composer is `sticky bottom-0` once the thread is longer than the screen. The flashcard session's
-  bottom panel is `fixed`: its counters stay in their desktop place in the DOM, fixed on top of the
+  and Frammenti's bottom panels are `fixed` (Frammenti pads the page below with a spacer): the
+  flashcard counters stay in their desktop place in the DOM, fixed on top of the
   button bar at an offset equal to the bar's height. Use **`dvh`, never `vh`**, for anything sized to the screen (`vh` ignores the
   browser's collapsing toolbars).
 - **Safe areas**: the viewport meta has `viewport-fit=cover` (and allows pinch-zoom), so every fixed
@@ -95,13 +98,11 @@ exactly as designed**; everything below lg is added on top of it.
   gutter is its `<label>`) and the row menu in a right one. A row built in JS (`cards/show`'s
   linked rows, `/profile/edit`'s language rows) carries the same classes as its Blade twin, and
   so does an `@empty` row (`max-lg:block` on the `tr` and `td`).
-- **Side panels and filters**: a side column that would land under a long list becomes a
+- **Side panels**: a side column that would land under a long list becomes a
   height-capped (≤55dvh) bottom sheet that scrolls inside and opens only on a deliberate tap
   (tapping the same row again closes it), and multi-select actions go in a one-row bar above the
   tab bar that never grows; only one of the two is on screen at a time, and while rows are
-  checked a row tap toggles its check (`/base`); a filter
-  bar folds into one control naming the current selection (`/cards`'s picker). `<x-modal>` is a
-  bottom sheet below lg.
+  checked a row tap toggles its check (`/base`). `<x-modal>` is a bottom sheet below lg.
 
 ## JavaScript & Ajax
 
@@ -110,7 +111,7 @@ Three JS layers coexist, each with a distinct job — don't reach for the wrong 
 - **jQuery** (loaded globally from a CDN in `html-layout.blade.php`, *not* bundled via npm) is the
   default for DOM manipulation and Ajax (`$.post`/`$.ajax`) across the app — the flashcard
   session, every chat feature's per-turn request, the vocabulary list's live search/filter, the
-  wordbox picker. This is the pattern to reach for first for a new interactive page.
+  language switcher. This is the pattern to reach for first for a new interactive page.
 - **Alpine.js** (`window.Alpine`, started in `resources/js/app.js`, bundled via Vite) is used
   sparingly for small self-contained interactions — e.g. a confirmation modal — where `x-data`
   scoping is a better fit than manual jQuery state. It is not the default; most pages use none of
@@ -129,7 +130,7 @@ Three JS layers coexist, each with a distinct job — don't reach for the wrong 
   (`CardController@index`, `ProposalController@list`) deliberately support both a normal-page and an
   AJAX response from the same action.
 - Scripts are either written inline in the relevant Blade file (the common pattern for
-  page-specific behaviour — chat views, the flashcard session, the wordbox picker component) or
+  page-specific behaviour — chat views, the flashcard session, the language switcher component) or
   go through Vite via `resources/js/app.js` (currently just the Alpine bootstrap + image glob).
   There's no per-page bundled JS file convention — inline `<script>` in the Blade view is normal
   here, not a code smell to clean up.

@@ -3,8 +3,7 @@
         <x-section-heading>reorder wordboxes</x-section-heading>
     </div>
     <p class="text-sm text-white/60 mb-6">
-        Drag to set the order wordboxes appear in when saving a word. Those that fit show on the line
-        (left to right); the rest move into the "More" dropdown, top to bottom.
+        Drag to set the order your wordboxes are listed in.
     </p>
 
     @if($languages->isEmpty())
@@ -21,7 +20,7 @@
                         <ul class="sortable space-y-2" data-language-id="{{ $lang->id }}">
                             @foreach($boxes as $box)
                                 <li data-id="{{ $box->id }}"
-                                    class="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-lg cursor-grab active:cursor-grabbing hover:bg-white/10 transition-colors">
+                                    class="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-3 max-lg:py-4 rounded-lg cursor-grab active:cursor-grabbing hover:bg-white/10 transition-colors">
                                     <span class="text-white/30 select-none">⠿</span>
                                     <span>{{ $box->name }}</span>
                                 </li>
@@ -33,7 +32,7 @@
         </div>
 
         <div class="flex items-center gap-3 mt-8">
-            <x-forms.button id="saveOrder">Save order</x-forms.button>
+            <x-forms.button id="saveOrder" class="max-lg:min-h-12 max-lg:flex-1">Save order</x-forms.button>
             <span id="savedHint" class="hidden text-sm text-green-400">Saved.</span>
         </div>
     @endif

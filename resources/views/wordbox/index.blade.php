@@ -1,171 +1,62 @@
-<x-html-layout maxWidth="max-w-[2100px]">
-    <div class="container mx-auto p-6">
-        <div class="flex gap-6">
-            <!-- Left Column -->
-            <div class="w-1/3 space-y-6">
-                <!-- Wordbox Info Panel -->
-                <x-panel>
-                    <div class="w-full">
-                        <div class="flex justify-between items-start mb-4">
-                            <h1 class="text-3xl font-bold">{{$wordbox->name}}</h1>
-                            <a href="{{ $wordbox->id }}/edit" title="Edit wordbox"
-                               class="text-white/70 hover:text-white transition-colors shrink-0">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                </svg>
-                            </a>
-                        </div>
-                        <p class="text-white/70">{{ $wordbox->description }}</p>
-                        <div class="mt-4 pt-4 border-t border-white/10 space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-white/50">Total Cards</span>
-                                <span class="font-bold text-blue-400">{{ $cards->count() }}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-white/50">Language</span>
-                                <span class="font-bold text-blue-400">{{ optional($wordbox->language)->flag }} {{ optional($wordbox->language)->name }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </x-panel>
-
-                <!-- New Card Input -->
-                <x-panel>
-                    <h2 class="text-lg font-bold mb-4">Capture a term</h2>
-                    {{-- Capture has no save destination any more, so a term captured here
-                         lands in staging like any other and is moved into this wordbox from
-                         /cards once approved. --}}
-                    <x-capture-form />
-                </x-panel>
-
-                <!-- Wordbox Summary (Coming Soon) -->
-                <x-panel class="opacity-50">
-                    <h2 class="text-lg font-bold mb-2">Wordbox Summary</h2>
-                    <p class="text-sm text-white/50 italic">AI-generated summary of this wordbox's content will appear here.</p>
-                </x-panel>
-
-                <!-- AI Tasks -->
-                <x-panel>
-                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                        AI Learning Tools
-                    </h2>
-
-                    <div class="space-y-4">
-                        <div class="p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors group">
-                            <h3 class="font-bold text-lg mb-1">Gap-Fill Exercise</h3>
-                            <p class="text-sm text-white/50 mb-4">Generate a dynamic text with blanks based on the cards in this wordbox.</p>
-                            <div class="flex flex-col gap-2">
-                            @if($wordbox->latestGapFillExercise)
-                                <a href="{{ route('gap-fill.show', $wordbox->latestGapFillExercise) }}" class="w-full">
-                                    <x-forms.button class="w-full bg-blue-600 hover:bg-blue-500">See Exercise</x-forms.button>
-                                </a>
-                                <div x-data="{ showForm: false }" class="mt-2">
-                                    <button @click="showForm = !showForm" class="text-xs text-blue-400 hover:text-blue-300 w-full text-center">
-                                        + Generate New Exercise
-                                    </button>
-                                    <div x-show="showForm" x-transition class="mt-4 pt-4 border-t border-white/5">
-                                        <form action="{{ route('gapfill.generate', $wordbox->id) }}" method="GET">
-                                            <div class="flex gap-2 mb-2">
-                                                <x-forms.input name="theme_preference" placeholder="Theme (optional, e.g. 'At the airport')" class="flex-grow !py-1 !px-2 text-xs" />
-                                            </div>
-                                            <x-forms.button class="text-sm px-4 py-2 w-full">Generate Now</x-forms.button>
-                                        </form>
-                                    </div>
-                                </div>
-                            @else
-                                <form action="{{ route('gapfill.generate', $wordbox->id) }}" method="GET">
-                                    <div class="flex gap-2 mb-2">
-                                        <x-forms.input name="theme_preference" placeholder="Theme (optional, e.g. 'At the airport')" class="flex-grow !py-1 !px-2 text-xs" />
-                                    </div>
-                                    <x-forms.button class="text-sm px-4 py-2 w-full">Generate Now</x-forms.button>
-                                </form>
-                            @endif
-                        </div>
-                        </div>
-
-                        <div class="p-4 bg-white/5 border border-white/10 rounded-xl opacity-50 cursor-not-allowed">
-                            <h3 class="font-bold text-lg mb-1">Contextual Story</h3>
-                            <p class="text-sm text-white/50 mb-2">Create a short story using all your words to see them in action.</p>
-                            <span class="text-xs font-bold uppercase tracking-wider text-blue-400">Coming Soon</span>
-                        </div>
-                    </div>
-                </x-panel>
-
-
-                <!-- Learning Options -->
-                <h2>Learn through...</h2>
-                <div class="flex flex-wrap justify-center gap-2">
-                    <x-panel class="w-48">
-                        <div class="py-2">
-                            <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/{{ $wordbox->id }}/translation">Translation</a>
-                            </h3>
-                            <p class="text-sm mt-2">Recall the term from its translation.</p>
-                        </div>
-                    </x-panel>
-                    <x-panel class="w-48">
-                        <div class="py-2">
-                            <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/{{ $wordbox->id }}/conversation">Conversation</a>
-                            </h3>
-                            <p class="text-sm mt-2">Chat with an AI that makes you use each word.</p>
-                        </div>
-                    </x-panel>
-                    <x-panel class="w-48">
-                        <div class="py-2">
-                            <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/{{ $wordbox->id }}/words">Words</a>
-                            </h3>
-                            <p class="text-sm mt-2">Recall the individual words your cards are made of, one at a time.</p>
-                        </div>
-                    </x-panel>
-                    <x-panel class="w-48">
-                        <div class="py-2">
-                            <h3 class="group-hover:text-blue-600 text-xl font-bold transition-colors duration-100">
-                                <a href="/startLearning/{{ $wordbox->id }}/definitions">Definitions</a>
-                            </h3>
-                            <p class="text-sm mt-2">Recall the term from its definition.</p>
-                        </div>
-                    </x-panel>
+<x-html-layout>
+    <div class="mb-6 grid gap-6 lg:grid-cols-2">
+        <x-panel>
+            <div class="flex justify-between items-start mb-4">
+                <h1 class="text-3xl font-bold">{{ $wordbox->name }}</h1>
+                <a href="{{ route('wordbox.edit', $wordbox->id) }}" title="Edit wordbox"
+                   class="text-white/70 hover:text-white transition-colors shrink-0 max-lg:-m-2.5 max-lg:p-2.5">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                </a>
+            </div>
+            <p class="text-white/70">{{ $wordbox->description }}</p>
+            <div class="mt-4 pt-4 border-t border-white/10 space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-white/50">Words</span>
+                    <span class="font-bold text-blue-400">{{ $words->count() }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-white/50">Language</span>
+                    <span class="font-bold text-blue-400">{{ $wordbox->language->flag }} {{ $wordbox->language->name }}</span>
                 </div>
             </div>
+        </x-panel>
 
-            <!-- Right Column: Cards Table -->
-            <div class="w-2/3 space-y-4">
-                <x-panel>
-                    <div class="w-full">
-                        <table class="min-w-full divide-y divide-white/10">
-                            <thead>
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Term</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Definition</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-white/50 uppercase tracking-wider">Translation</th>
-                            </tr>
-                            </thead>
-                            <tbody class="divide-y divide-white/5">
-                            @forelse ($cards as $card)
-                                <tr class="hover:bg-white/5 cursor-pointer transition-colors" onclick="window.location='/cards/{{ $card->id }}'">
-                                    <td class="px-6 py-4 text-sm text-white">{{ $card->term }}</td>
-                                    <td class="px-6 py-4 text-sm text-white/70">{{ $card->definition }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-white/70">{{ $card->translation }}</td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="3" class="px-6 py-10 text-center text-white/30">
-                                        No cards found in this wordbox.
-                                    </td>
-                                </tr>
-                            @endforelse
-                            </tbody>
-                        </table>
+        {{-- A new exercise is generated from the ticked words: all of them, up to the 30 one
+             story can carry. --}}
+        <x-panel>
+            <h2 class="text-xl font-bold mb-1">Gap-Fill Exercise</h2>
+            <p class="text-sm text-white/50 mb-4">A short story with a gap for each ticked word, to fill in the form its sentence needs.</p>
+            @if($wordbox->latestGapFillExercise)
+                <a href="{{ route('gap-fill.show', $wordbox->latestGapFillExercise) }}" class="mb-4 block">
+                    <x-forms.button class="w-full max-lg:min-h-12">See latest exercise</x-forms.button>
+                </a>
+            @endif
+            @if($words->isEmpty())
+                <p class="text-sm text-white/40">Add words to this wordbox to generate one.</p>
+            @else
+                <form action="{{ route('gapfill.generate', $wordbox->id) }}" method="GET" class="space-y-3">
+                    <div class="max-h-48 overflow-y-auto rounded-lg border border-white/10 p-2">
+                        @foreach($words as $word)
+                            <label class="flex cursor-pointer items-baseline gap-2 px-1 py-0.5 text-sm max-lg:py-2 max-lg:text-base">
+                                <input type="checkbox" name="base_word_ids[]" value="{{ $word->id }}" @checked($loop->index < 30)
+                                       class="h-4 w-4 shrink-0 rounded border-white/30 bg-transparent">
+                                <span>{{ $word->displayForm() }}</span>
+                                <span class="truncate text-white/40">{{ $word->translation }}</span>
+                            </label>
+                        @endforeach
                     </div>
-                </x-panel>
-            </div>
-        </div>
+                    @error('base_word_ids')
+                        <p class="text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                    <x-forms.input name="theme_preference" placeholder="Theme (optional, e.g. 'At the airport')" class="!py-2 !px-3 text-sm max-lg:text-base" />
+                    <x-forms.button class="w-full max-lg:min-h-12">Generate</x-forms.button>
+                </form>
+            @endif
+        </x-panel>
     </div>
-</x-html-layout>
 
+    @include('base._table')
+</x-html-layout>

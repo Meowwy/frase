@@ -61,6 +61,11 @@ class BaseWord extends Model
         return $this->belongsToMany(Card::class, 'card_base_word');
     }
 
+    public function wordboxes(): BelongsToMany
+    {
+        return $this->belongsToMany(Wordbox::class);
+    }
+
     /**
      * The lemma as the learner is expected to learn it — "ett hus" for a Swedish neuter
      * noun, "komm|a -er" for a Swedish verb, bare "hus" for a language whose guideline

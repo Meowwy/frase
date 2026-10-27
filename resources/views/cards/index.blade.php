@@ -7,37 +7,13 @@
         <span>back to home</span>
     </a>
 
-    @if($targetLanguages->isNotEmpty())
-        {{-- Below lg the picker folds into one Filter control that names the selection; it
-             unfolds in place. Opening it fires a resize so the picker lays out its tag row
-             again (it measured nothing while hidden). --}}
-        @php $languageLabels = $targetLanguages->mapWithKeys(fn ($l) => [$l->id => $l->flag.' '.$l->name]); @endphp
-        <div x-data="{ open: false, languages: @js($languageLabels), languageId: @js((string) $activeLanguageId), wordbox: null }"
-             @wordboxpicker:change.document="languageId = String($event.detail.languageId); wordbox = $event.detail.label">
-            <button type="button" :aria-expanded="open"
-                    @click="open = ! open; $nextTick(() => window.dispatchEvent(new Event('resize')))"
-                    class="flex min-h-12 w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-left lg:hidden">
-                <span class="font-bold">Filter</span>
-                <span class="min-w-0 flex-1 truncate text-white/60" x-text="(languages[languageId] || '') + ' · ' + (wordbox || 'all terms')"></span>
-                <span class="text-xs text-white/50 transition-transform" :class="open && 'rotate-180'">▾</span>
-            </button>
-            <div class="max-lg:mt-3 max-lg:hidden" :class="{ 'max-lg:hidden': ! open }">
-                <x-wordbox-picker :target-languages="$targetLanguages"
-                                  :wordboxes-by-language="$wordboxesByLanguage"
-                                  :active-language-id="$activeLanguageId" />
-            </div>
-        </div>
-    @endif
+    <x-language-switcher :target-languages="$targetLanguages" :active-language-id="$activeLanguageId" />
 
     {{-- Bulk-action bar — always visible, inert + grayed out when nothing is selected. Below lg
          it sticks under the top bar, so it stays in reach while ticking rows further down. --}}
     <div class="mt-6 flex flex-wrap items-center justify-end gap-3 max-lg:sticky max-lg:top-[calc(3.5rem_+_env(safe-area-inset-top))] max-lg:z-30 max-lg:-mx-4 max-lg:mt-3 max-lg:bg-black max-lg:px-4 max-lg:py-2">
         <div id="bulkBar" class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 opacity-40 pointer-events-none transition-opacity max-lg:w-full">
-            <span id="bulkCount" class="text-sm text-white/80 max-lg:shrink-0">0 selected</span>
-            <select id="bulkWordbox"
-                    class="rounded-lg border border-white/10 bg-[#111] px-2 py-1 text-sm text-white focus:outline-none max-lg:min-h-10 max-lg:min-w-0 max-lg:flex-1 max-lg:text-base">
-                <option value="" disabled selected>Add to wordbox…</option>
-            </select>
+            <span id="bulkCount" class="text-sm text-white/80 max-lg:flex-1">0 selected</span>
             <button type="button" id="bulkDelete" aria-label="Delete selected"
                     class="inline-flex items-center rounded-lg bg-red-600 p-1.5 text-white transition hover:bg-red-500 max-lg:p-3">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,7 +45,6 @@
                 {{-- Only the Term has a backend filter; the other headers are plain. --}}
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider max-lg:hidden">Translation</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider max-lg:hidden">Saved</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider max-lg:hidden">Wordbox</th>
                 <th class="w-10 px-4 py-3 max-lg:hidden"></th>
             </tr>
             </thead>
@@ -98,16 +73,12 @@
     </x-modal>
 
     <script>
-        // Live vocabulary list: the shared picker supplies language + wordbox, the two
-        // header input supplies the term search. Every change re-fetches the
-        // filtered rows from /cards (AJAX) and swaps the table body + pagination.
+        // Live vocabulary list: the shared switcher supplies the language, the header
+        // input the term search. Every change re-fetches the filtered rows from /cards
+        // (AJAX) and swaps the table body + pagination.
         $(document).ready(function () {
-            const init = window.WordboxPicker ? window.WordboxPicker.current() : { languageId: '{{ $activeLanguageId }}', wordbox: 'all' };
-            const filter = { languageId: init.languageId, wordbox: init.wordbox };
+            let languageId = '{{ $activeLanguageId }}';
             let debounce;
-
-            // Wordboxes grouped by language, for the "Add to wordbox" dropdown (no backend call).
-            const wordboxesByLanguage = @json($wordboxesByLanguage);
             const csrf = '{{ csrf_token() }}';
 
             // Row selection state, held outside the tbody (which is swapped on every fetch).
@@ -126,8 +97,7 @@
                 selected.clear();
                 syncBar();
                 $.get(url || '/cards', url ? {} : {
-                    language_id: filter.languageId,
-                    wordbox: filter.wordbox,
+                    language_id: languageId,
                     term: $('#cardSearchTerm').val(),
                 }, render);
             }
@@ -139,21 +109,8 @@
                 $('#bulkCount').text(n + ' selected');
             }
 
-            // Repopulate the "Add to wordbox" dropdown for the given language.
-            function rebuildWordboxSelect(langId) {
-                const boxes = wordboxesByLanguage[langId] || [];
-                const $sel = $('#bulkWordbox');
-                $sel.empty().append($('<option>', { value: '', disabled: true, selected: true, text: 'Add to wordbox…' }));
-                boxes.forEach(function (wb) {
-                    $sel.append($('<option>', { value: wb.id, text: wb.name }));
-                });
-                $sel.prop('disabled', boxes.length === 0);
-            }
-
-            document.addEventListener('wordboxpicker:change', function (e) {
-                filter.languageId = e.detail.languageId;
-                filter.wordbox = e.detail.wordbox;
-                rebuildWordboxSelect(e.detail.languageId);
+            document.addEventListener('languageswitcher:change', function (e) {
+                languageId = e.detail.languageId;
                 fetchCards();
             });
 
@@ -224,17 +181,6 @@
                     location.reload();
                 });
             });
-
-            $('#bulkWordbox').on('change', function () {
-                const wordboxId = $(this).val();
-                if (!wordboxId || selected.size === 0) { return; }
-                $.post('/cards/assign-wordbox', { ids: [...selected], wordbox_id: wordboxId, _token: csrf }, function () {
-                    location.reload();
-                });
-            });
-
-            // Initial dropdown population for the starting language.
-            rebuildWordboxSelect(filter.languageId);
         });
     </script>
 </x-html-layout>

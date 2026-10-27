@@ -36,6 +36,8 @@
         <td colspan="5"class="px-6 py-6 text-center text-sm text-gray-400 max-lg:block">
             @if($search !== '' || $translation !== '' || $partOfSpeech !== '')
                 Nothing matches.
+            @elseif(isset($wordbox))
+                No words yet — add them here with Edit, or check them on the vocabulary base and add them to this wordbox.
             @else
                 Nothing yet — approve a proposal in staging and its words and expressions land here.
             @endif

@@ -276,13 +276,9 @@ See [docs/wordboxes-themes-tags.md](docs/wordboxes-themes-tags.md),
 [docs/search-and-linking.md](docs/search-and-linking.md).
 
 **Wordbox**:
-A user-created, named collection of cards in one language — the primary way vocabulary is
-organised, and the only one to extend.
+A user-created, named group of base words in one language, made to feed gap-fill. It holds no
+cards and no fixed expressions, and plays no part in the SRS.
 _Avoid_: deck, set, folder, collection, list, box
-
-**General vocabulary**:
-The cards in a language that are in no wordbox. A way of selecting cards, not a place they live.
-_Avoid_: uncategorised, inbox, default wordbox
 
 **Theme**:
 A legacy, flatter category, at most one per card. Still live because existing cards and screens
@@ -386,6 +382,6 @@ nothing.
 _Avoid_: SRS chat, vocabulary chat
 
 **Gap-fill**:
-A short generated story for one wordbox that works in that wordbox's own Terms, each replaced by a
-blank to fill. See [docs/gap-fill.md](docs/gap-fill.md).
+A short generated story over words ticked in one wordbox, each word replaced by a blank the
+learner fills in the form its sentence needs. See [docs/gap-fill.md](docs/gap-fill.md).
 _Avoid_: cloze, exercise, quiz, fill in the blanks

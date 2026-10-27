@@ -79,8 +79,8 @@ nav is grouped by them. See `CONTEXT.md` and [features-overview](features-overvi
   `Learning::startLearningSet` — see [learning-flow](learning-flow.md)). This is an established pattern for the
   learning-session bootstrap flow specifically; it isn't used elsewhere.
 - Route registration order matters where a literal path could otherwise be swallowed by a
-  wildcard: e.g. `POST /cards/bulk-destroy` and `/cards/assign-wordbox` are registered *before*
-  `POST /cards/{card:id}` for this reason.
+  wildcard: e.g. `POST /cards/bulk-destroy` is registered *before* `POST /cards/{card:id}` for
+  this reason.
 - Legacy/duplicate routes exist from earlier iterations of a feature and are kept because other
   code still links to them (see [cards](cards.md) for `theme=` query links, [learning-flow](learning-flow.md) for the
   theme-based `/filterCardsForLearning/{filter}` entry point). Don't assume a route with an odd
@@ -183,7 +183,7 @@ question: **does it depend only on source code, or on the environment it runs in
   ones omit the return type. Prefer typed return types in new relationship methods.
 - Several controllers still carry the full stock Laravel resource-controller skeleton
   (`index`/`create`/`store`/`show`/`edit`/`update`/`destroy`) with most methods empty (`TagController`,
-  `ThemeController`, `WordboxController`, `UserController`). Don't assume an empty method is a bug
+  `ThemeController`, `UserController`). Don't assume an empty method is a bug
   — it's usually just unused scaffolding from `php artisan make:controller --resource`.
 
 ## Coding standards

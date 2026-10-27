@@ -30,7 +30,7 @@ Route::get('/', function () {
 
     $wordboxes = $user->wordboxes()
         ->select('id', 'name', 'description')
-        ->withCount('cards')
+        ->withCount('baseWords')
         ->get();
 
     $targetLanguages = $user->languages()->orderBy('name')->get();
@@ -114,12 +114,6 @@ Route::middleware('auth')->group(function () {
         }
 
         $targetLanguages = $user->languages()->orderBy('name')->get();
-        $wordboxesByLanguage = $user->wordboxes()
-            ->select('id', 'name', 'language_id', 'position')
-            ->orderBy('position')
-            ->orderBy('name')
-            ->get()
-            ->groupBy('language_id');
         // Allow preselecting a language via ?language_id (e.g. the dashboard "Review due cards" card).
         $requestedLanguageId = request()->query('language_id');
         if ($requestedLanguageId && $user->languages()->where('languages.id', $requestedLanguageId)->exists()) {
@@ -128,47 +122,26 @@ Route::middleware('auth')->group(function () {
             $activeLanguageId = $user->currentSaveLanguage()?->id ?? optional($targetLanguages->first())->id;
         }
 
-        // Precompute total/due card counts per selection so the builder can show how many
-        // cards a filter yields without hitting the backend on every change. Mirrors the
+        // Precompute total/due card counts per language so the builder can show how many
+        // cards a selection yields without hitting the backend on every change. Mirrors the
         // rules in Learning::getCardsForSelection (due = next_study_at on/before today, level < 8).
-        $today = now()->toDateString();
-        $dueExpr = 'sum(case when date(next_study_at) <= ? and level < 8 then 1 else 0 end) as due';
-
-        $allCounts = $user->cards()
-            ->selectRaw("language_id, count(*) as total, {$dueExpr}", [$today])
+        $counts = $user->cards()
+            ->selectRaw('language_id, count(*) as total, sum(case when date(next_study_at) <= ? and level < 8 then 1 else 0 end) as due', [now()->toDateString()])
             ->groupBy('language_id')->get()->keyBy('language_id');
-        $generalCounts = $user->cards()->whereDoesntHave('wordbox')
-            ->selectRaw("language_id, count(*) as total, {$dueExpr}", [$today])
-            ->groupBy('language_id')->get()->keyBy('language_id');
-        $wordboxCounts = $user->cards()
-            ->join('wordbox_card', 'cards.id', '=', 'wordbox_card.card_id')
-            ->selectRaw('wordbox_card.wordbox_id as wid, count(*) as total, '.str_replace(['next_study_at', 'level'], ['cards.next_study_at', 'cards.level'], $dueExpr), [$today])
-            ->groupBy('wordbox_card.wordbox_id')->get()->keyBy('wid');
 
         $cardCounts = [];
         foreach ($targetLanguages as $lang) {
-            $cardCounts[$lang->id] = [
-                'all' => ['total' => (int) ($allCounts[$lang->id]->total ?? 0), 'due' => (int) ($allCounts[$lang->id]->due ?? 0)],
-                'general' => ['total' => (int) ($generalCounts[$lang->id]->total ?? 0), 'due' => (int) ($generalCounts[$lang->id]->due ?? 0)],
-                'wordboxes' => [],
-            ];
-            foreach ($wordboxesByLanguage[$lang->id] ?? [] as $wb) {
-                $cardCounts[$lang->id]['wordboxes'][$wb->id] = [
-                    'total' => (int) ($wordboxCounts[$wb->id]->total ?? 0),
-                    'due' => (int) ($wordboxCounts[$wb->id]->due ?? 0),
-                ];
-            }
+            $cardCounts[$lang->id] = ['total' => (int) ($counts[$lang->id]->total ?? 0), 'due' => (int) ($counts[$lang->id]->due ?? 0)];
         }
 
         return view('learning.set', [
             'themeName' => $themeName,
             'targetLanguages' => $targetLanguages,
-            'wordboxesByLanguage' => $wordboxesByLanguage,
             'activeLanguageId' => $activeLanguageId,
             'cardCounts' => $cardCounts,
         ]);
     });
-    Route::get('/startLearning/{wbid}/{mode}', [Learning::class, 'startLearning']);
+    Route::get('/startLearning/{mode}', [Learning::class, 'startLearning']);
     Route::get('/startLearningSet/{mode}', [Learning::class, 'startLearningSet']);
     Route::post('/saveLearning', [AjaxController::class, 'saveLearning'])->name('saveLearning');
 
@@ -221,7 +194,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/base/synonyms', [BaseWordController::class, 'unlink']);
 
     Route::get('/search', [SearchController::class, 'index']);
-    Route::get('/searchWordbox/{wbid}', [SearchController::class, 'searchWordbox'])->name('searchWordbox');
 
     Route::get('/cards', [CardController::class, 'index']);
     Route::get('/cards/{card:id}', [CardController::class, 'show']);
@@ -230,7 +202,6 @@ Route::middleware('auth')->group(function () {
     // Bulk row actions from the /cards list. Registered before the /cards/{card:id}
     // wildcard below so their literal paths aren't captured as a card id.
     Route::post('/cards/bulk-destroy', [CardController::class, 'bulkDestroy']);
-    Route::post('/cards/assign-wordbox', [CardController::class, 'assignWordbox']);
     // Manual card-linking (from the card detail page). Same-language cards only.
     Route::get('/cards/{card:id}/link-search', [CardController::class, 'linkSearch']);
     Route::post('/cards/{card:id}/links', [CardController::class, 'link']);
@@ -268,7 +239,11 @@ Route::middleware('auth')->group(function () {
     Route::post('wordbox/new', [WordboxController::class, 'store']);
     Route::get('wordbox/{id}', [WordboxController::class, 'show'])->name('wordbox.show');
     Route::get('wordbox/{id}/edit', [WordboxController::class, 'edit'])->name('wordbox.edit');
-    Route::post('/saveCards/{id}', [WordboxController::class, 'update'])->name('saveCards');
+    Route::get('wordbox/{id}/search', [WordboxController::class, 'search'])->name('wordbox.search');
+    // The edit page saves the whole list; /base adds checked words, the show page removes them.
+    Route::post('/wordbox/{id}/words', [WordboxController::class, 'update'])->name('wordbox.words');
+    Route::post('/wordbox/{id}/words/add', [WordboxController::class, 'addWords']);
+    Route::post('/wordbox/{id}/words/remove', [WordboxController::class, 'removeWords']);
     Route::patch('/wordbox/{id}', [WordboxController::class, 'updateName']);
     Route::get('/wordbox/{wordbox}/gapfill/generate', [GapFillExerciseController::class, 'store'])->name('gapfill.generate');
     Route::get('/gap-fill/{exercise}', [GapFillExerciseController::class, 'show'])->name('gap-fill.show');
