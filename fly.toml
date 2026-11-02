@@ -4,7 +4,7 @@
 #
 
 app = 'frase'
-primary_region = 'waw'
+primary_region = 'arn'
 console_command = 'php /var/www/html/artisan tinker'
 
 [build]
