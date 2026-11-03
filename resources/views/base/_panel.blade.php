@@ -98,11 +98,13 @@
             <span class="mb-1 block text-xs uppercase tracking-wider text-white/40">Part of speech</span>
             <select id="baseEditPart" class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-base text-white focus:outline-none"></select>
         </label>
-        <label class="block">
+        <label id="baseEditTranslationField" class="block">
             <span class="mb-1 block text-xs uppercase tracking-wider text-white/40">Translation</span>
-            <input id="baseEditTranslation" type="text" maxlength="255" required
+            <input id="baseEditTranslation" type="text" maxlength="255"
                    class="w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-base text-white focus:outline-none">
         </label>
+        {{-- A word with saved meanings edits each one's translation instead. --}}
+        <div id="baseEditSenses" class="space-y-2"></div>
         <div class="flex flex-wrap justify-end gap-3">
             <button type="button" onclick="closeModal('edit-base')"
                     class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
@@ -320,7 +322,13 @@
             const parts = $btn.data('parts');
             editKey = $btn.data('key');
             $('#baseEditTitle').text($btn.data('title'));
+            const senses = $btn.data('senses') || [];
             $('#baseEditTranslation').val($btn.data('translation'));
+            $('#baseEditTranslationField').toggle(! senses.length);
+            $('#baseEditSenses').empty().append(senses.map(sense => $('<input>', {
+                type: 'text', maxlength: 255, required: true, 'data-sense-id': sense.id, value: sense.translation,
+                class: 'js-base-edit-sense w-full rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-base text-white focus:outline-none',
+            })));
             $('#baseEditPartField').toggle(!! parts);
             $('#baseEditPart').empty().append((parts || []).map(part => $('<option>', { value: part, text: part })))
                 .val($btn.data('part'));
@@ -329,7 +337,14 @@
 
         $('#baseEditForm').on('submit', function (e) {
             e.preventDefault();
-            const data = { _token: csrf, translation: $('#baseEditTranslation').val() };
+            const data = { _token: csrf };
+            const $senses = $('.js-base-edit-sense');
+            if ($senses.length) {
+                data.senses = {};
+                $senses.each(function () { data.senses[$(this).data('sense-id')] = $(this).val(); });
+            } else {
+                data.translation = $('#baseEditTranslation').val();
+            }
             if (editKey.startsWith('word:')) { data.part_of_speech = $('#baseEditPart').val(); }
             $.ajax({ url: '/base/' + editKey.replace(':', '/'), type: 'PUT', data }).done(function () {
                 closeModal('edit-base');

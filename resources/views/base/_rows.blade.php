@@ -19,8 +19,9 @@
             {{ $entry->displayForm() }}
             @include('base._row-cards', [
                 'title' => $entry->displayForm(),
-                'subtitle' => $entryPartOfSpeech.' · '.$entry->translation,
+                'subtitle' => $entryPartOfSpeech.' · '.($entry instanceof \App\Models\BaseWord ? $entry->translationsLabel() : $entry->translation),
                 'translation' => $entry->translation,
+                'senses' => $entry instanceof \App\Models\BaseWord ? $entry->senses : collect(),
                 'entryPart' => $entryPartOfSpeech,
                 'cards' => $entry->cards,
                 'key' => $key,
@@ -31,7 +32,7 @@
             ])
         </td>
         <td class="px-6 py-2 text-sm text-gray-400 max-lg:p-0 max-lg:text-xs">{{ $entryPartOfSpeech }}</td>
-        <td class="px-6 py-2 text-sm text-gray-300 max-lg:p-0">{{ $entry->translation }}</td>
+        <td class="px-6 py-2 text-sm text-gray-300 max-lg:p-0">{{ $entry instanceof \App\Models\BaseWord ? $entry->translationsLabel() : $entry->translation }}</td>
         {{-- Coverage: an entry used across many phrases is owned by no single
              card's review, which is half of why the base exists. --}}
         <td class="px-6 py-2 text-sm text-gray-400 max-lg:absolute max-lg:right-4 max-lg:top-3 max-lg:p-0 max-lg:text-xs">{{ $entry->cards->count() }}<span class="lg:hidden"> {{ Str::plural('card', $entry->cards->count()) }}</span></td>

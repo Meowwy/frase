@@ -184,8 +184,8 @@ class AI
      * from every language there is.
      *
      * Returns ['language' => string, 'other_languages' => [string, ...] (only offered with
-     * two or more candidate languages), 'term' => string, 'senses' => [['part_of_speech',
-     * 'gloss', 'translation'], ...], 'fixed_expressions' => [['form',
+     * two or more candidate languages), 'term' => string, 'clarification' => [] or one
+     * ['topic', 'question', 'options' => [['label', 'context'], ...]], 'fixed_expressions' => [['form',
      * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech'], ...]] or null on
      * failure.
      *
@@ -200,7 +200,7 @@ class AI
         $system = "You are a vocabulary tutor reading a learner's Term before a flashcard is written for it. You do not write any card content here. You decide which language it is in, fix its spelling, and list which of the Term's own words are worth collecting as vocabulary. Never swap the Term for a different one and never change its form — you only correct spelling mistakes.";
 
         if (! is_null($context)) {
-            $system .= ' The learner also supplied the context they met the Term in. It fixes WHICH sense or domain the Term is used in. It is NOT part of the Term: never take a word from the context into the Term or into the extracted words — "collateral" met in "collateral damage" must not contribute "damage" Context can also contain any other information for you.';
+            $system .= ' The learner also supplied the context they met the Term in. It fixes WHICH sense or domain the Term is used in. It is NOT part of the Term: never take a word from the context into the Term or into the extracted words — "collateral" met in "collateral damage" must not contribute "damage" Context can also contain any other information for you, including the learner\'s answers to your earlier clarifying questions.';
         }
 
         $user = "Term: \"{$term}\". The learner's languages: \"".implode('", "', $names).'".';
@@ -240,17 +240,29 @@ class AI
                     'type' => 'string',
                     'description' => 'The learner\'s Term exactly as they typed it, with spelling mistakes fixed and NOTHING else changed.',
                 ],
-                'senses' => [
+                'clarification' => [
                     'type' => 'array',
-                    'description' => 'Leave this EMPTY unless the Term is a single word, no context was given, and the word has two or more common senses that would need different flashcards (e.g. "run" the verb vs. the noun, "bank" for money vs. a riverside). Then list those senses, at most 4, most common first, and extract base_words for the most common one.',
+                    'description' => 'Leave this EMPTY when the Term together with the Context leaves nothing open that would change the flashcard (a different translation or reading). Otherwise ask exactly ONE question, about the EARLIEST open topic in this fixed order, because each depends on the one before: (1) "reading" - which grammatical reading or structure the Term has, when that is open ("take off" as a phrasal verb or the noun "takeoff", "lag" as noun or verb); (2) "sense" - which meaning it has within that reading ("take off": a plane leaving the ground, removing clothing, becoming popular); (3) "other" - anything else still unclear that would change the card (literal or figurative, who or what is meant). Never ask a later topic while an earlier one is open, and never ask what the Context already answers - earlier answers are part of the Context. Works the same for a single word, a phrase and a whole sentence. List at most 4 options, most common first, and extract base_words and fixed_expressions for the most likely one.',
+                    'maxItems' => 1,
                     'items' => [
                         'type' => 'object',
                         'properties' => [
-                            'part_of_speech' => ['type' => 'string', 'enum' => LanguageGuideline::PARTS_OF_SPEECH],
-                            'gloss' => ['type' => 'string', 'description' => 'A few words in the native language telling this sense apart from the others.'],
-                            'translation' => ['type' => 'string', 'description' => 'The word\'s translation into the native language in this sense.'],
+                            'topic' => ['type' => 'string', 'enum' => ['reading', 'sense', 'other']],
+                            'question' => ['type' => 'string', 'description' => 'The question, in the native language, short.'],
+                            'options' => [
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'label' => ['type' => 'string', 'description' => 'The option as the learner reads it, in the native language, with a few words of example or translation so it can be told apart.'],
+                                        'context' => ['type' => 'string', 'description' => 'One short line (under 100 characters) stating this choice about the Term, in the native language, written to be appended to the Context, e.g. "take off: a plane leaves the ground".'],
+                                    ],
+                                    'required' => ['label', 'context'],
+                                    'additionalProperties' => false,
+                                ],
+                            ],
                         ],
-                        'required' => ['part_of_speech', 'gloss', 'translation'],
+                        'required' => ['topic', 'question', 'options'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -290,6 +302,58 @@ class AI
             ],
             'low',
         );
+    }
+
+    /**
+     * Staging's meaning check: for words the learner already has with saved meanings, is the
+     * Term using the word in one of them, or in a new meaning? Kept small on purpose, since
+     * it can run on every capture that touches a saved word: each word is one line, each
+     * saved meaning its translation plus one example Term, and the answer is one number per
+     * word (the meaning's id, 0 for a new one) plus a translation only for a new one.
+     *
+     * $words is `[['lemma', 'part_of_speech', 'senses' => [['id', 'translation', 'example'], ...]], ...]`;
+     * the answer is keyed like it. Returns `[['sense' => int, 'translation' => string], ...]`
+     * in the same order, or null on failure.
+     *
+     * @param  array<int, array{lemma:string, part_of_speech:string, senses:array<int, array{id:int, translation:string, example:?string}>}>  $words
+     */
+    public static function matchSenses(string $term, ?string $context, string $language, string $nativeLanguage, array $words): ?array
+    {
+        $system = "You decide, for each saved {$language} word, whether the learner's Term uses it in one of its saved meanings or in a new one. Judge by what the word means in the Term, not by spelling. Answer with the id of the saved meaning it matches, or 0 if it is a different meaning (a different translation, not a nuance); then give the word's translation into {$nativeLanguage} in the Term, only for 0 - otherwise an empty string.";
+
+        $user = "Term: \"{$term}\"".(is_null($context) ? '' : " Context: \"{$context}\"").".\nWords:";
+
+        foreach ($words as $i => $word) {
+            $senses = array_map(
+                fn (array $sense) => "[{$sense['id']}] {$sense['translation']}".($sense['example'] ? " (e.g. \"{$sense['example']}\")" : ''),
+                $word['senses']
+            );
+
+            $user .= "\n".($i + 1).". {$word['lemma']} ({$word['part_of_speech']}): ".implode(' · ', $senses);
+        }
+
+        $result = self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'match_senses',
+            [
+                'matches' => [
+                    'type' => 'array',
+                    'description' => 'One entry per listed word, in the listed order.',
+                    'items' => self::object([
+                        'sense' => ['type' => 'integer', 'description' => 'The id of the matching saved meaning, or 0 for a new meaning.'],
+                        'translation' => ['type' => 'string', 'description' => 'The word\'s translation in the Term when sense is 0, else an empty string.'],
+                    ]),
+                ],
+            ],
+            'low',
+        );
+
+        $matches = $result['matches'] ?? null;
+
+        return is_array($matches) && count($matches) === count($words) ? array_values($matches) : null;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\AI;
+use App\Models\Card;
 use App\Models\Language;
 use App\Models\Proposal;
 use App\Support\LanguageGuideline;
@@ -16,8 +17,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Resolves CALL 1 against a freshly captured proposal: language detection, the Term with
  * its typos fixed, the candidate base words and fixed expressions and, for an ambiguous lone
- * word, its senses — or, for a Term that is a real word in more than one of the learner's
- * languages, only the languages to pick from.
+ * word, the one clarifying question still open about its meaning — or, for a Term that is a
+ * real word in more than one of the learner's languages, only the languages to pick from.
  *
  * Capture writes the proposal row and returns immediately, so this runs on the queue and
  * the staging list resolves its skeleton row once the status flips to `completed` (the
@@ -85,7 +86,7 @@ class AnalyzeProposalJob implements ShouldQueue
             $this->proposal->update([
                 'language_id' => $language->id,
                 'term' => $term,
-                'senses' => $this->senses((array) ($analysis['senses'] ?? []), $term),
+                'clarification' => $this->clarification((array) ($analysis['clarification'] ?? [])),
                 'status' => Proposal::STATUS_COMPLETED,
             ]);
 
@@ -95,6 +96,12 @@ class AnalyzeProposalJob implements ShouldQueue
                 $user->levelForLanguage($language),
             );
             $this->storeFixedExpressions((array) ($analysis['fixed_expressions'] ?? []));
+
+            // With a question still open the words will be extracted again once it is
+            // answered, so matching them to saved meanings now would be wasted tokens.
+            if (! $this->proposal->clarification) {
+                $this->matchSavedMeanings($language);
+            }
         } catch (\Throwable $e) {
             Log::error('Proposal analysis failed for proposal '.$this->proposal->id.': '.$e->getMessage());
             $this->proposal->update(['status' => Proposal::STATUS_FAILED]);
@@ -114,24 +121,92 @@ class AnalyzeProposalJob implements ShouldQueue
     }
 
     /**
-     * The senses for the sense picker, kept only where one can apply: a single-word Term
-     * captured without a Context, with at least two senses to choose between. The prompt
-     * asks for exactly that, but a stray answer would block approval, so it is enforced
-     * here too.
+     * The clarifying question to show, or null: CALL 1 asked for none, or the learner has
+     * already answered as many as are worth asking (Proposal::MAX_CLARIFY_ROUNDS) and an
+     * unanswerable loop must never trap a proposal in staging. A question with fewer than two
+     * options is no question.
      */
-    private function senses(array $senses, string $term): ?array
+    private function clarification(array $clarification): ?array
     {
-        $senses = array_values(array_filter($senses, fn ($sense) => trim((string) ($sense['gloss'] ?? '')) !== ''));
+        $question = $clarification[0] ?? null;
 
-        if (! is_null($this->proposal->context) || str_contains($term, ' ') || count($senses) < 2) {
+        if (! $question || $this->proposal->clarify_rounds >= Proposal::MAX_CLARIFY_ROUNDS) {
             return null;
         }
 
-        return array_map(fn ($sense) => [
-            'part_of_speech' => (string) ($sense['part_of_speech'] ?? ''),
-            'gloss' => trim((string) $sense['gloss']),
-            'translation' => trim((string) ($sense['translation'] ?? '')),
-        ], array_slice($senses, 0, 4));
+        $options = collect($question['options'] ?? [])
+            ->filter(fn ($option) => trim((string) ($option['label'] ?? '')) !== '' && trim((string) ($option['context'] ?? '')) !== '')
+            ->map(fn ($option) => ['label' => trim($option['label']), 'context' => trim($option['context'])])
+            ->take(4)
+            ->values();
+
+        if ($options->count() < 2 || trim((string) ($question['question'] ?? '')) === '') {
+            return null;
+        }
+
+        return [
+            'topic' => (string) ($question['topic'] ?? 'other'),
+            'question' => trim($question['question']),
+            'options' => $options->all(),
+        ];
+    }
+
+    /**
+     * For the candidates the learner already has with saved meanings, ask which meaning the
+     * Term uses (AI::matchSenses) and store the verdict on the candidate: a saved meaning's id,
+     * or the translation of a new one. Usually nothing qualifies and no call is made.
+     */
+    private function matchSavedMeanings(Language $language): void
+    {
+        $nativeLanguage = Card::nativeLanguageFor($this->proposal->user, $language);
+
+        if (is_null($nativeLanguage)) {
+            return;
+        }
+
+        $this->proposal->load('baseWords');
+        $present = Proposal::presenceIndex(collect([$this->proposal]));
+
+        $entries = $this->proposal->baseWords
+            ->map(fn ($candidate) => [$candidate, $present->get($this->proposal->presenceKeyFor($candidate))])
+            ->filter(fn (array $pair) => $pair[1] && $pair[1]->senses->isNotEmpty())
+            ->values();
+
+        if ($entries->isEmpty()) {
+            return;
+        }
+
+        $matches = AI::matchSenses(
+            (string) $this->proposal->term,
+            $this->proposal->context,
+            $language->name,
+            $nativeLanguage,
+            $entries->map(fn (array $pair) => [
+                'lemma' => $pair[0]->lemma,
+                'part_of_speech' => $pair[0]->part_of_speech,
+                'senses' => $pair[1]->senses->take(4)->map(fn ($sense) => [
+                    'id' => $sense->id,
+                    'translation' => $sense->translation,
+                    // The shortest card using this meaning: the cheapest hint of how it is used.
+                    'example' => ($card = $pair[1]->cards
+                        ->filter(fn ($card) => (int) $card->pivot->base_word_sense_id === (int) $sense->id)
+                        ->sortBy(fn ($card) => mb_strlen($card->term))
+                        ->first()) ? mb_strimwidth($card->term, 0, 60, '…') : null,
+                ])->all(),
+            ])->all(),
+        );
+
+        foreach ($matches ?? [] as $i => $match) {
+            [$candidate, $baseWord] = $entries[$i];
+            $senseId = (int) ($match['sense'] ?? 0);
+            $translation = trim((string) ($match['translation'] ?? ''));
+
+            if ($baseWord->senses->contains('id', $senseId)) {
+                $candidate->update(['base_word_sense_id' => $senseId]);
+            } elseif ($translation !== '') {
+                $candidate->update(['new_sense_translation' => $translation]);
+            }
+        }
     }
 
     /**

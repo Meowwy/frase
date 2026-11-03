@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * One captured Term awaiting approval in staging, with everything CALL 1 proposes for it:
  * the Term the card will be built around, its candidate base words and fixed expressions
- * and, for an ambiguous lone word captured without a Context, the senses to pick from — or,
- * before any of that, the languages to pick from when the Term is at home in several.
+ * and, while the Term and Context leave its meaning open, one clarifying question to answer —
+ * or, before any of that, the languages to pick from when the Term is at home in several.
  *
  * A proposal is outside the vocabulary entirely. Approving it is the only way anything
  * enters, and it is the point CALL 2 finally runs — so no content is ever generated for
@@ -41,9 +41,15 @@ class Proposal extends Model
 
     protected $casts = [
         'language_options' => 'array',
-        'senses' => 'array',
+        'clarification' => 'array',
         'replace_card_ids' => 'array',
     ];
+
+    /** How many clarifying questions staging asks about one Term before it stops asking. */
+    public const MAX_CLARIFY_ROUNDS = 3;
+
+    /** The longest Context: the learner's own words plus what clarifying answers add. */
+    public const MAX_CONTEXT = 500;
 
     /** How many related cards staging lists per proposal. */
     public const MAX_RELATED_CARDS = 4;
@@ -76,7 +82,7 @@ class Proposal extends Model
 
     /**
      * Whether Approve may fire: once CALL 1 has landed in one language (a proposal still
-     * waiting on the language picker has none), if it offered senses one has been picked,
+     * waiting on the language picker has none), if it asked a clarifying question it has been answered,
      * and no identical card is in the way. A covered proposal (see coveringCard()) is
      * refused before this is ever asked. How many base words are linked never
      * matters — a card may link none of them, or many. The control disables itself on this
@@ -86,7 +92,7 @@ class Proposal extends Model
     {
         return $this->status === self::STATUS_COMPLETED
             && (bool) $this->language_id
-            && empty($this->senses)
+            && empty($this->clarification)
             && $this->blockingDuplicates()->isEmpty();
     }
 
@@ -126,17 +132,33 @@ class Proposal extends Model
 
     /**
      * Send the proposal back through CALL 1, after the learner picked or corrected its
-     * language or edited its Context, or asked to try a failed one again. Everything CALL 1 produced was extracted for the old input, so it is
+     * language, edited its Context or answered a clarifying question, or asked to try a failed
+     * one again. Everything CALL 1 produced was extracted for the old input, so it is
      * thrown away rather than patched. A language already set stays pinned (see
-     * AnalyzeProposalJob).
+     * AnalyzeProposalJob). The question count starts over unless the caller sets it.
      */
     public function reanalyze(array $attributes = []): void
     {
         $this->baseWords()->delete();
         $this->fixedExpressions()->delete();
-        $this->update([...$attributes, 'language_options' => null, 'senses' => null, 'status' => self::STATUS_PENDING]);
+        $this->update(['clarify_rounds' => 0, ...$attributes, 'language_options' => null, 'clarification' => null, 'status' => self::STATUS_PENDING]);
 
         AnalyzeProposalJob::dispatch($this);
+    }
+
+    /**
+     * Record the learner's answer to a clarifying question: it is added to the Context, so
+     * the next round (and later the card) carries it, and CALL 1 runs again to ask the next
+     * question, if there is one.
+     */
+    public function answerClarification(string $answer): void
+    {
+        $context = trim(($this->context ? $this->context.'; ' : '').trim($answer));
+
+        $this->reanalyze([
+            'context' => mb_substr($context, -self::MAX_CONTEXT),
+            'clarify_rounds' => $this->clarify_rounds + 1,
+        ]);
     }
 
     /**
@@ -181,7 +203,7 @@ class Proposal extends Model
     public static function presenceIndex(Collection|SupportCollection $proposals): SupportCollection
     {
         // Related cards are read off the cards each present word is already used in.
-        return self::indexCandidates(BaseWord::with(self::indexedCards()), $proposals);
+        return self::indexCandidates(BaseWord::with([...self::indexedCards(), 'senses']), $proposals);
     }
 
     /**
@@ -378,6 +400,22 @@ class Proposal extends Model
         );
     }
 
+    /**
+     * Which of the word's meanings the new card uses: the one staging matched or the learner
+     * picked, a brand-new one when the Term uses the word in a meaning not saved yet, else
+     * the word's first. A word with no meanings (a native-language one) has none to link.
+     */
+    private function senseIdFor(ProposalBaseWord $candidate, BaseWord $baseWord): ?int
+    {
+        if (filled($candidate->new_sense_translation)) {
+            return $baseWord->addSense($candidate->new_sense_translation)->id;
+        }
+
+        $senses = $baseWord->senses;
+
+        return ($senses->firstWhere('id', $candidate->base_word_sense_id) ?? $senses->first())?->id;
+    }
+
     private function hasTermOf(Card $card): bool
     {
         return mb_strtolower($card->term) === mb_strtolower((string) $this->term);
@@ -463,7 +501,7 @@ class Proposal extends Model
                     $details['dictionary_form'] ?? null,
                 );
 
-                $card->baseWords()->attach($baseWord->id);
+                $card->baseWords()->attach($baseWord->id, ['base_word_sense_id' => $this->senseIdFor($candidate, $baseWord)]);
             }
 
             foreach ($this->linkedExpressions($presentExpressions) as $candidate) {

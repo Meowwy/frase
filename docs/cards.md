@@ -69,7 +69,7 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 | `part_of_speech` | enum (`noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `determiner`, `numeral`, `interjection`), not nullable — part of the dedup key, not a revisable property. *run* the verb and *run* the noun are two rows |
 | `dictionary_form` | nullable string — the lemma as that language's dictionaries write it, for the parts of speech whose guideline asks for one (Swedish `verb` → `komm|a -er`); null everywhere else, which is most words. Stored rather than computed from the lemma, because where a verb's stem ends and which present-tense ending it takes are facts about that one verb — unlike a noun's *en*/*ett*, which follows from `grammar_attributes`. Taken from the lexicon where it knows the verb (see "The lexicon" below). **Not** part of the dedup key: `komma` is one entry |
 | `grammar_attributes` | nullable JSON (`array` cast) — the extra grammatical facts this language's guideline defines for this part of speech (e.g. Swedish noun `{"gender": "neuter"}`); null for a part-of-speech/language pair with nothing to say. See [ai-integration](ai-integration.md) "Language guidelines". **Not** named plain `attributes`: that collides with Eloquent's own internal attribute bag, which would make the column unreadable as `$this->attributes` from inside the model |
-| `translation` | set once at creation from CALL 2 (at the card's approval), never revised — sense lives on cards, not here |
+| `translation` | the **first meaning's** translation, set at creation from CALL 2 and kept for screens that show one translation. The meanings themselves are `base_word_senses` (below) |
 | `last_recalled_at` | nullable, stamped only on a correct answer |
 | `frammenti_level`, `frammenti_due_on` | the Frammenti schedule, defaulting to level 0 and due (no due date) — see [frammenti](frammenti.md) |
 | `deleted` | boolean — set by deleting the entry from `/base`; see "Deleting an entry" below |
@@ -90,8 +90,17 @@ is reused and brought back rather than colliding with the unique key.
 stamps `last_recalled_at` through **`Card::stampRecall()`** (its base words and fixed expressions
 together); any correct answer in [Frammenti](frammenti.md) stamps that one word.
 
-`card_base_word` — the pivot linking a card to the base entries for its Term's words, just
-`card_id` and `base_word_id`. Unique on `(card_id, base_word_id)` — one link per base entry per card, even when the Term repeats
+**Meanings (homonyms).** *bank* (money) and *bank* (riverside) are one base word, because the
+dedup key stays lemma + part of speech, but they are different things to learn. `base_word_senses`
+(`base_word_id`, `translation`) holds one row per meaning; `BaseWord::addSense()` adds one (a
+duplicate translation is ignored). `resolve()` gives a new word its first meaning from CALL 2's
+translation. The meaning a card uses is recorded on its link (`card_base_word.base_word_sense_id`),
+so `/base` can split a word's translations and Terms by meaning. Staging decides which meaning a
+Term uses (see "The meaning check"). Frammenti, gap-fill, wordboxes and synonyms still see one
+word with its first translation.
+
+`card_base_word` — the pivot linking a card to the base entries for its Term's words: `card_id`,
+`base_word_id` and the nullable `base_word_sense_id`. Unique on `(card_id, base_word_id)` — one link per base entry per card, even when the Term repeats
 a word (`AnalyzeProposalJob` also drops a repeated lemma+part-of-speech from the chip tray, so the
 constraint is never reached in practice). There is **no cardinality rule**: a card may link no
 base words at all, or many. An earlier per-card minimum and maximum could leave a proposal
@@ -170,7 +179,7 @@ a wordbox's page lists its words in the very same table — base words only, its
 
 A table (a checkbox, display form, part of speech, translation, card count) and a **side panel** on the right, empty until a
 row is clicked, then showing the entry's part of speech and translation, the Terms of the cards
-that entry is part of, and its synonyms (see "Synonym links" below) — coverage is half of why
+that entry is part of (grouped under the meaning each card uses when the word has several), and its synonyms (see "Synonym links" below) — coverage is half of why
 the base exists, and the panel shows it without making every row as tall as its card list. Each
 row's cards and synonyms are loaded with the page (`cards:id,term`, and `EntrySynonym::of()` for
 the page's entries in three queries) and carried in a `<template>` inside the row
@@ -245,7 +254,7 @@ them are base words. A panel shows a Synonyms section only when the entry has an
 
 The panel's pen (`PUT /base/{word|expression}/{id}`, `BaseWordController@update`) opens an
 `<x-modal>` (a bottom sheet below lg) to correct a wrong AI answer. The word itself can't be
-edited. A **word** takes a new `translation` and `part_of_speech`, picked from its language's
+edited. A **word** takes a new `part_of_speech` and its translation (one input per meaning when it has several, the word's own following the first), picked from its language's
 guideline list (`LanguageGuideline::partsOfSpeech()`); an **expression** takes a `translation`
 only. Part of speech is half the dedup key, so a change to one the learner already has for that
 lemma (deleted rows included) is a `422`. A changed part of speech also nulls `grammar_attributes`
@@ -332,11 +341,12 @@ CALL 2 and the card write happen only once the learner **approves** it.
 |---|---|
 | `user_id` | |
 | `language_id` | nullable until CALL 1 resolves it — detection is CALL 1's job — and while the language picker is waiting on the learner |
-| `language_options` | nullable JSON (`array` cast) — the language picker's options, as language ids with CALL 1's own pick first. Set only when CALL 1 found the Term at home in more than one of the learner's languages; nothing else (words, fixed expressions, senses) is stored alongside it |
+| `language_options` | nullable JSON (`array` cast) — the language picker's options, as language ids with CALL 1's own pick first. Set only when CALL 1 found the Term at home in more than one of the learner's languages; nothing else (words, fixed expressions, a question) is stored alongside it |
 | `raw_input` | the term as typed/pasted, known immediately |
 | `context` | nullable, the learner's own input — editable in staging (see below) |
 | `term` | nullable until CALL 1 resolves |
-| `senses` | nullable JSON (`array` cast) — the sense picker's options, `[{part_of_speech, gloss, translation}, …]`, up to 4. Only ever set for a single-word Term captured without a Context with two or more common senses; `AnalyzeProposalJob::senses()` enforces that in PHP too, since a stray answer would block approval |
+| `clarification` | nullable JSON (`array` cast) — the one open question, `{topic, question, options: [{label, context}, …]}`, up to 4 options (see "The clarifying question") |
+| `clarify_rounds` | how many questions have been answered; at `Proposal::MAX_CLARIFY_ROUNDS` the model's next question is dropped |
 | `replace_card_ids` | nullable JSON (`array` cast) — the existing cards switched on to be replaced on approval (see "Replacing a contained card" below) |
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
@@ -382,7 +392,9 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /staging/{proposal}/words/{word}/known` | `known=1` strikes a new chip (inserts its `known_words` row), `known=0` un-knows it |
 | `POST /staging/{proposal}/expressions/{expression}/strike` | `struck=1` / `struck=0` on one fixed-expression chip |
 | `POST /staging/{proposal}/language` | correct the detected language, or answer the language picker — see below |
-| `POST /staging/{proposal}/context` | add, edit or clear the Context, or pick a sense — see below |
+| `POST /staging/{proposal}/context` | add, edit or clear the Context — see below |
+| `POST /staging/{proposal}/clarify` | answer the open clarifying question (`answer`), appended to the Context — see below |
+| `POST /staging/{proposal}/words/{word}/sense` | override the meaning of an already-saved word: `sense_id` or a new `translation` — see "The meaning check" |
 | `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
 | `POST /staging/{proposal}/replace/{card}` | `replace=1` / `replace=0` switches one card on or off to be replaced on approval. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
 | `POST /staging/{proposal}/approve` | `409` with `duplicate_card_id` on an identical Term that still blocks (see "The duplicate check") or with `covering_card_id` on a covered proposal (see "Covered proposals"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
@@ -391,7 +403,7 @@ proposal exactly as it was in staging rather than a half-written card.
 Deliberate shapes in the UI (`staging/index.blade.php`):
 
 - **Approve is always shown, and disabled whenever staging is asking something** — the language
-  picker, the sense picker or a blocking duplicate. A disabled `<x-forms.button>` is dimmed with a
+  picker, a clarifying question or a blocking duplicate. A disabled `<x-forms.button>` is dimmed with a
   not-allowed cursor, so it reads as inactive rather than just ignoring the click.
 - **Every action re-renders the whole list from `/staging/list`.** The rules that decide which
   controls are live then exist only in PHP (`Proposal::isApprovable()`) and cannot drift out of
@@ -416,7 +428,7 @@ Deliberate shapes in the UI (`staging/index.blade.php`):
 **Correcting the language or editing the Context re-runs CALL 1** (`Proposal::reanalyze()`) rather
 than patching the row: the candidate words were extracted, translated and tagged for the old
 language and sense, so they cannot be carried over. It deletes the word and fixed-expression chips,
-clears `language_options` and `senses`, writes the
+clears `language_options` and `clarification`, resets `clarify_rounds` (unless the caller sets it), writes the
 new value, flips the status back to `pending` and re-dispatches. `AnalyzeProposalJob` reads a
 pre-set `language_id` as "pinned" and offers the model only that one language, so the re-run can't
 drift back to its original guess.
@@ -429,15 +441,30 @@ unapprovable; staging shows the options as radio buttons. Picking one posts to t
 endpoint** — the same call as correcting a detection — so the re-run is pinned to it, is offered no
 other language and has nothing left to ask. Pinning, rather than writing the language into the
 Context the way a sense is, keeps the learner's Context their own: it is stored on the card and
-reaches CALL 2. The language comes first because senses depend on it; a sense picker can follow on
+reaches CALL 2. The language comes first because meanings depend on it; a clarifying question can follow on
 the re-run.
 
-**The sense picker.** When `senses` is non-empty, staging shows them as radio options and
-`isApprovable()` is false, so an ambiguous lone word (*run*, *bank*) can't be saved in whatever sense
-the AI guessed. Picking one writes `"<term> (<part of speech>): <gloss>"` as the Context through the
-same Context endpoint. The re-run has a Context, so it returns no senses and extracts everything in
-the chosen sense, lexicon attributes included — there is no separate code path applying a sense to
-the chips, and the sense is kept as the card's Context so Regenerate stays in it.
+**The clarifying question.** Staging must leave the learner with exactly the meaning they want,
+for a word, a phrase or a sentence alike, so CALL 1 asks about **anything the Term and the Context
+leave open**, one question per round, in a fixed order because each topic depends on the one before:
+language (the picker above) → `reading` (*take off* the phrasal verb or the noun) → `sense`
+(plane / clothes / popular) → `other`. A question shows as radio options plus a free-text "something
+else"; `isApprovable()` is false while one is open. Answering posts to `POST /staging/{proposal}/clarify`,
+which appends the chosen line to the Context (`Proposal::answerClarification()`, `; `-joined,
+`Proposal::MAX_CONTEXT` = 500 characters) and re-runs CALL 1, which sees the grown Context and asks
+the next question or none. The answer is the stored Context, so it reaches CALL 2, keeps Regenerate
+in the same meaning and is visible on the card later; there is no separate path applying a meaning to
+the chips. The learner's own Context counts as an answer, not a switch-off: the model asks only
+what it still leaves open. At most 3 answers per Term (`clarify_rounds`), then it stops asking.
+
+**The meaning check.** A present word that already has saved meanings (above) may be used here in
+a different one. At the end of `AnalyzeProposalJob`, `AI::matchSenses()` (see
+[ai-integration](ai-integration.md)) judges each such word and the verdict is stored on its
+`proposal_base_words` row: `base_word_sense_id` (a saved meaning) or `new_sense_translation` (a
+new one). The green chip shows the meaning as a select — the saved meanings plus *new meaning…* —
+so the learner has the last word (`POST /staging/{proposal}/words/{word}/sense`, no AI, no re-run).
+On approve a new meaning is saved with `BaseWord::addSense()` and the card's link names the meaning;
+a word with no verdict (acquired between capture and approval) links its first meaning.
 
 ### Related cards
 

@@ -47,9 +47,12 @@ class BaseWordController extends Controller
     public function update(Request $request, string $kind, int $id)
     {
         $entry = $this->entry($kind, $id);
-        $rules = ['translation' => ['required', 'string', 'max:255']];
+        $rules = ['translation' => ['required_without:senses', 'nullable', 'string', 'max:255']];
 
         if ($kind === 'word') {
+            // A word with several meanings edits each one's translation, keyed by meaning id.
+            $rules['senses'] = ['sometimes', 'array'];
+            $rules['senses.*'] = ['required', 'string', 'max:255'];
             $parts = LanguageGuideline::for($entry->language?->code)?->partsOfSpeech() ?? LanguageGuideline::PARTS_OF_SPEECH;
             $rules['part_of_speech'] = ['required', Rule::in($parts)];
         }
@@ -68,6 +71,21 @@ class BaseWordController extends Controller
             }
 
             $data += ['grammar_attributes' => null, 'dictionary_form' => null];
+        }
+
+        if ($kind === 'word') {
+            foreach ($data['senses'] ?? [] as $senseId => $translation) {
+                $entry->senses()->whereKey($senseId)->update(['translation' => trim($translation)]);
+            }
+
+            // A word saved without any meaning (an older native-language one) gets its first.
+            if (filled($data['translation'] ?? null) && ! $entry->senses()->exists()) {
+                $entry->addSense($data['translation']);
+            }
+
+            // The word's own translation is its first meaning's.
+            $data['translation'] = $entry->senses()->value('translation') ?? $data['translation'] ?? $entry->translation;
+            unset($data['senses']);
         }
 
         $entry->update($data);

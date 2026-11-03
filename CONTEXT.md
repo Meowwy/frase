@@ -109,24 +109,30 @@ _Avoid_: inbox, queue, drafts, pending, review (that belongs to LEARN)
 
 **Proposal**:
 One captured Term awaiting approval in staging, together with everything the AI proposes for it: the
-Term with its typos fixed, its base words, its fixed expressions and, for an ambiguous lone word,
-its senses — or, for a Term at home in several of the learner's languages, only the languages to
+Term with its typos fixed, its base words, its fixed expressions and, while its meaning is still open,
+one clarifying question — or, for a Term at home in several of the learner's languages, only the languages to
 pick from.
 _Avoid_: draft, candidate, suggestion, staged card (it is more than a card)
 
 **Language picker**:
 The choice staging asks for when a captured Term is a real word or phrase in more than one of the
 learner's languages (*bad* in English and Swedish). It comes before anything else: the picked
-language is pinned and CALL 1 reads the Term again in it, so senses, words and fixed expressions all
+language is pinned and CALL 1 reads the Term again in it, so meanings, words and fixed expressions all
 follow. Until one is picked the proposal can't be approved.
 _Avoid_: language detection (that is CALL 1's own guess), language question
 
-**Sense picker**:
-The choice staging asks for when a lone word was captured without a Context and has several common
-senses (*run* the verb or noun, *bank* money or riverside). Each **sense** shows its part of speech,
-a short gloss and a translation; the picked one becomes the proposal's Context. Until one is picked
-the proposal can't be approved.
-_Avoid_: meaning picker, disambiguation, definition
+**Clarifying question**:
+What staging asks, one at a time, about anything the Term and its Context leave open — reading
+(*take off* the verb or the noun), then sense, then the rest — for a word, a phrase or a sentence
+alike. The answer is added to the Context, so it stays on the card. Until it is answered the
+proposal can't be approved.
+_Avoid_: sense picker, disambiguation, definition
+
+**Meaning**:
+One of the senses a base word is saved with (*bank* → money, riverside). A base word stays one entry
+per lemma and part of speech and holds several meanings; each card's link to it names the meaning
+that card uses, and staging decides which meaning a new Term uses.
+_Avoid_: sense (in the UI), homonym entry, sub-word
 
 **Approve**:
 The learner's act of accepting a proposal, which writes the card, links its base words and fixed
@@ -181,7 +187,7 @@ downloaded reference dictionary below, which belongs to no learner
 One entry in the vocabulary base: a lemma, its **part of speech**, its native translation, its
 **grammatical attributes** (if its language and part of speech carry any), and when it was last
 recalled. Two base words may share a lemma when they differ in part of speech — *run* the verb and
-*run* the noun are different base words, not one. It carries no sense finer than part of speech, no
+*run* the noun are different base words, not one. Its meanings are listed under it; it has no
 card schedule and no generated content — those live on cards — only its Frammenti schedule and,
 for a noun, its article-drill schedule.
 _Avoid_: focus word, headword, root, stem, vocabulary item

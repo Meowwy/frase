@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One entry in the learner's vocabulary base: a lemma, its part of speech, its native
@@ -16,9 +17,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * and when it was last recalled.
  *
  * Part of speech is part of the identity, not a revisable property — *run* the verb and
- * *run* the noun are two rows, because they mean completely different things. Translation
- * and attributes are set once, at proposal time, and never revised: sense lives on cards,
- * and the base carries no sense finer than part of speech.
+ * *run* the noun are two rows, because they mean completely different things. Homonyms
+ * within one part of speech (*bank*) stay one row too, with a `BaseWordSense` per meaning
+ * and each card's link naming the one it uses. Attributes are set once, at proposal time.
  *
  * It has no card schedule and no generated content. Its jobs are deduplication and
  * coverage, and it carries its own Frammenti schedule and, for a noun, its article-drill
@@ -59,7 +60,42 @@ class BaseWord extends Model
 
     public function cards(): BelongsToMany
     {
-        return $this->belongsToMany(Card::class, 'card_base_word');
+        return $this->belongsToMany(Card::class, 'card_base_word')->withPivot('base_word_sense_id');
+    }
+
+    /**
+     * The meanings this word is saved with, oldest first. `translation` on the word itself
+     * is the first one's, kept for the screens that show a single translation.
+     */
+    public function senses(): HasMany
+    {
+        return $this->hasMany(BaseWordSense::class)->orderBy('id');
+    }
+
+    /**
+     * Every meaning's translation in one line ("bank · riverside") for the screens that show
+     * one — the base list and its panel. Needs `senses` loaded to be free. A word saved
+     * without meanings shows its own translation.
+     */
+    public function translationsLabel(): string
+    {
+        return $this->senses->pluck('translation')->implode(' · ') ?: $this->translation;
+    }
+
+    /**
+     * Save another meaning of this word, unless one with that translation is there already.
+     */
+    public function addSense(string $translation): BaseWordSense
+    {
+        $translation = trim($translation);
+
+        $sense = $this->senses()->firstOrCreate(['translation' => $translation]);
+
+        if ($this->translation === '') {
+            $this->update(['translation' => $translation]);
+        }
+
+        return $sense;
     }
 
     public function wordboxes(): BelongsToMany
@@ -109,6 +145,12 @@ class BaseWord extends Model
 
         if ($baseWord->deleted) {
             $baseWord->update(['deleted' => false]);
+        }
+
+        // A new word starts with the one meaning CALL 2 translated it in; a native-language
+        // word has no translation, so no meaning to tell apart.
+        if ($baseWord->wasRecentlyCreated && $translation !== '') {
+            $baseWord->addSense($translation);
         }
 
         return $baseWord;

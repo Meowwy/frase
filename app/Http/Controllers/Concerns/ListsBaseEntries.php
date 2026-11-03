@@ -53,7 +53,7 @@ trait ListsBaseEntries
             ->paginate(self::PER_PAGE, page: $selected['page'])
             ->appends($request->except('selected'));
 
-        $wordRows = BaseWord::with(['language', 'cards:id,term'])->findMany($page->where('kind', 'word')->pluck('id'))->keyBy('id');
+        $wordRows = BaseWord::with(['language', 'cards:id,term', 'senses'])->findMany($page->where('kind', 'word')->pluck('id'))->keyBy('id');
         $expressionRows = FixedExpression::with('cards:id,term')->findMany($page->where('kind', 'expression')->pluck('id'))->keyBy('id');
         $synonyms = EntrySynonym::of($wordRows->concat($expressionRows));
         $page->setCollection($page->getCollection()->map(fn ($row) => [

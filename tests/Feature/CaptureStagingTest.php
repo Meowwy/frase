@@ -603,28 +603,33 @@ class CaptureStagingTest extends TestCase
     private function ambiguousAnalysis(): array
     {
         return $this->analysis([
-            'term' => 'lag',
-            'senses' => [
-                ['part_of_speech' => 'noun', 'gloss' => 'a team', 'translation' => 'team'],
-                ['part_of_speech' => 'noun', 'gloss' => 'a rule passed by parliament', 'translation' => 'law'],
-            ],
+            'term' => 'take off',
+            'clarification' => [[
+                'topic' => 'sense',
+                'question' => 'Which meaning?',
+                'options' => [
+                    ['label' => 'a plane leaves the ground', 'context' => 'take off: a plane leaves the ground'],
+                    ['label' => 'remove clothes', 'context' => 'take off: remove clothes'],
+                ],
+            ]],
             'base_words' => [
-                ['lemma' => 'lag', 'part_of_speech' => 'noun'],
+                ['lemma' => 'take', 'part_of_speech' => 'verb'],
             ],
         ]);
     }
 
-    public function test_an_ambiguous_lone_word_offers_senses_that_block_approval(): void
+    public function test_an_ambiguous_term_of_any_length_asks_a_question_that_blocks_approval(): void
     {
         [$user] = $this->learner();
         $this->fakeOpenAi($this->ambiguousAnalysis());
 
-        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'lag']);
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'take off']);
         $proposal = $user->proposals()->sole();
 
-        $this->assertCount(2, $proposal->senses);
+        $this->assertSame('Which meaning?', $proposal->clarification['question']);
+        $this->assertCount(2, $proposal->clarification['options']);
         $this->assertFalse($proposal->isApprovable());
-        $this->assertStringContainsString('data-context="lag (noun): a team"', $this->actingAs($user)->getJson('/staging/list')->json('rows'));
+        $this->assertStringContainsString('data-answer="take off: remove clothes"', $this->actingAs($user)->getJson('/staging/list')->json('rows'));
 
         // The fake has no answer left, so a CALL 2 here would fail the test loudly.
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(422);
@@ -632,32 +637,141 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
-     * Picking a sense is just saving it as the Context: CALL 1 runs again, offers no senses,
-     * and its words replace the old ones.
+     * Answering adds the chosen line to the Context and runs CALL 1 again, which here has
+     * nothing more to ask and extracts in the chosen meaning.
      */
-    public function test_picking_a_sense_sets_the_context_and_re_runs_call_one(): void
+    public function test_answering_a_question_extends_the_context_and_re_runs_call_one(): void
     {
         [$user] = $this->learner();
         $this->fakeOpenAi($this->ambiguousAnalysis(), $this->analysis([
-            'term' => 'lag',
-            'senses' => [],
+            'term' => 'take off',
+            'clarification' => [],
             'base_words' => [
-                ['lemma' => 'lag', 'part_of_speech' => 'noun'],
+                ['lemma' => 'take', 'part_of_speech' => 'verb'],
             ],
         ]));
 
-        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'lag']);
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'take off']);
         $proposal = $user->proposals()->sole();
+        $proposal->update(['context' => 'airport']);
 
         $this->actingAs($user)
-            ->postJson("/staging/{$proposal->id}/context", ['context' => 'lag (noun): a rule passed by parliament'])
+            ->postJson("/staging/{$proposal->id}/clarify", ['answer' => 'take off: a plane leaves the ground'])
             ->assertStatus(200);
 
         $proposal->refresh();
-        $this->assertSame('lag (noun): a rule passed by parliament', $proposal->context);
-        $this->assertNull($proposal->senses);
-        $this->assertSame('lag', $proposal->baseWords->sole()->lemma);
+        $this->assertSame('airport; take off: a plane leaves the ground', $proposal->context);
+        $this->assertNull($proposal->clarification);
+        $this->assertSame(1, $proposal->clarify_rounds);
         $this->assertTrue($proposal->isApprovable());
+    }
+
+    public function test_questions_stop_after_the_round_cap_so_a_proposal_cannot_get_stuck(): void
+    {
+        [$user] = $this->learner();
+        // The same question twice: the capture's answer, then the one after the last round.
+        $this->fakeOpenAi($this->ambiguousAnalysis(), $this->ambiguousAnalysis());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'take off']);
+        $proposal = $user->proposals()->sole();
+        $this->assertNotNull($proposal->clarification);
+
+        $proposal->reanalyze(['clarify_rounds' => Proposal::MAX_CLARIFY_ROUNDS]);
+
+        $this->assertSame(Proposal::STATUS_COMPLETED, $proposal->fresh()->status);
+        $this->assertNull($proposal->fresh()->clarification);
+        $this->assertTrue($proposal->fresh()->isApprovable());
+    }
+
+    public function test_a_question_with_fewer_than_two_options_is_dropped(): void
+    {
+        [$user] = $this->learner();
+        $analysis = $this->ambiguousAnalysis();
+        $analysis['clarification'][0]['options'] = [$analysis['clarification'][0]['options'][0]];
+        $this->fakeOpenAi($analysis);
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'take off']);
+
+        $this->assertNull($user->proposals()->sole()->clarification);
+    }
+
+    private function savedBank(User $user, Language $language): array
+    {
+        $bank = BaseWord::create([
+            'user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'bank',
+            'part_of_speech' => 'noun', 'translation' => 'bank',
+        ]);
+        $money = $bank->addSense('bank');
+        $card = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => 'jag går till banken']);
+        $card->baseWords()->attach($bank->id, ['base_word_sense_id' => $money->id]);
+
+        return [$bank, $money, $card];
+    }
+
+    public function test_a_word_used_in_a_new_meaning_is_matched_and_adds_a_meaning_on_approve(): void
+    {
+        [$user, $swedish] = $this->learner();
+        [$bank, $money, $card] = $this->savedBank($user, $swedish);
+
+        $this->fakeOpenAi(
+            $this->analysis(['term' => 'vid flodens bank', 'base_words' => [['lemma' => 'bank', 'part_of_speech' => 'noun'], ['lemma' => 'flod', 'part_of_speech' => 'noun']]]),
+            ['matches' => [['sense' => 0, 'translation' => 'riverbank']]],
+            $this->cardContent(['base_words' => [['lemma' => 'flod', 'part_of_speech' => 'noun', 'translation' => 'river', 'gender' => '', 'dictionary_form' => '']]]),
+        );
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'vid flodens bank']);
+        $proposal = $user->proposals()->sole();
+
+        $this->assertSame('riverbank', $proposal->baseWords->firstWhere('lemma', 'bank')->new_sense_translation);
+        // The check was given the saved meaning with a card of its own as the example.
+        Http::assertSent(fn ($request) => str_contains(json_encode($request->data(), JSON_UNESCAPED_UNICODE), 'jag går till banken'));
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+
+        $this->assertSame(['bank', 'riverbank'], $bank->senses()->pluck('translation')->all());
+        $newCard = Card::where('term', 'vid flodens bank')->sole();
+        $riverbank = $bank->senses()->where('translation', 'riverbank')->sole();
+        $this->assertSame($riverbank->id, (int) $newCard->baseWords->firstWhere('lemma', 'bank')->pivot->base_word_sense_id);
+        $this->assertSame($money->id, (int) $card->baseWords->sole()->pivot->base_word_sense_id);
+    }
+
+    public function test_no_meaning_check_runs_when_no_present_word_has_saved_meanings(): void
+    {
+        [$user, $swedish] = $this->learner();
+        BaseWord::create([
+            'user_id' => $user->id, 'language_id' => $swedish->id, 'lemma' => 'kosta',
+            'part_of_speech' => 'verb', 'translation' => 'to cost',
+        ]);
+        // One response only: a meaning check would find the sequence exhausted and fail.
+        $this->fakeOpenAi($this->analysis());
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'hur mycket kostar det']);
+
+        $this->assertSame(Proposal::STATUS_COMPLETED, $user->proposals()->sole()->status);
+    }
+
+    public function test_the_learner_can_override_the_matched_meaning(): void
+    {
+        [$user, $swedish] = $this->learner();
+        [, $money] = $this->savedBank($user, $swedish);
+        $this->fakeOpenAi(
+            $this->analysis(['term' => 'bank', 'base_words' => [['lemma' => 'bank', 'part_of_speech' => 'noun']]]),
+            ['matches' => [['sense' => 0, 'translation' => 'riverbank']]],
+        );
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'bank']);
+        $proposal = $user->proposals()->sole();
+        $word = $proposal->baseWords->sole();
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/words/{$word->id}/sense", ['sense_id' => $money->id])->assertNoContent();
+
+        $word->refresh();
+        $this->assertSame($money->id, (int) $word->base_word_sense_id);
+        $this->assertNull($word->new_sense_translation);
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/words/{$word->id}/sense", ['translation' => 'bench'])->assertNoContent();
+
+        $this->assertSame('bench', $word->fresh()->new_sense_translation);
     }
 
     public function test_editing_the_context_of_any_proposal_re_runs_call_one(): void
@@ -678,16 +792,6 @@ class CaptureStagingTest extends TestCase
         $this->assertSame('in a shop', $proposal->context);
         $this->assertSame(Proposal::STATUS_COMPLETED, $proposal->status);
         $this->assertSame(['kosta'], $proposal->baseWords->pluck('lemma')->all());
-    }
-
-    public function test_senses_are_ignored_when_a_context_was_given(): void
-    {
-        [$user] = $this->learner();
-        $this->fakeOpenAi($this->ambiguousAnalysis());
-
-        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'lag', 'context' => 'fotboll']);
-
-        $this->assertNull($user->proposals()->sole()->senses);
     }
 
     public function test_a_term_at_home_in_two_languages_asks_for_the_language_first(): void

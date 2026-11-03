@@ -46,7 +46,7 @@ class Card extends Model
      */
     public function baseWords(): BelongsToMany
     {
-        return $this->belongsToMany(BaseWord::class, 'card_base_word');
+        return $this->belongsToMany(BaseWord::class, 'card_base_word')->withPivot('base_word_sense_id');
     }
 
     /**

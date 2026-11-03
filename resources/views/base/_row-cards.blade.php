@@ -8,7 +8,7 @@
         </div>
         <div class="flex shrink-0 items-center gap-1">
             <button type="button" aria-label="Edit" data-key="{{ $key }}" data-title="{{ $title }}"
-                    data-translation="{{ $translation }}" data-part="{{ $parts ? $entryPart : '' }}" data-parts="{{ json_encode($parts) }}"
+                    data-translation="{{ $translation }}" data-senses="{{ json_encode($senses->map->only('id', 'translation')->values()) }}" data-part="{{ $parts ? $entryPart : '' }}" data-parts="{{ json_encode($parts) }}"
                     class="js-base-edit text-white/40 transition hover:text-white max-lg:p-2.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 13l-1 4 4-1 8.5-8.5a2.5 2.5 0 00-3.536-3.536L9 13z"></path>
@@ -28,11 +28,27 @@
             </svg>
         </button>
     </div>
-    @forelse($cards as $card)
-        <a href="/cards/{{ $card->id }}" class="block py-0.5 text-gray-300 hover:text-white max-lg:py-2 max-lg:text-base">{{ $card->term }}</a>
-    @empty
-        <p class="text-white/40">Not part of any card yet.</p>
-    @endforelse
+    {{-- A word with several meanings (bank: money / riverside) lists its cards under the
+         meaning each one uses; cards with none recorded come last. --}}
+    @if($senses->count() > 1)
+        @foreach($senses as $sense)
+            <p class="mt-3 mb-1 text-xs uppercase tracking-wider text-white/40">{{ $sense->translation }}</p>
+            @forelse($cards->filter(fn ($card) => (int) $card->pivot->base_word_sense_id === $sense->id) as $card)
+                <a href="/cards/{{ $card->id }}" class="block py-0.5 text-gray-300 hover:text-white max-lg:py-2 max-lg:text-base">{{ $card->term }}</a>
+            @empty
+                <p class="text-white/40">No card yet.</p>
+            @endforelse
+        @endforeach
+        @foreach($cards->reject(fn ($card) => $senses->contains('id', (int) $card->pivot->base_word_sense_id)) as $card)
+            <a href="/cards/{{ $card->id }}" class="block py-0.5 text-gray-300 hover:text-white max-lg:py-2 max-lg:text-base">{{ $card->term }}</a>
+        @endforeach
+    @else
+        @forelse($cards as $card)
+            <a href="/cards/{{ $card->id }}" class="block py-0.5 text-gray-300 hover:text-white max-lg:py-2 max-lg:text-base">{{ $card->term }}</a>
+        @empty
+            <p class="text-white/40">Not part of any card yet.</p>
+        @endforelse
+    @endif
 
     @if($synonyms->isNotEmpty())
         <p class="mt-4 mb-2 text-xs uppercase tracking-wider text-white/40">Synonyms</p>

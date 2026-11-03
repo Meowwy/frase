@@ -33,7 +33,7 @@ class ProposalController extends Controller
         $data = $request->validate([
             // Long enough to accept a pasted sentence, which is kept as typed.
             'capturedWord' => ['required', 'string', 'min:2', 'max:120'],
-            'context' => ['nullable', 'string', 'min:2', 'max:250'],
+            'context' => ['nullable', 'string', 'min:2', 'max:'.Proposal::MAX_CONTEXT],
         ]);
 
         $user = Auth::user();
@@ -143,18 +143,64 @@ class ProposalController extends Controller
     /**
      * Add, edit or clear a proposal's Context. The Context decides which sense the Term is
      * read in, so the proposal goes back through CALL 1 just as for a language correction.
-     * Picking a sense from the sense picker is this same call, with the sense written out
-     * as the Context — so the re-run offers no senses and extracts in the chosen one.
      */
     public function context(Request $request, Proposal $proposal)
     {
         $this->authorize('update', $proposal);
 
-        $data = $request->validate(['context' => ['nullable', 'string', 'min:2', 'max:250']]);
+        $data = $request->validate(['context' => ['nullable', 'string', 'min:2', 'max:'.Proposal::MAX_CONTEXT]]);
 
         $proposal->reanalyze(['context' => $request->filled('context') ? trim($data['context']) : null]);
 
         return response()->json(['reanalyzing' => true]);
+    }
+
+    /**
+     * Answer the clarifying question CALL 1 asked: the chosen option's line (or the
+     * learner's own words) is added to the Context and CALL 1 runs again, which either asks
+     * the next question or extracts the words in the meaning now pinned down.
+     */
+    public function clarify(Request $request, Proposal $proposal)
+    {
+        $this->authorize('update', $proposal);
+
+        $data = $request->validate(['answer' => ['required', 'string', 'min:2', 'max:200']]);
+
+        abort_unless($proposal->clarification, 422);
+
+        $proposal->answerClarification($data['answer']);
+
+        return response()->json(['reanalyzing' => true]);
+    }
+
+    /**
+     * Override staging's verdict on which saved meaning of an already-saved word the Term
+     * uses: one of its meanings (`sense_id`) or a new one (`translation`). Nothing is
+     * re-run and nothing is written to the vocabulary base until approval.
+     */
+    public function sense(Request $request, Proposal $proposal, ProposalBaseWord $word)
+    {
+        $this->authorize('update', $proposal);
+        abort_unless($word->proposal_id === $proposal->id, 404);
+
+        $data = $request->validate([
+            'sense_id' => ['nullable', 'integer'],
+            'translation' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $baseWord = Proposal::presenceIndex(collect([$proposal]))->get($proposal->presenceKeyFor($word));
+
+        abort_unless($baseWord, 422);
+
+        if (filled($data['translation'] ?? null)) {
+            $word->update(['base_word_sense_id' => null, 'new_sense_translation' => trim($data['translation'])]);
+        } else {
+            abort_unless($baseWord->senses->contains('id', $data['sense_id'] ?? 0), 422);
+
+            $word->update(['base_word_sense_id' => $data['sense_id'], 'new_sense_translation' => null]);
+        }
+
+        return response()->noContent();
     }
 
     /**

@@ -8,8 +8,8 @@
         $failed = $proposal->hasFailed();
         $duplicates = $pending || $failed ? collect() : $proposal->duplicateCards();
         $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
-        // Only once the language and sense are settled: either can change the words.
-        $settled = ! ($pending || $failed || $proposal->language_options || $proposal->senses);
+        // Only once the language and meaning are settled: either can change the words.
+        $settled = ! ($pending || $failed || $proposal->language_options || $proposal->clarification);
         $covering = $settled ? $proposal->coveringCard($alreadyInBase, $knownWords, $expressionsInBase) : null;
         $replaceable = $settled ? $proposal->replaceableCards($alreadyInBase, $knownWords, $expressionsInBase) : collect();
     @endphp
@@ -108,9 +108,26 @@
             <div class="mt-3 flex flex-wrap gap-2">
                 @forelse($proposal->baseWords->diff($groups->get(\App\Models\Proposal::GROUP_KNOWN, [])) as $word)
                     @if($groups->get(\App\Models\Proposal::GROUP_PRESENT, collect())->contains($word))
+                        @php
+                            $saved = $alreadyInBase->get($proposal->presenceKeyFor($word));
+                            $meanings = $saved->senses;
+                            $chosen = $meanings->firstWhere('id', $word->base_word_sense_id);
+                        @endphp
                         <span class="js-in-base rounded-lg border border-green-500/60 px-3 py-1 text-sm">
                             {{ $word->displayForm() }}
                             <span class="text-xs text-white/40">{{ $word->part_of_speech }}</span>
+                            {{-- The meaning staging matched, switchable: one of the saved ones
+                                 or a new meaning with its own translation. --}}
+                            @if($meanings->isNotEmpty())
+                                <select class="js-sense ml-1 rounded bg-white/10 px-1 py-0.5 text-xs max-lg:min-h-9 max-lg:text-sm" data-word-id="{{ $word->id }}">
+                                    @foreach($meanings as $meaning)
+                                        <option value="{{ $meaning->id }}" @selected($word->new_sense_translation === null && ($chosen ? $chosen->id === $meaning->id : $loop->first))>{{ $meaning->translation }}</option>
+                                    @endforeach
+                                    <option value="new" @selected($word->new_sense_translation !== null)>
+                                        {{ $word->new_sense_translation !== null ? 'new: '.$word->new_sense_translation : 'new meaning…' }}
+                                    </option>
+                                </select>
+                            @endif
                         </span>
                     @else
                         <span class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm">
@@ -170,24 +187,22 @@
             {{-- The Context is editable on every proposal: saving it re-runs CALL 1, so the
                  words and their translations follow the sense it names. --}}
             <input type="text" class="js-context mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-1 text-sm max-lg:py-2.5 max-lg:text-base" enterkeyhint="done"
-                   value="{{ $proposal->context }}" placeholder="Add context (where you met it, or which sense you mean)" maxlength="250">
+                   value="{{ $proposal->context }}" placeholder="Add context (where you met it, or which sense you mean)" maxlength="500">
 
-            {{-- The sense picker: an ambiguous lone word captured without a Context. Picking a
-                 sense writes it as the Context, which re-runs CALL 1 in that sense. --}}
-            @if($proposal->senses)
+            {{-- The clarifying question: CALL 1 asks one at a time about whatever the Term and
+                 Context leave open, earliest topic first (reading, then sense, then the rest).
+                 An answer is added to the Context and CALL 1 runs again. --}}
+            @if($proposal->clarification)
                 <div class="mt-3 space-y-1 text-sm">
-                    <p class="text-white/60">Which sense do you mean?</p>
-                    @foreach($proposal->senses as $sense)
+                    <p class="text-white/60">{{ $proposal->clarification['question'] }}</p>
+                    @foreach($proposal->clarification['options'] as $option)
                         <label class="flex items-baseline gap-2 cursor-pointer max-lg:gap-3 max-lg:py-2 max-lg:text-base">
-                            <input type="radio" name="sense-{{ $proposal->id }}" class="js-sense"
-                                   data-context="{{ $proposal->term }} ({{ $sense['part_of_speech'] }}): {{ $sense['gloss'] }}">
-                            <span>
-                                <span class="text-xs text-white/40">{{ $sense['part_of_speech'] }}</span>
-                                {{ $sense['gloss'] }}
-                                <span class="text-white/50">— {{ $sense['translation'] }}</span>
-                            </span>
+                            <input type="radio" name="clarify-{{ $proposal->id }}" class="js-clarify" data-answer="{{ $option['context'] }}">
+                            <span>{{ $option['label'] }}</span>
                         </label>
                     @endforeach
+                    <input type="text" class="js-clarify-own mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-1 text-sm max-lg:py-2.5 max-lg:text-base" enterkeyhint="done"
+                           placeholder="Something else — say it in your own words" maxlength="200">
                 </div>
             @endif
 

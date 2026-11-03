@@ -111,13 +111,38 @@
                 post(this, '/language', { language_id: $(this).val() }).done(window.stagingRefresh);
             });
 
-            // Saving the Context, or picking a sense (written out as the Context), re-runs CALL 1.
+            // Saving the Context re-runs CALL 1.
             $list.on('change', '.js-context', function () {
                 post(this, '/context', { context: $(this).val() }).done(window.stagingRefresh);
             });
 
+            // Answering a clarifying question adds the answer to the Context and re-runs CALL 1.
+            $list.on('change', '.js-clarify', function () {
+                post(this, '/clarify', { answer: $(this).data('answer') }).done(window.stagingRefresh);
+            });
+
+            $list.on('change', '.js-clarify-own', function () {
+                if ($.trim($(this).val()).length >= 2) {
+                    post(this, '/clarify', { answer: $.trim($(this).val()) }).done(window.stagingRefresh);
+                }
+            });
+
+            // Which saved meaning of an already-saved word this Term uses, or a new one.
             $list.on('change', '.js-sense', function () {
-                post(this, '/context', { context: $(this).data('context') }).done(window.stagingRefresh);
+                const wordId = $(this).data('word-id');
+                const choice = $(this).val();
+
+                if (choice !== 'new') {
+                    post(this, '/words/' + wordId + '/sense', { sense_id: choice }).done(window.stagingRefresh);
+                    return;
+                }
+
+                const translation = $.trim(window.prompt('Translation of this new meaning:') || '');
+                if (translation) {
+                    post(this, '/words/' + wordId + '/sense', { translation: translation }).done(window.stagingRefresh);
+                } else {
+                    window.stagingRefresh();
+                }
             });
 
             $list.on('click', '.js-retry', function () {

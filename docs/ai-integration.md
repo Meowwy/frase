@@ -84,7 +84,7 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   language,                                  // one of the candidate language NAMES
   other_languages: [name, ...],              // only in the schema with 2+ candidate languages
   term,
-  senses: [{part_of_speech, gloss, translation}, ...],
+  clarification: [] | [{topic, question, options: [{label, context}, ...]}],
   fixed_expressions: [{form, translation}, ...],
   base_words: [{lemma, part_of_speech}, ...],
 }
@@ -99,10 +99,25 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   language and re-runs this call — so the property is only in the schema when there are two or more
   candidate languages, and a pinned re-run can't ask again.
 - **`term`** carries prompt rule #1: typos fixed, nothing else changed.
-- **`senses`** is empty unless the Term is a single word, no Context was given, and it has two or
-  more common senses (*run* the verb or noun, *bank* money or riverside): then at most 4, gloss and
-  translation in the native language. They feed staging's sense picker (see [cards](cards.md)
+- **`clarification`** is empty when the Term and Context leave nothing open that would change the
+  flashcard; otherwise exactly **one** question, about the **earliest** open topic in a fixed order
+  because each depends on the one before: `reading` (grammatical reading — *take off* the phrasal
+  verb or the noun), then `sense` (which meaning within it), then `other` (literal/figurative…).
+  Language is not among them: it has its own mechanism above. It applies to a word, a phrase and a
+  sentence alike, and **earlier answers live in the Context**, which is how the model knows not to
+  ask them again. At most 4 options, each a `label` for the learner and a `context` line that is
+  appended to the Context if chosen. It feeds staging's clarification loop (see [cards](cards.md)
   "Staging"); it sits before `base_words` so the model has settled the ambiguity before extracting.
+  `AnalyzeProposalJob::clarification()` drops a question with under two options and any question
+  once `Proposal::MAX_CLARIFY_ROUNDS` (3) answers are in, so the loop can never trap a proposal.
+
+**`AI::matchSenses()` — the meaning check.** After CALL 1, for each candidate that is already in the
+vocabulary base *and* has saved meanings, one small call decides whether the Term uses the word in
+a saved meaning or a new one. Tokens are the design constraint: it makes **no call at all** unless
+such a word exists, and when it does the prompt is one line per word — each saved meaning as
+`[id] translation (e.g. "shortest card Term using it")`, at most 4 — and the answer one integer
+per word (the meaning's id, `0` for new) plus a translation only for `0`. It runs at `low` reasoning
+effort and not while a clarifying question is open (the words will be extracted again anyway).
 - **`fixed_expressions`**: at most 3, from the Term only. The prompt allows **exactly two kinds**:
   a unit with a meaning of its own that its words don't add up to (phrasal/particle verbs such as
   *make up*, *take off*, *tycka om*; idioms; fixed units such as *på grund av*), and a grammatical

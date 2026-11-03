@@ -187,6 +187,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/staging/{proposal}/expressions/{expression}/strike', [ProposalController::class, 'strikeExpression']);
     Route::post('/staging/{proposal}/language', [ProposalController::class, 'language']);
     Route::post('/staging/{proposal}/context', [ProposalController::class, 'context']);
+    Route::post('/staging/{proposal}/clarify', [ProposalController::class, 'clarify']);
+    Route::post('/staging/{proposal}/words/{word}/sense', [ProposalController::class, 'sense']);
     Route::post('/staging/{proposal}/retry', [ProposalController::class, 'retry']);
     Route::post('/staging/{proposal}/replace/{card}', [ProposalController::class, 'replace']);
     Route::post('/staging/{proposal}/approve', [ProposalController::class, 'approve']);
