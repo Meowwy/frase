@@ -1,9 +1,9 @@
 {{-- Frammenti in one language right now, as one line: not open yet, a session in progress,
      the plan for a new one, or nothing due. --}}
-@props(['enough', 'session', 'plan'])
+@props(['enough', 'session', 'plan', 'requirement'])
 
 @if(! $enough)
-    <span>Not open yet: needs {{ \App\Models\Frammenti::MIN_NOUNS_AND_VERBS }} nouns and {{ \App\Models\Frammenti::MIN_NOUNS_AND_VERBS }} verbs</span>
+    <span>Not open yet: needs {{ $requirement }}</span>
 @elseif($session)
     <span>Batch {{ $session->batches_done + 1 }} of {{ $session->planned_batches }}</span>
 @elseif($plan['batches'])

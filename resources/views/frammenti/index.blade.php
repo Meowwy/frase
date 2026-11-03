@@ -34,13 +34,13 @@
             </x-panel>
         @elseif(! $enough)
             <x-panel class="flex-col items-center text-center gap-3 py-6">
-                <p>Frammenti needs at least {{ \App\Models\Frammenti::MIN_NOUNS_AND_VERBS }} nouns and {{ \App\Models\Frammenti::MIN_NOUNS_AND_VERBS }} verbs saved in {{ $language->name }}. Capture a few more and come back.</p>
+                <p>Frammenti needs {{ $requirement }} saved in {{ $language->name }}. Capture a few more and come back.</p>
                 <a href="/staging"><x-forms.button>Capture words</x-forms.button></a>
             </x-panel>
         @else
             {{-- Nothing is generated until the learner has picked a language and started. --}}
             <x-panel id="intro" class="flex-col items-center text-center gap-3 py-6">
-                <p><x-frammenti-today :enough="true" :session="$session" :plan="$plan" /></p>
+                <p><x-frammenti-today :enough="true" :requirement="$requirement" :session="$session" :plan="$plan" /></p>
                 <p class="text-sm text-white/50">{{ $activeWords }} active words in {{ $language->name }} · {{ $streak }}-day streak</p>
                 @if($session || $plan['batches'])
                     <x-forms.button id="startBtn" type="button" class="max-lg:w-full max-lg:min-h-12">{{ $session ? 'Continue' : 'Start' }}</x-forms.button>

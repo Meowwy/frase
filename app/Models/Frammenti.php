@@ -15,8 +15,11 @@ class Frammenti
 {
     public const BATCH = 5;
 
-    /** Nouns, and verbs, a language needs in the base before Frammenti opens for it. */
-    public const MIN_NOUNS_AND_VERBS = 5;
+    /** Saved words (any part of speech, no expressions) a language needs before Frammenti opens for a non-beginner. */
+    public const MIN_WORDS = 5;
+
+    /** What a beginner's language needs saved before Frammenti opens: nouns, verbs, adjectives and adverbs together. */
+    public const BEGINNER_MINIMUMS = ['nouns' => 10, 'verbs' => 5, 'adjectives or adverbs' => 5];
 
     public const TIERS = [1 => 'I', 2 => 'II', 3 => 'III'];
 
@@ -30,8 +33,19 @@ class Frammenti
     /** Levels whose fragments are built only from words the learner has proven; no level counts as a beginner. */
     private const BEGINNER_LEVELS = [null, 'A1', 'A2'];
 
-    /** Proven words sent as context to a beginner's batch. */
-    private const CONTEXT_WORDS = 80;
+    /**
+     * A beginner's context words, all recalled base words, newest first: [how many to pick,
+     * from how many newest]. The "rest" is picked from what the groups did not offer.
+     */
+    private const CONTEXT_NOUNS = [10, 30];
+
+    private const CONTEXT_ADJECTIVES_OR_ADVERBS = [4, 4]; // 4 of the 4 newest adjectives + 4 newest adverbs
+
+    private const CONTEXT_VERBS = [5, 15];
+
+    private const CONTEXT_INTERJECTIONS = [2, 6];
+
+    private const CONTEXT_REST = 10;
 
     /** Card Terms sent with an item to lock its meaning. */
     private const TERMS_PER_ITEM = 2;
@@ -57,17 +71,45 @@ class Frammenti
     }
 
     /**
-     * Whether Frammenti is open for a language: at least 5 nouns and 5 verbs in the base.
-     * Below that the page shows its empty state and no AI call is made.
+     * Whether Frammenti is open for a language. A beginner (A1, A2 or no level) needs
+     * BEGINNER_MINIMUMS saved; any other level needs MIN_WORDS base words of any part of
+     * speech. Below that the page shows its empty state and no AI call is made.
      */
     public static function enough(User $user, Language $language): bool
     {
         $counts = $user->baseWords()->where('language_id', $language->id)
-            ->whereIn('part_of_speech', ['noun', 'verb'])
             ->selectRaw('part_of_speech, count(*) as total')->groupBy('part_of_speech')
             ->pluck('total', 'part_of_speech');
 
-        return ($counts['noun'] ?? 0) >= self::MIN_NOUNS_AND_VERBS && ($counts['verb'] ?? 0) >= self::MIN_NOUNS_AND_VERBS;
+        if (! self::isBeginner($user, $language)) {
+            return $counts->sum() >= self::MIN_WORDS;
+        }
+
+        [$nouns, $verbs, $modifiers] = array_values(self::BEGINNER_MINIMUMS);
+
+        return ($counts['noun'] ?? 0) >= $nouns
+            && ($counts['verb'] ?? 0) >= $verbs
+            && ($counts['adjective'] ?? 0) + ($counts['adverb'] ?? 0) >= $modifiers;
+    }
+
+    /** What the language needs saved before Frammenti opens, as the sentence the empty state shows. */
+    public static function requirement(User $user, Language $language): string
+    {
+        if (! self::isBeginner($user, $language)) {
+            return 'at least '.self::MIN_WORDS.' saved words';
+        }
+
+        $parts = [];
+        foreach (self::BEGINNER_MINIMUMS as $name => $count) {
+            $parts[] = "{$count} {$name}";
+        }
+
+        return 'at least '.implode(', ', array_slice($parts, 0, -1)).' and '.end($parts);
+    }
+
+    private static function isBeginner(User $user, Language $language): bool
+    {
+        return in_array($user->levelForLanguage($language), self::BEGINNER_LEVELS, true);
     }
 
     public static function type(BaseWord|FixedExpression $item): string
@@ -227,17 +269,45 @@ class Frammenti
             }
         }
 
-        // A beginner's fragments are built from words they have already produced twice.
-        $context = in_array($level, self::BEGINNER_LEVELS, true)
-            ? $all->where('frammenti_level', '>=', 2)->shuffle()->take(self::CONTEXT_WORDS)
-                ->map(fn ($item) => $item instanceof BaseWord ? $item->lemma : $item->form)->values()->all()
-            : null;
+        $context = self::isBeginner($user, $language) ? self::contextWords($all) : null;
 
         // The Terms go to the AI only: the page gets the slots without them.
         $withTerms = array_map(fn ($slot, $item) => $slot + ['terms' => self::terms($item)], $slots, $dealt);
         $fragments = AI::generateFragments($withTerms, $language->name, self::nativeLanguageName($user), $level, $context);
 
         return $fragments ? array_map(fn ($slot, $fragment) => $slot + $fragment, $slots, $fragments) : null;
+    }
+
+    /**
+     * A beginner's context words: recalled base words only (never expressions), mostly the
+     * newest ones, which are what the learner is working on. Random picks from the newest
+     * nouns, adjectives and adverbs, verbs and interjections, then a few more from the
+     * recalled nouns, verbs, adjectives and adverbs those left out.
+     *
+     * @return array<int, string>
+     */
+    private static function contextWords(Collection $items): array
+    {
+        $recalled = $items->filter(fn ($item) => $item instanceof BaseWord && $item->last_recalled_at)
+            ->sortBy([['created_at', 'desc'], ['id', 'desc']])->values();
+        $newest = fn (string $partOfSpeech, int $count) => $recalled->where('part_of_speech', $partOfSpeech)->take($count);
+
+        $nouns = $newest('noun', self::CONTEXT_NOUNS[1]);
+        $modifiers = $newest('adjective', self::CONTEXT_ADJECTIVES_OR_ADVERBS[1])->concat($newest('adverb', self::CONTEXT_ADJECTIVES_OR_ADVERBS[1]));
+        $verbs = $newest('verb', self::CONTEXT_VERBS[1]);
+        $interjections = $newest('interjection', self::CONTEXT_INTERJECTIONS[1]);
+
+        // The rest comes only from the four main parts of speech; no other part of speech is context.
+        $offered = $nouns->concat($modifiers)->concat($verbs)->pluck('id')->all();
+        $rest = $recalled->whereIn('part_of_speech', ['noun', 'verb', 'adjective', 'adverb'])
+            ->reject(fn ($word) => in_array($word->id, $offered, true));
+        $picked = $nouns->shuffle()->take(self::CONTEXT_NOUNS[0])
+            ->concat($modifiers->shuffle()->take(self::CONTEXT_ADJECTIVES_OR_ADVERBS[0]))
+            ->concat($verbs->shuffle()->take(self::CONTEXT_VERBS[0]))
+            ->concat($interjections->shuffle()->take(self::CONTEXT_INTERJECTIONS[0]))
+            ->concat($rest->shuffle()->take(self::CONTEXT_REST));
+
+        return $picked->map(fn ($word) => $word->lemma)->values()->all();
     }
 
     /**

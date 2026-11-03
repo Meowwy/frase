@@ -73,7 +73,7 @@
                             <li class="flex flex-wrap items-center gap-3 py-2">
                                 <span class="lg:w-40">{{ $row['language']->flag }} {{ $row['language']->name }}</span>
                                 <span class="flex-1 text-sm text-white/70 max-lg:order-last max-lg:basis-full">
-                                    <x-frammenti-today :enough="$row['enough']" :session="$row['session']" :plan="$row['plan']" />
+                                    <x-frammenti-today :enough="$row['enough']" :requirement="$row['requirement']" :session="$row['session']" :plan="$row['plan']" />
                                     <span class="ml-2 text-white/40">{{ $row['activeWords'] }} active</span>
                                 </span>
                                 @if($row['enough'] && ($row['session'] || $row['plan']['batches']))

@@ -46,7 +46,7 @@ retry.
 **Tier II** is self-graded against the revealed fragment, with the tested item wrapped in `[[ ]]` and
 highlighted, and the learner's attempt highlighted wherever it contains the item's exact text. The
 line under the buttons says the shown fragment is one possible version and they are judging the
-highlighted item. For a beginner, besides the item it uses only words the learner has proven, so
+highlighted item. For a beginner, besides the item it uses only words the learner has recalled, so
 they are never asked to write a word they haven't produced yet.
 
 **Tier III** is the top of the ladder: no sentence to copy, only a situation, so the learner builds
@@ -127,8 +127,10 @@ The AI call also gets each slot's **saved Terms**: the Terms of the item's **2 m
 any case, is skipped). They are not sent to the page. They lock the item's sense, and the model
 must still write the phrase in a different context.
 
-**Not open yet**: Frammenti opens for a language once its base holds at least 5 nouns and 5 verbs
-(`MIN_NOUNS_AND_VERBS`). Below that the page shows what's missing, the batch endpoint answers 422,
+**Not open yet**: Frammenti opens for a language once its base holds enough saved words (recalled
+or not; expressions don't count). A beginner (A1, A2 or no level) needs **10 nouns, 5 verbs and 5
+adjectives or adverbs** together (`BEGINNER_MINIMUMS`), since the context words below come from
+those groups; any other level needs just **5 base words of any part of speech** (`MIN_WORDS`). Below that the page shows what's missing, the batch endpoint answers 422,
 and no AI call is made.
 
 ## Generation (`AI::generateFragments()`)
@@ -142,10 +144,21 @@ that would also fill each gap, filled with empty lists in PHP for the rest); II 
 with the item in `[[ ]]` and a plain `translation`; III returns a native `task` and a
 target-language `answer` with the item in `[[ ]]`.
 
-**Context words are a beginner's proven words.** At A1/A2, or with no level set, the call gets up to
-80 random items at level 2 or above (lemmas for base words), one list for all three tiers: besides
-the item, a fragment uses only those and words too basic to collect, so it has exactly one unknown.
-From B1 there is no list and the level alone caps the vocabulary.
+**Context words are a beginner's recalled words.** At A1/A2, or with no level set, the call gets up
+to 31 lemmas, one list for all three tiers: besides the item, a fragment uses only those and words
+too basic to collect, so it has exactly one unknown. Only **recalled base words** qualify
+(`last_recalled_at` set; expressions never), and the picks favour the newest (`created_at`), which
+are what the learner is working on now. Per part of speech, a random pick from the newest:
+
+| Group | Picked | From the newest |
+|---|---|---|
+| Nouns | 10 | 30 |
+| Adjectives or adverbs | 4 | 4 adjectives + 4 adverbs |
+| Verbs | 5 | 15 |
+| Interjections | 2 | 6 |
+| Rest | 10 | the recalled nouns, verbs, adjectives and adverbs that the groups above did not offer |
+
+No other part of speech (prepositions, conjunctions …) is ever context. A smaller pool just gives fewer words. From B1 there is no list and the level alone caps the vocabulary.
 
 The batch is validated before it's returned: for I exactly one gap (one or more for a fixed
 expression) with a non-empty `accepted` list each and a `synonym_answers` list each (which may be
@@ -167,7 +180,7 @@ are in [ai-integration](ai-integration.md) "Frammenti".
   panel where the language has one.
 - `POST /frammenti/batch`, `{language_id, on_screen: [{type, id}]}`: plans a session when none is
   open, then deals 5 fragments. Returns `{fragments, planned_batches, batches_done}`. A non-target
-  language is 403; below 5 nouns and 5 verbs, or with nothing due and no open session, it's 422; a
+  language is 403; below the saved-word minimum above, or with nothing due and no open session, it's 422; a
   failed AI call is 503.
 - `POST /frammenti/answer`, `{type, id, result, last}`: applies one answer (`Frammenti::answer()`).
   `last` marks a batch's last fragment, which counts the batch done and, at the planned count,

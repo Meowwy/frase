@@ -326,9 +326,10 @@ word lists) five times for a shorter wait.
 - **No slot uses another slot's item.** A fragment with two of the batch's items in it would give
   one away or test two at once.
 - **A beginner's context words are their proven words.** Below B1, and for a language with no
-  level set (treated as a beginner), the call gets one list, "the learner's own words": up to 80
-  random base-word lemmas and expressions at Frammenti level 2 or above, so produced correctly at
-  least twice. "Proven" because a word the learner has never produced is a second unknown in the
+  level set (treated as a beginner), the call gets one list, "the learner's own words": up to 31
+  lemmas of **recalled** base words (`last_recalled_at` set; never expressions), weighted to the
+  newest, which the learner is working on (the quotas are in [frammenti](frammenti.md) "Generation").
+  "Recalled" because a word the learner has never produced is a second unknown in the
   fragment. The one list serves every slot type:
   - **I and II**: besides the item, the only content words are the learner's own words or words too
     basic to collect, so a cloze has exactly one unknown, the tested item, and a sentence to

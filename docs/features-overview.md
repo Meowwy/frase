@@ -142,7 +142,8 @@ regardless of schedule), then a mode:
   ("Tell your friend…"), which the AI checks (other mistakes are corrected but don't count against
   the word). Words at tier II and up are your **Active words** — the ones you can produce.
 - A **streak** counts the days you finish a session (one missed day a week is forgiven).
-- Opens for a language once you've saved at least 5 nouns and 5 verbs in it.
+- Opens for a language once you've saved enough words in it: at least 5 words of any kind, or at
+  A1/A2 (or with no level set) at least 10 nouns, 5 verbs and 5 adjectives or adverbs.
 - For a language whose nouns have an article (Swedish *en*/*ett*), an **Articles** panel below
   drills your nouns as flip cards: *hus* on the front, *ett hus* on the back, up to 20 at a time,
   the nouns in most cards first. Right three times in a row (back after 3, then 6 days) and it's

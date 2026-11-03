@@ -32,6 +32,7 @@ class FrammentiController extends Controller
             'targetLanguages' => $languages,
             'language' => $language,
             'enough' => $language && Frammenti::enough($user, $language),
+            'requirement' => $language ? Frammenti::requirement($user, $language) : '',
             'session' => $session,
             'plan' => $language && ! $session ? Frammenti::plan($user, $language) : null,
             'activeWords' => $language ? Frammenti::activeWords($user, $language) : 0,
@@ -91,7 +92,7 @@ class FrammentiController extends Controller
         $language = $this->targetLanguage($data['language_id']);
 
         if (! Frammenti::enough($user, $language)) {
-            return response()->json(['message' => 'Frammenti needs at least 5 nouns and 5 verbs in this language.'], 422);
+            return response()->json(['message' => 'Frammenti needs '.Frammenti::requirement($user, $language).' in this language.'], 422);
         }
 
         $session = Frammenti::startSession($user, $language);

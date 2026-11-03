@@ -66,7 +66,7 @@ class FrammentiTest extends TestCase
      * The 5 nouns and 5 verbs Frammenti needs to open, due far ahead so they are only ever
      * filler.
      */
-    private function unlock(User $user, Language $language, int $nouns = 5, int $verbs = 5): void
+    private function unlock(User $user, Language $language, int $nouns = 5, int $verbs = 5, int $adjectives = 0): void
     {
         $later = ['frammenti_level' => 1, 'frammenti_due_on' => '2099-01-01'];
         foreach (range(1, $nouns) as $i) {
@@ -74,6 +74,9 @@ class FrammentiTest extends TestCase
         }
         foreach (range(1, $verbs) as $i) {
             $this->word($user, $language, 'verb'.$i, ['part_of_speech' => 'verb'] + $later);
+        }
+        for ($i = 1; $i <= $adjectives; $i++) {
+            $this->word($user, $language, 'adjektiv'.$i, ['part_of_speech' => 'adjective'] + $later);
         }
     }
 
@@ -440,32 +443,84 @@ class FrammentiTest extends TestCase
         $this->assertSame(5, Frammenti::streak($user));
     }
 
-    public function test_context_words_are_a_beginners_items_at_level_two_and_up(): void
+    public function test_context_words_are_a_beginners_recalled_base_words_newest_first(): void
     {
         $ownWords = fn () => Http::recorded()->map(fn ($pair) => preg_match('/own words: (.*)$/m', $pair[0]['messages'][1]['content'], $list) ? $list[1] : null)->last();
 
         foreach (['A1', 'A2', null] as $level) {
             [$user, $language] = $this->learner($level);
-            $this->unlock($user, $language);
-            $this->word($user, $language, 'känd', ['frammenti_level' => 2, 'last_recalled_at' => now(), 'frammenti_due_on' => '2099-01-01']);
-            $this->word($user, $language, 'ny', ['frammenti_level' => 1, 'last_recalled_at' => now()]);
-            FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'tycka om', 'translation' => 'to like', 'frammenti_level' => 7, 'last_recalled_at' => now(), 'frammenti_due_on' => '2099-01-01']);
+            $this->unlock($user, $language, 10, 5, 5);
+            $recalled = ['last_recalled_at' => now(), 'frammenti_due_on' => '2099-01-01'];
+            $this->word($user, $language, 'känd', $recalled);
+            $this->word($user, $language, 'ny', ['last_recalled_at' => null]);
+            FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'tycka om', 'translation' => 'to like', 'last_recalled_at' => now(), 'frammenti_due_on' => '2099-01-01']);
             $this->fakeAi();
 
             $this->batch($user, $language)->assertOk();
 
-            $this->assertEqualsCanonicalizing(['känd', 'tycka om'], explode(', ', $ownWords()), "level {$level}");
+            // Neither the unrecalled word nor the expression is context.
+            $this->assertSame(['känd'], explode(', ', $ownWords()), "level {$level}");
         }
 
         // From B1 vocabulary is left to the level.
         [$user, $language] = $this->learner('B1');
         $this->unlock($user, $language);
-        $this->word($user, $language, 'känd', ['frammenti_level' => 2, 'last_recalled_at' => now()]);
+        $this->word($user, $language, 'känd', ['last_recalled_at' => now()]);
         $this->fakeAi();
 
         $this->batch($user, $language)->assertOk();
 
         $this->assertNull($ownWords());
+    }
+
+    public function test_context_words_follow_the_quotas_per_part_of_speech(): void
+    {
+        [$user, $language] = $this->learner('A1');
+        $this->unlock($user, $language, 10, 5, 5);
+        $recalled = fn (string $partOfSpeech, int $count, string $prefix, int $day) => array_map(
+            fn ($i) => $this->word($user, $language, $prefix.$i, ['part_of_speech' => $partOfSpeech, 'last_recalled_at' => now(), 'frammenti_due_on' => '2099-01-01', 'created_at' => now()->subDays($day - $i)]),
+            range(1, $count));
+        // Numbered so a higher number is newer; "old" words are older than every "new" one.
+        $recalled('noun', 40, 'n', 100);
+        $recalled('adjective', 6, 'adj', 100);
+        $recalled('adverb', 6, 'adv', 100);
+        $recalled('verb', 20, 'v', 100);
+        $recalled('interjection', 8, 'p', 100);
+        $recalled('preposition', 8, 'q', 100);
+        $this->words($user, $language, 5, $this->due(), 'dagens');
+        $this->fakeAi();
+
+        $this->batch($user, $language)->assertOk();
+
+        $request = Http::recorded()->last()[0]['messages'][1]['content'];
+        preg_match('/own words: (.*)$/m', $request, $list);
+        $words = explode(', ', $list[1]);
+        $count = fn (string $pattern) => count(preg_grep($pattern, $words));
+
+        $this->assertCount(10 + 4 + 5 + 2 + 10, $words);
+        $this->assertSame(10 + 4 + 5 + 2 + 10, count(array_unique($words)));
+        // The rest never repeats a top group's words, so each top group is exactly its quota.
+        $this->assertSame(10, $count('/^n(1[1-9]|[2-4]\d)$/'), '10 nouns from the 30 newest');
+        $this->assertSame(4, $count('/^adj[3-6]$|^adv[3-6]$/'), '4 of the 4 newest adjectives and 4 newest adverbs');
+        $this->assertSame(5, $count('/^v([6-9]|1\d|20)$/'), '5 verbs from the 15 newest');
+        $this->assertSame(2, $count('/^p([3-8])$/'), '2 interjections from the 6 newest');
+        $this->assertSame(0, $count('/^q\d+$/'), 'other parts of speech are never context');
+        $this->assertSame(0, $count('/^substantiv|^verb\d|^adjektiv/'), 'words never recalled are not context');
+    }
+
+    public function test_a_beginner_needs_ten_nouns_five_verbs_and_five_adjectives_or_adverbs(): void
+    {
+        [$user, $language] = $this->learner('A1');
+        $this->unlock($user, $language, 10, 5, 4);
+        Http::fake();
+
+        $this->batch($user, $language)->assertStatus(422);
+        $this->actingAs($user)->get('/frammenti')->assertOk()
+            ->assertSee('at least 10 nouns, 5 verbs and 5 adjectives or adverbs')->assertDontSee('id="startBtn"', false);
+        Http::assertNothingSent();
+
+        $this->word($user, $language, 'snabbt', ['part_of_speech' => 'adverb']);
+        $this->actingAs($user)->get('/frammenti')->assertSee('id="startBtn"', false);
     }
 
     public function test_a_tier_three_answer_without_its_item_marked_fails_the_batch(): void
@@ -538,16 +593,16 @@ class FrammentiTest extends TestCase
         $this->assertSame([0, null], [$word->fresh()->frammenti_level, $word->fresh()->frammenti_due_on]);
     }
 
-    public function test_fewer_than_five_nouns_or_verbs_show_the_info_and_make_no_ai_call(): void
+    public function test_fewer_than_five_saved_words_show_the_info_and_make_no_ai_call(): void
     {
         [$user, $language] = $this->learner();
-        $this->unlock($user, $language, verbs: 4);
+        $this->unlock($user, $language, 3, 1);
         FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'tycka om', 'translation' => 'to like']);
         Http::fake();
 
         $this->batch($user, $language)->assertStatus(422);
         $this->actingAs($user)->get('/frammenti')->assertOk()
-            ->assertSee('at least 5 nouns and 5 verbs')->assertDontSee('id="startBtn"', false);
+            ->assertSee('at least 5 saved words')->assertDontSee('id="startBtn"', false);
         Http::assertNothingSent();
         $this->assertSame(0, FrammentiSession::count());
 

@@ -66,6 +66,7 @@ Route::get('/', function () {
         return [
             'language' => $language,
             'enough' => Frammenti::enough($user, $language),
+            'requirement' => Frammenti::requirement($user, $language),
             'session' => $session,
             'plan' => $session ? null : Frammenti::plan($user, $language),
             'activeWords' => Frammenti::activeWords($user, $language),
