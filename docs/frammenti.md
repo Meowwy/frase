@@ -32,7 +32,12 @@ Only a fixed expression whose parts stand apart (*inte bara … utan också*) ge
 It is checked on the client, since fragments are not stored, by the matching in `<x-answer-check>`
 that [gap-fill](gap-fill.md) shares. Case, extra spaces and surrounding
 punctuation never count, and a near miss (Levenshtein distance 1, or equal without diacritics) gets
-one "check your spelling" retry; a correct retry counts as correct. An answer in the gap's
+one "Small mistake, check your answer." retry; a correct retry counts as correct. **A leading article is judged
+separately from the word** (`nearWithArticles()`): when an accepted answer opens with one of the
+language's `articles` (its guideline file: *en*/*ett*, *the*/*a*/*an*), a missing or different
+article is a small mistake of its own, so it earns the same retry, alone or together with a
+one-character slip in the word. A wrong word is still wrong, whatever the article. The shared check
+stays article-blind for [gap-fill](gap-fill.md), which passes no list. An answer in the gap's
 `synonym_answers` (a form of one of the item's [synonym links](cards.md#synonym-links) that also
 fits) is right but not the item: the gap is cleared with "That's a synonym — give another way",
 nothing is graded or posted, and it can happen any number of times without using up the spelling

@@ -229,10 +229,11 @@
                         if (r.recap) recapData = r.recap;
                     }
 
-                    const { normalize, near } = AnswerCheck;
+                    const { normalize, nearWithArticles } = AnswerCheck;
+                    const articles = @json(\App\Support\LanguageGuideline::for($language->code)?->articles() ?? []);
 
                     // Tier I: each gap is right, a linked synonym, a near miss (one character
-                    // or one accent off), or wrong. A synonym is cleared and asked for again,
+                    // or one accent off, or a missing/wrong leading article), or wrong. A synonym is cleared and asked for again,
                     // ungraded, as often as it comes. Any near miss earns one retry; the
                     // second check is final.
                     function check() {
@@ -242,7 +243,7 @@
                             const accepted = f.accepted[i].map(normalize);
                             if (accepted.includes(typed)) return 'right';
                             if (f.synonym_answers[i].map(normalize).includes(typed)) return 'synonym';
-                            return near(accepted, typed) ? 'near' : 'wrong';
+                            return nearWithArticles(accepted, typed, articles) ? 'near' : 'wrong';
                         }).get();
 
                         if (verdicts.every(v => v === 'right')) {
@@ -255,7 +256,7 @@
                         }
                         if (! retried && ! verdicts.includes('wrong')) {
                             retried = true;
-                            return $('#feedback').text('Almost — check your spelling.').addClass('text-red-400');
+                            return $('#feedback').text('Small mistake, check your answer.').addClass('text-red-400');
                         }
                         $('.gap').prop('disabled', true);
                         grade(false, 'The answer is ' + f.accepted.map(a => a[0]).join(' … ') + '.');

@@ -25,6 +25,10 @@ return [
         'preposition', 'conjunction', 'determiner', 'numeral', 'interjection',
     ],
 
+    // The articles a typed answer may open with. Frammenti's gap check judges
+    // a missing or wrong article separately from the word (docs/frammenti.md).
+    'articles' => ['the', 'a', 'an'],
+
     // Which parts of speech carry extra grammatical attributes, their valid
     // values, and how to display them. English has none: no grammatical
     // gender, no case, no article baked into the dictionary form of a word.

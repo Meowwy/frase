@@ -17,8 +17,27 @@
             }
             return row[b.length];
         }
-        const near = (accepted, typed) => accepted.some(a => distance(a, typed) === 1 || bare(a) === bare(typed));
+        const off = (a, b) => distance(a, b) === 1 || bare(a) === bare(b);
+        const near = (accepted, typed) => accepted.some(a => off(a, typed));
 
-        return { normalize, near };
+        // Splits a normalized answer into [leading article, rest]; the article is null when it
+        // doesn't open with one of `articles` followed by more words.
+        const split = (s, articles) => {
+            const m = articles.length && s.match(new RegExp('^(' + articles.map(a => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\s+(.+)$', 'u'));
+            return m ? [m[1], m[2]] : [null, s];
+        };
+
+        // Like near(), but an accepted answer that opens with an article is judged in two parts:
+        // the article (missing or a different one is a small mistake) and the rest (exact or one
+        // character/accent off). Either small mistake alone, or both together, is a near miss;
+        // a wrong word never is. Call it only after an exact match has been ruled out.
+        const nearWithArticles = (accepted, typed, articles) => accepted.some(a => {
+            const [article, word] = split(a, articles);
+            if (! article) return off(a, typed);
+            const rest = split(typed, articles)[1];
+            return rest === word || off(word, rest);
+        });
+
+        return { normalize, near, nearWithArticles };
     })();
 </script>

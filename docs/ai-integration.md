@@ -171,7 +171,8 @@ can do this from general knowledge), just no attributes and no dictionary form �
 **`App\Support\LanguageGuideline`** is the only reader. It is a plain class, not an Eloquent model
 — there is no row behind it — and besides the raw lookups it owns: `promptNote()` (the language-wide
 note plus one per attribute plus the dictionary-form rule, concatenated for CALL 2's system
-message), `allAttributes()` (used to build CALL 2's word schema),
+message), `articles()` (the language's article words, read by Frammenti's tier I answer check, not
+by any prompt), `allAttributes()` (used to build CALL 2's word schema),
 `wantsDictionaryForm($partOfSpeech)` / `usesDictionaryForms()` (the per-part-of-speech and
 whole-language forms of the same question — the first filters CALL 2's answer in
 `WordDetails`, the second decides whether the schema carries the property at all), and

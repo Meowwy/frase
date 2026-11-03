@@ -56,6 +56,17 @@ class LanguageGuideline
     }
 
     /**
+     * The articles an answer in this language may open with ("en"/"ett", "the"/"a"/"an"),
+     * empty when the language declares none.
+     *
+     * @return array<int, string>
+     */
+    public function articles(): array
+    {
+        return $this->data['articles'] ?? [];
+    }
+
+    /**
      * The attribute definitions for one part of speech, keyed by attribute name.
      *
      * @return array<string, array{values: array<int, string>, display?: array<string, string>, prompt_note?: string}>
