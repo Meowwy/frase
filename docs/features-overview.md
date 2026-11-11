@@ -175,13 +175,16 @@ regardless of schedule), then a mode:
 - Reached from the dashboard's **Today's Frammenti** section, the nav, and the end of a review
   session. See [frammenti](frammenti.md).
 
-## Conversation practice (three ways)
+## Conversation practice (three ways) — hidden in v1.0
+
+Not offered in v1.0: nothing in the app links to it any more (the pages still exist by URL and
+work continues on them).
 
 - **SRS Conversation mode** (a mode in the study-session builder) — a short live chat with an
   AI partner built around up to 10 of your due words; the partner steers the conversation toward
   situations where you'd naturally use them, without ever saying the words itself. Using a word
   correctly counts as a correct review. Ends with a short feedback recap. See [learning-flow](learning-flow.md).
-- **Conversation Challenge** (nav: "Conversation") — free-form practice chat, not tied to any
+- **Conversation Challenge** (`/conversation`) — free-form practice chat, not tied to any
   specific vocabulary. Pick a language, optionally a scene/topic and a grammar point to drill.
   Available in three modes:
   - **Text** — live corrections after every message, plus a wrap-up with what to study next. See
@@ -216,7 +219,7 @@ page for finding words of your base to add to it. See [search-and-linking](searc
 ## On a phone
 
 Every screen works one-handed on a phone. A slim top bar holds the logo, the search box and a menu
-(Frammenti, Conversation, your account, log out); a tab bar at the bottom leads to Home (capture),
+(Frammenti, your account, log out); a tab bar at the bottom leads to Home (capture),
 Staging (with its count), Cards, Base and Learn. Lists become tappable rows, and
 the screens where you practise — flashcards, Frammenti, the chats — go full screen with their main
 buttons or message box at the bottom, within thumb reach. See

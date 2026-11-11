@@ -1,5 +1,9 @@
 # Conversation Challenge — Voice variant (Realtime API)
 
+> **Hidden in v1.0.** Conversation is not part of this version: every link to it (the nav, the
+> phone menu, the Conversation tiles in `/setLearning`) is gone from the UI. Routes, controllers,
+> views, JS and this doc stay, since work on it continues; the pages still open by URL.
+
 The **voice** mode of the Conversation Challenge ([conversation-challenge](conversation-challenge.md) for the base
 feature and the shared setup page): a live **speech-to-speech** chat on OpenAI's **Realtime
 API**. Chosen via the **Mode** pill (Text | Voice | Game) on `challenge/setup.blade.php`, which

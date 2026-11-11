@@ -235,7 +235,11 @@ class AnalyzeProposalJob implements ShouldQueue
     {
         $guideline = LanguageGuideline::for($language->code);
 
+        // A lemma with a digit in it ("3", "1990", "covid-19") is never vocabulary, whatever CALL 1
+        // made of it; proper nouns are left to the prompt, since capitals alone can't tell them
+        // apart (every German noun has one).
         $candidates = array_filter($candidates, fn ($candidate) => trim((string) ($candidate['lemma'] ?? '')) !== ''
+            && ! preg_match('/\d/u', (string) $candidate['lemma'])
             && in_array($candidate['part_of_speech'] ?? '', LanguageGuideline::PARTS_OF_SPEECH, true));
 
         $lexicon = Lexicon::lookup($language->code, array_map(fn ($candidate) => [

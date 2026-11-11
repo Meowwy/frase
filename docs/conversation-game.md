@@ -1,5 +1,9 @@
 # Conversation Challenge — Game variant (task game with lives)
 
+> **Hidden in v1.0.** Conversation is not part of this version: every link to it (the nav, the
+> phone menu, the Conversation tiles in `/setLearning`) is gone from the UI. Routes, controllers,
+> views, JS and this doc stay, since work on it continues; the pages still open by URL.
+
 The **Game** mode of the Conversation Challenge ([conversation-challenge](conversation-challenge.md) for the base feature
 and shared setup page): the AI runs a roleplay in a random scene and sets the learner a **task**
 each turn (what information to convey); the learner must produce it in the target language.

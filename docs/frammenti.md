@@ -204,6 +204,8 @@ The switcher and the article-drill panel are hidden during play. **Each answer i
 order on one promise chain (so each lands on the state the previous one left): the schedule
 updates immediately, **Quit** loses nothing, and the next batch is dealt knowing most of the current
 batch's outcomes. **The prefetch starts at fragment 4 of 5**, once the earlier answers are saved.
+On the batch recap **Next batch** (or **Start another session**) is the one big, full-width button,
+with **Done** under it in the quiet black `button-small` style, so carrying on is the obvious step.
 **There's no prefetch after the session's last planned batch**, so no batch is paid for and thrown
 away (quitting mid-batch can still waste one prefetched batch). Each batch ends on a recap
 (right/wrong per fragment, ↑/↓ when the level changed the tier); the session's last adds the

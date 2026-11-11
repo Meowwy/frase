@@ -67,7 +67,7 @@ exactly as designed**; everything below lg is added on top of it.
 - **Mobile chrome** (`html-layout`, `lg:hidden`): a fixed top bar (logo, an always-open search box,
   a menu button) and a fixed bottom **tab bar** with the five main destinations — Home (capture),
   Staging, Cards, Base, Learn. The menu drops down under the top bar with the rest of the desktop
-  nav: Frammenti, Conversation, account settings, log out. Five tabs is the platform norm, and
+  nav: Frammenti, account settings, log out (Conversation is hidden in v1.0). Five tabs is the platform norm, and
   keeping the overflow in the top bar's menu means it's reachable on pages without a tab bar too.
   Both navs render a `.js-staged-count` badge; every script that updates the count addresses the
   class, so all badges update. The wrapper pads its top by the bar's height and the body its bottom

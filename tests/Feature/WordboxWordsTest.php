@@ -127,4 +127,15 @@ class WordboxWordsTest extends TestCase
 
         $this->actingAs($user)->get('/base')->assertOk()->assertSee('Resor')->assertDontSee('Travel');
     }
+
+    public function test_a_words_panel_lists_the_wordboxes_it_is_in(): void
+    {
+        [$user, $language, $wordbox] = $this->learner();
+        $hus = $this->word($user, $language, 'hus');
+        $wordbox->baseWords()->attach($hus->id);
+
+        $this->actingAs($user)->get('/base')->assertOk()
+            ->assertSee('Wordboxes</p>', false)
+            ->assertSee('href="'.route('wordbox.show', $wordbox->id).'"', false);
+    }
 }

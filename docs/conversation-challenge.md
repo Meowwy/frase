@@ -1,5 +1,9 @@
 # Conversation Challenge (free practice chat — text)
 
+> **Hidden in v1.0.** Conversation is not part of this version: every link to it (the nav, the
+> phone menu, the Conversation tiles in `/setLearning`) is gone from the UI. Routes, controllers,
+> views, JS and this doc stay, since work on it continues; the pages still open by URL.
+
 The **text** variant of a **separate**, standalone feature from the SRS Conversation mode
 documented in [learning-flow](learning-flow.md): free-form conversation practice with **live per-message
 corrections**, not tied to any wordbox or SRS state. Two other input/interaction variants of the

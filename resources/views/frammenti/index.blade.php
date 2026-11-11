@@ -112,11 +112,12 @@
                 <h3 id="recapTitle" class="mt-6 text-center text-2xl font-bold"></h3>
                 <ul id="recapList" class="my-4 space-y-2"></ul>
                 <div id="summary" class="hidden mb-6 space-y-2 rounded-xl bg-white/5 border border-white/10 p-4"></div>
-                <div class="flex gap-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-3 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                    <x-forms.button id="nextBatchBtn" type="button" class="max-lg:min-h-12 max-lg:flex-1"></x-forms.button>
-                    <a href="/" class="max-lg:flex-1"><x-forms.button type="button" class="max-lg:min-h-12 max-lg:w-full">Done</x-forms.button></a>
+                {{-- The next batch is the one big action; Done sits under it in the quiet black style. --}}
+                <div class="flex flex-col gap-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:border-t max-lg:border-white/10 max-lg:bg-black max-lg:px-4 max-lg:pt-3 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                    <x-forms.button id="nextBatchBtn" type="button" class="w-full py-4 text-lg max-lg:min-h-14"></x-forms.button>
+                    <a href="/" class="w-full"><x-forms.button-small type="button" class="w-full px-6 max-lg:min-h-11">Done</x-forms.button-small></a>
                 </div>
-                <div class="h-24 lg:hidden" aria-hidden="true"></div>
+                <div class="h-32 lg:hidden" aria-hidden="true"></div>
             </div>
 
             {{-- The article drill: flip cards over the nouns, only for a language whose nouns

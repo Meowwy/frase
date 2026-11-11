@@ -26,6 +26,7 @@
                 'cards' => $entry->cards,
                 'key' => $key,
                 'synonyms' => $synonyms,
+                'wordboxes' => $entry instanceof \App\Models\BaseWord ? $entry->wordboxes : collect(),
                 'parts' => $entry instanceof \App\Models\BaseWord
                     ? (\App\Support\LanguageGuideline::for($entry->language?->code)?->partsOfSpeech() ?? \App\Support\LanguageGuideline::PARTS_OF_SPEECH)
                     : null,

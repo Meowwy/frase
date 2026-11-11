@@ -48,7 +48,7 @@
 
 {{-- Mobile chrome (below lg): a slim fixed top bar (logo, search, menu) and a fixed bottom
      tab bar for the five main destinations, in thumb reach. The rest of the desktop nav
-     (Frammenti, Conversation, the account) sits in the top bar's menu. --}}
+     (Frammenti, the account) sits in the top bar's menu. --}}
 <div x-data="{ menuOpen: false }" @keydown.escape.window="menuOpen = false" class="lg:hidden">
     <header class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-black pt-[env(safe-area-inset-top)]">
         <div class="flex h-14 items-center gap-3 px-[max(1rem,env(safe-area-inset-left))]">
@@ -132,7 +132,6 @@
             <a href="/frammenti" @class(['flex min-h-12 items-center justify-between', 'text-blue-400' => request()->is('frammenti*')])>
                 Frammenti <span class="text-sm font-normal text-white/40">Daily active-vocabulary drill</span>
             </a>
-            <a href="/conversation" @class(['flex min-h-12 items-center', 'text-blue-400' => request()->is('conversation*')])>Conversation</a>
             <div class="my-2 h-px bg-white/10"></div>
             <a href="/profile" class="flex min-h-12 items-center">{{ Auth::user()->username }}'s Account Settings</a>
             <form method="post" action="/logout">
@@ -168,7 +167,7 @@
                 <a href="/base" class="hover:text-blue-400 transition-colors">Base</a>
                 <a href="/filterCardsForLearning/due" class="hover:text-blue-400 transition-colors">Learn</a>
                 <a href="/frammenti" class="hover:text-blue-400 transition-colors" title="Daily active-vocabulary drill">Frammenti</a>
-                <a href="/conversation" class="hover:text-blue-400 transition-colors">Conversation</a>
+                {{-- Conversation is hidden in v1.0 (docs/conversation-challenge.md); its routes stay. --}}
             </div>
         @endauth
 

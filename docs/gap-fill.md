@@ -33,10 +33,14 @@ cast — the words ticked for it), `theme_preference` (nullable, free text passe
    deleted from the base drops out — and builds one item per word: `base_word_id`, `lemma`,
    `display_form`, `part_of_speech`, `grammar` (its attributes) and `translation`. With the
    wordbox's language and the user's CEFR level for it (`User::levelForLanguage`, the default
-   level when unset) — plus, for A1/A2, up to 30 random other base words of the language as
-   vocabulary the story should favour — it calls `AI::generateTextWithGaps()` (see [ai-integration](ai-integration.md) "Gap-fill"). On success
+   level when unset) — plus, for A1/A2, up to 60 (`FAMILIAR_WORDS`) other base words of the
+   language as vocabulary the story should favour, **recalled ones first** (`last_recalled_at`
+   set: words the learner has produced, so really known), then any others at random — it calls `AI::generateTextWithGaps()` (see [ai-integration](ai-integration.md) "Gap-fill"). On success
    it stores `title`, `text_with_gaps`, `correct_answers`, `status: completed`; with no words
    left, a null AI result or any thrown exception, `status: failed` (logged via `Log::error`).
+   The list was 30 random words; a beginner's stories still leaned on words outside it, so v1.0
+   doubled it and put the proven words first ("more known words" in the request was read as
+   both: more of them, and the ones actually known before the merely saved).
 
 `GapFillExerciseController@status` (`GET /gap-fill/{exercise}/status`) is a small JSON polling
 endpoint (`{status, url}`) the show view hits while `status` is still `pending`/`processing`.

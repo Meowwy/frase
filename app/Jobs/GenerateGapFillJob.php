@@ -16,6 +16,9 @@ class GenerateGapFillJob implements ShouldQueue
     // A local `queue:work` kills a job after 60 seconds by default; the AI call may take longer.
     public int $timeout = AI::GAP_FILL_TIMEOUT + 5;
 
+    /** How many of a beginner's other base words the story may draw on (A1/A2 only). */
+    public const FAMILIAR_WORDS = 60;
+
     public function __construct(
         public GapFillExercise $exercise
     ) {}
@@ -49,11 +52,12 @@ class GenerateGapFillJob implements ShouldQueue
             // Match the exercise difficulty to the user's proficiency in this language.
             $level = $user->levelForLanguage($wordbox->language) ?? config('proficiency.default');
 
-            // A beginner's story is built from words they know: up to 30 other words of theirs.
+            // A beginner's story is built from words they know: up to FAMILIAR_WORDS other words
+            // of theirs, the ones they have already recalled first, then any others at random.
             $familiarWords = in_array($level, AI::GAP_FILL_BASIC_LEVELS, true)
                 ? $user->baseWords()->where('language_id', $wordbox->language_id)
                     ->whereNotIn('id', array_column($words, 'base_word_id'))
-                    ->inRandomOrder()->limit(30)->get()
+                    ->orderByRaw('last_recalled_at is null')->inRandomOrder()->limit(self::FAMILIAR_WORDS)->get()
                     ->map(fn (BaseWord $word) => "{$word->lemma} ({$word->translation})")->all()
                 : [];
 

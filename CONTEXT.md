@@ -391,6 +391,8 @@ _Avoid_: chain, run (and never a card's level)
 
 ### LEARN — conversation practice
 
+Hidden from the UI in v1.0 (the code stays).
+
 See [docs/conversation-challenge.md](docs/conversation-challenge.md),
 [docs/conversation-voice.md](docs/conversation-voice.md),
 [docs/conversation-game.md](docs/conversation-game.md),

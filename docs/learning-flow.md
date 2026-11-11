@@ -161,6 +161,10 @@ Classic use the same view and the same per-card saving, on their own endpoints.
 
 ## Conversation mode (live AI roleplay chat)
 
+> **Hidden in v1.0.** The builder and the legacy theme picker no longer offer the Conversation tile,
+> and the nav no longer links Conversation Challenge. Everything below still works by URL
+> (`/startLearningSet/conversation`) and is kept for when it comes back.
+
 `data-mode="conversation"` in `set.blade.php` replaced an earlier "Questions" panel that had gone dead (linked to a 404). Selecting it hands
 off entirely to `Learning::startConversation()` (called from `renderLearningView`) instead of
 building a front/back/hint deck:

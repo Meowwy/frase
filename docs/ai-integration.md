@@ -113,7 +113,11 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
   flashcard; otherwise exactly **one** question, about the **earliest** open topic in a fixed order
   because each depends on the one before: `reading` (grammatical reading — *take off* the phrasal
   verb or the noun), then `sense` (which meaning within it), then `other` (literal/figurative…).
-  Language is not among them: it has its own mechanism above. It applies to a word, a phrase and a
+  Language is not among them: it has its own mechanism above. **Recognising what the Term is does
+  not settle its meaning**: the description says a phrasal verb, particle verb or idiom with several
+  meanings (also one listed in `fixed_expressions`) still gets the `sense` question. Without that
+  line, *take off* was correctly read as a phrasal verb and then asked nothing, as if naming the
+  reading had answered which of plane / clothes / popular was meant. It applies to a word, a phrase and a
   sentence alike, and **earlier answers live in the Context**, which is how the model knows not to
   ask them again. At most 4 options, each a `label` for the learner and a `context` line that is
   appended to the Context if chosen. It feeds staging's clarification loop (see [cards](cards.md)
@@ -150,9 +154,14 @@ effort and not while a clarifying question is open (the words will be extracted 
   deferred to CALL 2 (see [cards](cards.md) "The vocabulary base"). The prompt is explicit that
   words come from the `term` field **only**, never from the Context, which is what keeps
   `collateral damage` from putting *damage* in the base; that a word occurring only inside one of
-  the `fixed_expressions` is skipped (*tycka om* is learnt whole); and that an **article** is never listed,
+  the `fixed_expressions` is skipped (*tycka om* is learnt whole); that an **article** is never listed,
   at any level (an article is never worth a vocabulary entry, so there is nothing for PHP to
-  decide). Everything level- or learner-dependent — the B1+ function-word filter, ignored words,
+  decide); and that a **proper noun** (a person's, place's, company's or brand's name) or a
+  **number in digits** is never listed — they are not vocabulary, and as struck chips they only
+  cluttered the ignored list. A number word (*tre*) stays an ordinary numeral. Proper nouns are left
+  to the prompt (a capital letter can't tell them from a German noun), while
+  `AnalyzeProposalJob::storeCandidates()` also drops any lemma containing a digit, whatever the
+  model said. Everything level- or learner-dependent — the B1+ function-word filter, ignored words,
   already-present words — is deterministic PHP after the call instead (see [cards](cards.md)).
 
 Where the **grammatical attributes** go in the schema is the one awkward part, and it is forced:
@@ -318,8 +327,8 @@ lemma — the display form as "dictionary entry" (*ett hus*, *komm|a -er*), then
 - The CEFR rule (rule 2 above) applies through `levelInstruction()`; the job falls back to the
   configured default level (A1) for a language with none set, so a level is always sent.
 - **A1/A2 (`GAP_FILL_BASIC_LEVELS`) get a text the learner can read:** apart from the listed
-  words, only really basic everyday words in short sentences, and up to 30 random other words of
-  the learner's base in that language (`lemma (translation)`, not the gap words) that the model
+  words, only really basic everyday words in short sentences, and up to 60 other words of
+  the learner's base in that language (recalled ones first, see [gap-fill](gap-fill.md)) (`lemma (translation)`, not the gap words) that the model
   prefers wherever they fit, written as plain text. From B1 up there is no such list.
 - It does **not** quote `LanguageGuideline::promptNote()`: those notes tell CALL 2 how to tag and
   write a base word (dictionary style with its `|`, "tag it as common or neuter") and would bleed

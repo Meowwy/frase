@@ -24,14 +24,7 @@
                     <p class="text-sm mt-4">Recall the term from its translation.</p>
                 </div>
             </x-panel>
-            <x-panel class="w-48 max-lg:relative max-lg:w-full">
-                <div class="py-8">
-                    <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                        <a href="/startLearning/conversation" class="max-lg:after:absolute max-lg:after:inset-0">Conversation</a>
-                    </h3>
-                    <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
-                </div>
-            </x-panel>
+            {{-- Conversation mode is hidden in v1.0 (docs/learning-flow.md); its route stays. --}}
         </div>
     @elseif($targetLanguages->isEmpty())
         <div class="max-w-3xl mx-auto bg-white/5 rounded-xl border border-white/10 p-4">
@@ -77,14 +70,7 @@
                         <p class="text-sm mt-4">Recall the term from its translation.</p>
                     </div>
                 </x-panel>
-                <x-panel class="mode-panel max-lg:relative">
-                    <div class="py-8">
-                        <h3 class="group-hover:text-blue-600 text-xl text-bold transition-colors duration-100">
-                            <a href="#" class="mode-link max-lg:after:absolute max-lg:after:inset-0" data-mode="conversation">Conversation</a>
-                        </h3>
-                        <p class="text-sm mt-4">Chat with an AI that makes you use each word.</p>
-                    </div>
-                </x-panel>
+                {{-- Conversation mode is hidden in v1.0 (docs/learning-flow.md); its route stays. --}}
             </div>
         </div>
 

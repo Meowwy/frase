@@ -145,6 +145,19 @@ class CaptureStagingTest extends TestCase
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(422);
     }
 
+    public function test_a_number_in_digits_is_never_proposed(): void
+    {
+        [$user] = $this->learner('A2');
+        $this->fakeOpenAi($this->analysis(['term' => 'år 1990', 'base_words' => [
+            ['lemma' => 'år', 'part_of_speech' => 'noun'],
+            ['lemma' => '1990', 'part_of_speech' => 'numeral'],
+        ]]));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'år 1990']);
+
+        $this->assertSame(['år'], $user->proposals()->sole()->baseWords->pluck('lemma')->all());
+    }
+
     public function test_an_a2_learner_keeps_the_function_words(): void
     {
         [$user] = $this->learner('A2');

@@ -1,5 +1,5 @@
 {{-- One row's side-panel content (see base._panel): its title, the pen that edits it, the bin that
-     deletes it (or, in a checked entry's panel, the X that unchecks it), the Terms of its cards and its synonyms. --}}
+     deletes it (or, in a checked entry's panel, the X that unchecks it), the Terms of its cards, its wordboxes and its synonyms. --}}
 <template class="js-row-cards">
     <div class="mb-2 flex items-start justify-between gap-2">
         <div>
@@ -48,6 +48,16 @@
         @empty
             <p class="text-white/40">Not part of any card yet.</p>
         @endforelse
+    @endif
+
+    {{-- The wordboxes a word is in (an expression is never in one). --}}
+    @if($wordboxes->isNotEmpty())
+        <p class="mt-4 mb-2 text-xs uppercase tracking-wider text-white/40">Wordboxes</p>
+        <div class="flex flex-wrap gap-2">
+            @foreach($wordboxes as $box)
+                <a href="{{ route('wordbox.show', $box->id) }}" class="rounded-lg border border-white/10 bg-white/5 px-3 py-1 hover:bg-white/10 max-lg:py-2">{{ $box->name }}</a>
+            @endforeach
+        </div>
     @endif
 
     @if($synonyms->isNotEmpty())

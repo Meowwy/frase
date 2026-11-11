@@ -131,7 +131,11 @@ for as long as anything is still `pending`, and with no queue worker running (se
 [overview](overview.md) "Known rough edges") that poll never stops — a per-chip query there is a
 query storm that never ends.
 
-**Proficiency filter** — the one filter applied on the way in:
+**No digits.** A candidate whose lemma contains a digit (*1990*) is dropped before anything else —
+a number is not vocabulary (CALL 1 is also told to leave out numbers and proper nouns, see
+[ai-integration](ai-integration.md)).
+
+**Proficiency filter** — the one level-dependent filter applied on the way in:
  — `AnalyzeProposalJob::applyProficiencyFilter()`, applied as the chip tray is
   written: from B1 up, the parts of speech in `LanguageGuideline::FUNCTION_WORD_PARTS`
   (preposition, pronoun, conjunction, determiner) aren't worth an entry. The level is the learner's
@@ -180,7 +184,9 @@ a wordbox's page lists its words in the very same table — base words only, its
 
 A table (a checkbox, display form, part of speech, translation, card count) and a **side panel** on the right, empty until a
 row is clicked, then showing the entry's part of speech and translation, the Terms of the cards
-that entry is part of (grouped under the meaning each card uses when the word has several), and its synonyms (see "Synonym links" below) — coverage is half of why
+that entry is part of (grouped under the meaning each card uses when the word has several), the
+wordboxes a word is in (each a link to that wordbox; `wordboxes` is eager-loaded with the page's
+words) and its synonyms (see "Synonym links" below) — coverage is half of why
 the base exists, and the panel shows it without making every row as tall as its card list. Each
 row's cards and synonyms are loaded with the page (`cards:id,term`, and `EntrySynonym::of()` for
 the page's entries in three queries) and carried in a `<template>` inside the row
