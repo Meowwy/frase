@@ -272,6 +272,17 @@ above, pulled from `config/proficiency.php` (`levels` map, `A1`..`C2`, plus a `d
 for a language with no proficiency set yet. CALL 2 does not use it: a translation has no level to
 cap.
 
+### Adding a word by hand — `AI::describeWord($lemma, $partOfSpeech, $language, $nativeLanguage)`
+
+"Add word manually" on `/base` (see [cards](cards.md) "Adding a word by hand") creates a base word
+from a lexicon entry with no Term around it. The lexicon has already settled the lemma, part of
+speech and grammar, so the call is asked for the one thing it can't give — the word's **meanings**,
+each as a translation, most common first, at most 4 — at `low` reasoning effort with a one-field
+schema. A meaning is one that needs a different translation (*bank*: money / riverside), the same
+rule the meaning check uses, so a nuance doesn't become a second meaning. With no native language
+(a native-language word) it glosses in the word's own language, as CALL 2 does. `null` (failure or
+no meanings) makes the endpoint answer `500` with a retry message and creates nothing.
+
 ## Related generators
 
 - **`AI::generateTextWithGaps($words, $targetLanguage, $themePreference = null, $level = null)`**

@@ -42,6 +42,11 @@ covers the patterns shared across all of them.
   state and DOM-manipulation JS inside the component's own `<script>` block, and communicate
   outward only through a small, documented JS/event surface, never by having the consuming page
   reach into the component's DOM.
+- `<x-lexicon-search id language-id [action] [detailed]>` follows that model: a debounced search of
+  one language's lexicon (`GET /lexicon/search`), one row per lemma + part of speech. With `action`
+  each row gets a button of that label, and pressing it triggers `lexicon:pick` (`result`,
+  `$button`) on the root; `detailed` lists every lexicon field per entry. Render it only where
+  `Lexicon::has()` — see [cards](cards.md) "The lexicon".
 - `<x-answer-check>` is script only: `window.AnswerCheck` (`normalize`, `near`), the typed-answer
   matching Frammenti's tier I and gap-fill share — see [frammenti](frammenti.md).
 

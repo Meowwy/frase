@@ -7,6 +7,7 @@ use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\FrammentiController;
 use App\Http\Controllers\GapFillExerciseController;
+use App\Http\Controllers\LexiconController;
 use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\SearchController;
@@ -201,6 +202,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/base/{kind}/{id}', [BaseWordController::class, 'destroy'])->whereIn('kind', ['word', 'expression'])->whereNumber('id');
     Route::post('/base/synonyms', [BaseWordController::class, 'link']);
     Route::delete('/base/synonyms', [BaseWordController::class, 'unlink']);
+    // "Add word manually": a lexicon word straight into the base (one small AI call).
+    Route::post('/base/words', [BaseWordController::class, 'store']);
+    // The shared lexicon search (<x-lexicon-search>).
+    Route::get('/lexicon/search', [LexiconController::class, 'search'])->name('lexicon.search');
 
     Route::get('/search', [SearchController::class, 'index']);
 

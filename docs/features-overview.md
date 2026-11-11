@@ -76,6 +76,10 @@ word or translation as you type, or filter by part of speech (*expression* shows
 expressions). Click a row and the panel on the right lists those cards' terms;
 clicking a word or expression on a card's page brings you here with it already picked.
 
+**Add word manually** (top right, for a language with a dictionary — Swedish today): search the
+dictionary and add a word straight to the base, without capturing a term; its translations are
+written for you. A word you had ignored stops being ignored.
+
 The panel's bin **deletes** the entry. A word can be deleted on its own, or also **marked as
 ignored**, so staging never proposes it again; an expression can only be deleted. A deleted entry
 disappears from the base, from your cards' pages and from Frammenti, but nothing is lost: save it

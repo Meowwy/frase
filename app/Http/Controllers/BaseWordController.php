@@ -3,10 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ListsBaseEntries;
+use App\Models\AI;
 use App\Models\BaseWord;
+use App\Models\Card;
 use App\Models\FixedExpression;
 use App\Models\IgnoredWord;
+use App\Models\Language;
+use App\Models\LexiconEntry;
 use App\Support\LanguageGuideline;
+use App\Support\Lexicon;
+use App\Support\WordDetails;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -35,7 +41,68 @@ class BaseWordController extends Controller
             'targetLanguages' => $user->languages()->orderBy('name')->get(),
             'activeLanguageId' => $languageId,
             'wordboxes' => $user->wordboxes()->forLanguage($languageId)->orderBy('position')->orderBy('name')->get(['id', 'name']),
+            'hasLexicon' => Lexicon::has(Language::find($languageId)?->code),
         ]);
+    }
+
+    /**
+     * "Add word manually": put a word picked from the language's lexicon straight into the
+     * base — no staging, no card. Its grammar attributes and dictionary form come from the
+     * lexicon (only the values it is sure of, as at capture), its meanings from one small AI
+     * call. Deduplicated on lemma + part of speech like every other way in: an entry the
+     * learner already has is refused, a deleted one comes back. Adding a word the learner had
+     * ignored takes it off the ignored list — they plainly want it now.
+     */
+    public function store(Request $request)
+    {
+        $user = Auth::user();
+
+        $data = $request->validate([
+            'language_id' => ['required', 'integer'],
+            'lemma' => ['required', 'string', 'max:100'],
+            'part_of_speech' => ['required', 'string', Rule::in(LanguageGuideline::PARTS_OF_SPEECH)],
+        ]);
+
+        $language = $user->languages()->whereKey($data['language_id'])->firstOrFail();
+
+        $entries = LexiconEntry::where('language_code', $language->code)
+            ->where('lemma', $data['lemma'])
+            ->where('part_of_speech', $data['part_of_speech'])
+            ->get();
+
+        abort_if($entries->isEmpty(), 422, 'That word is not in the lexicon.');
+
+        $existing = $user->baseWords()->where('language_id', $language->id)
+            ->where('part_of_speech', $data['part_of_speech'])
+            ->whereLemma($data['lemma'])
+            ->first();
+
+        if ($existing) {
+            return response()->json(['message' => 'You already have '.$existing->displayForm().' ('.$existing->part_of_speech.') in your base.'], 422);
+        }
+
+        $meanings = AI::describeWord($data['lemma'], $data['part_of_speech'], $language->name, Card::nativeLanguageFor($user, $language));
+
+        if (is_null($meanings)) {
+            return response()->json(['message' => 'Could not describe that word right now. Try again.'], 500);
+        }
+
+        $details = WordDetails::grammar(LanguageGuideline::for($language->code), $data['part_of_speech'], [], Lexicon::sureOptions($entries));
+
+        $word = BaseWord::resolve($user, $language, $data['lemma'], $data['part_of_speech'], $details['grammar_attributes'], $meanings[0], $details['dictionary_form']);
+
+        foreach ($meanings as $meaning) {
+            $word->addSense($meaning);
+        }
+
+        IgnoredWord::where(['user_id' => $user->id, 'language_id' => $language->id, 'part_of_speech' => $data['part_of_speech']])
+            ->whereLemma($data['lemma'])
+            ->delete();
+
+        return response()->json([
+            'message' => $word->displayForm().' is in your base.',
+            'url' => route('base', ['language_id' => $language->id, 'selected' => 'word:'.$word->id]),
+        ], 201);
     }
 
     /**

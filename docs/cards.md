@@ -185,8 +185,9 @@ the base exists, and the panel shows it without making every row as tall as its 
 row's cards and synonyms are loaded with the page (`cards:id,term`, and `EntrySynonym::of()` for
 the page's entries in three queries) and carried in a `<template>` inside the row
 (`base/_row-cards`), so a click is a client-side swap with no request (`base/_panel`). Last recall
-and the Frammenti schedule are not shown on the page. The page header is just the title and the
-language filter.
+and the Frammenti schedule are not shown on the page. The page header is the title, the
+language filter and, for a language with a lexicon, **+ Add word manually** (see "Adding a word by
+hand").
 
 Below lg the side column would land under the whole list, out of sight of the row just tapped, and
 a tall panel over the list is worse, so its two jobs come apart, and **at most one bottom element
@@ -330,6 +331,31 @@ on the `storage_dir` volume's database, so it survives deploys). It keeps
 
 Folkets lexikon (what the `swe` CLI uses) was considered and rejected as the source: it has no
 gender field, and about 45% of its nouns carry no inflections to infer one from.
+
+**Searching it.** A language "has a lexicon" when it has any rows (`Lexicon::has()`); every screen
+built on the lexicon is shown only then. `Lexicon::search()` is the one search: a lemma prefix
+match, exact match first then shortest, grouped **one result per lemma + part of speech** (a
+homograph's rows stay together), each with the display form built from only the values it is sure
+of (as a staging chip is) and every row's raw fields. `GET /lexicon/search?language_id=&q=`
+(`LexiconController`, any language — the lexicon is shared reference data) serves it to the shared
+`<x-lexicon-search>` component (see [frontend-patterns](frontend-patterns.md)), which is used by
+"Add word manually" below.
+
+### Adding a word by hand
+
+On `/base`, the language row carries **+ Add word manually** on its right for a language with a
+lexicon. It opens an `<x-modal>` with the lexicon search; **Add** on a result posts
+`POST /base/words` (`language_id`, `lemma`, `part_of_speech`, `BaseWordController@store`), which
+creates the base word at once — no staging, no card — and opens `/base` on it. Only a lemma + part
+of speech the lexicon holds is accepted (`422` otherwise), which is the point: the lexicon settles
+the spelling, part of speech, gender and dictionary form (its sure values, through
+`WordDetails::grammar()`; a homograph's article stays open and the display form is the bare lemma),
+and the AI is asked only what it can't — the meanings, in one small call (`AI::describeWord()`, see
+[ai-integration](ai-integration.md)). Each meaning becomes a `base_word_senses` row, the first also
+the word's `translation`. Deduplication is the usual lemma + part of speech, ignoring case: a word
+already in the base is refused with a `422` naming it (before any AI call), a deleted one comes back
+through `BaseWord::resolve()` with its old links and progress. A word on the ignored list is taken
+off it, since adding it is the learner saying they want it.
 
 ## Staging
 

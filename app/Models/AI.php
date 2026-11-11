@@ -371,6 +371,52 @@ class AI
     }
 
     /**
+     * "Add word manually" on /base: the meanings of one lexicon word, each as its translation,
+     * most common first. The lemma and part of speech are the lexicon's, settled — the model
+     * only says what the word means, which is the one thing the lexicon can't. Small on
+     * purpose (low reasoning effort, one array of strings): it runs per word the learner adds.
+     *
+     * $nativeLanguage null means a native-language word: glossed in its own language.
+     * Returns a list of translations (at least one), or null on failure.
+     *
+     * @return array<int, string>|null
+     */
+    public static function describeWord(string $lemma, string $partOfSpeech, string $language, ?string $nativeLanguage): ?array
+    {
+        $into = $nativeLanguage ? "translated into {$nativeLanguage}" : "as a short gloss in {$language} itself";
+
+        $system = "You list the meanings of one {$language} word a learner is adding to their vocabulary, each {$into}, most common first. A meaning is one that needs a different translation (\"bank\": money / riverside); a nuance of the same translation is not a separate meaning. Keep to meanings of the given part of speech. At most 4; most words have one or two.";
+
+        $result = self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => "Word: \"{$lemma}\" ({$partOfSpeech})."],
+            ],
+            'describe_word',
+            [
+                'meanings' => [
+                    'type' => 'array',
+                    'description' => 'One entry per meaning, most common first.',
+                    'items' => self::object([
+                        'translation' => ['type' => 'string', 'description' => 'The lemma\'s equivalent, same part of speech: the word alone, at most 2 variants separated by "; ".'],
+                    ]),
+                ],
+            ],
+            'low',
+        );
+
+        $meanings = collect($result['meanings'] ?? [])
+            ->map(fn ($meaning) => trim((string) ($meaning['translation'] ?? '')))
+            ->filter()
+            ->unique()
+            ->take(4)
+            ->values()
+            ->all();
+
+        return $meanings ?: null;
+    }
+
+    /**
      * The per-word schema for CALL 2's `base_words`: the word's translation, and the
      * `dictionary_form` and grammatical attributes named in $fields — only those some word
      * still lacks after the lexicon (see WordDetails::fieldsToAsk()), so a word the dictionary

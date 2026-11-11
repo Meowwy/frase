@@ -152,6 +152,71 @@ class Lexicon
     }
 
     /**
+     * Whether a language has a lexicon loaded at all — what the lexicon search, adding a word
+     * by hand and adding an ignored word by hand all depend on.
+     */
+    public static function has(?string $languageCode): bool
+    {
+        return $languageCode !== null && LexiconEntry::where('language_code', $languageCode)->exists();
+    }
+
+    /**
+     * The lexicon search shared by /base ("Add word manually"), the ignored-words page and
+     * the status page: entries whose lemma starts with $query, one result per lemma + part of
+     * speech (exact match first, then shortest), each with its display form built from the
+     * values the lexicon is sure of and every row it holds for that pair.
+     *
+     * @return Collection<int, array{lemma: string, part_of_speech: string, display_form: string, gender: ?string, dictionary_form: ?string, entries: array}>
+     */
+    public static function search(string $languageCode, string $query, int $limit = 20): Collection
+    {
+        // No wildcards of the learner's own: a search is always a prefix.
+        $query = mb_strtolower(trim(str_replace(['%', '_'], '', $query)));
+
+        if ($query === '') {
+            return collect();
+        }
+
+        $guideline = LanguageGuideline::for($languageCode);
+
+        return LexiconEntry::where('language_code', $languageCode)
+            ->where('lemma', 'like', $query.'%')
+            ->orderByRaw('lemma = ? desc', [$query])
+            ->orderByRaw('length(lemma)')
+            ->orderBy('lemma')
+            ->limit($limit * 4)
+            ->get()
+            ->groupBy(fn (LexiconEntry $entry) => $entry->lemma.'|'.$entry->part_of_speech)
+            ->take($limit)
+            ->map(function (Collection $entries) use ($guideline) {
+                $first = $entries->first();
+                $sure = self::sureOptions($entries);
+                $details = WordDetails::grammar($guideline, $first->part_of_speech, [], $sure);
+
+                return [
+                    'lemma' => $first->lemma,
+                    'part_of_speech' => $first->part_of_speech,
+                    'display_form' => $guideline
+                        ? $guideline->displayForm($first->lemma, $first->part_of_speech, $details['grammar_attributes'], $details['dictionary_form'])
+                        : $first->lemma,
+                    'grammar_attributes' => $details['grammar_attributes'],
+                    'dictionary_form' => $details['dictionary_form'],
+                    'entries' => $entries->map(fn (LexiconEntry $entry) => $entry->getAttributes())->values()->all(),
+                ];
+            })
+            ->values();
+    }
+
+    /**
+     * The values the lexicon is sure of for one lemma + part of speech (one option per field),
+     * the way capture labels a chip; a homograph's field is left empty.
+     */
+    public static function sureOptions(Collection $entries): array
+    {
+        return array_map(fn (array $options) => count($options) === 1 ? $options : [], self::optionsFrom($entries));
+    }
+
+    /**
      * Collapse one pair's dictionary rows into the allowed values per field. A noun row
      * with no gender is one the dictionary lets take either article (SALDO's "v" class),
      * so it allows both rather than none.
