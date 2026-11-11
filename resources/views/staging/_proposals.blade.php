@@ -257,6 +257,9 @@
             {{-- Below lg Approve stretches across the row, the primary action in thumb reach. --}}
             <div class="mt-4 flex items-center gap-2 max-lg:flex-wrap">
                 <x-forms.button class="js-approve max-lg:flex-1" :disabled="$proposal->isApprovable() ? 'false' : 'true'">Approve</x-forms.button>
+                {{-- CALL 1 again on the raw input and the Context as it stands, for a Term
+                     that came back as something the learner didn't mean. --}}
+                <x-forms.button-small class="js-regenerate max-lg:px-4" title="Read the Term again with the Context above">Regenerate</x-forms.button-small>
                 <x-forms.button-small class="js-discard max-lg:px-4">Discard</x-forms.button-small>
             </div>
         @endif

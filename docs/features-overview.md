@@ -27,6 +27,8 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   keep any number of words, none included. A word you already have stays in the tray with a green
   border and nothing to decide (it is linked to the new card automatically); ignored words are shown
   aside — tap one to include it again.
+- **Regenerate** reads the term again from scratch with the context as it now stands — for when
+  the term came back as something you didn't mean. The proposal is replaced in place.
 - **Approve** writes the card and its words — and only then is the translation
   generated, so nothing is spent on a term you throw away. You stay on staging:
   the proposal shrinks to one line, then becomes a link to the new card. **Discard** leaves

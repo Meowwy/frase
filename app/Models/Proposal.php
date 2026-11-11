@@ -141,13 +141,25 @@ class Proposal extends Model
      * thrown away rather than patched. A language already set stays pinned (see
      * AnalyzeProposalJob). The question count starts over unless the caller sets it.
      */
-    public function reanalyze(array $attributes = []): void
+    public function reanalyze(array $attributes = [], bool $keepStruck = false): void
     {
         $this->baseWords()->delete();
-        $this->fixedExpressions()->delete();
+        $this->fixedExpressions()->when($keepStruck, fn ($query) => $query->where('struck', false))->delete();
         $this->update(['clarify_rounds' => 0, ...$attributes, 'language_options' => null, 'clarification' => null, 'foreign_language' => null, 'status' => self::STATUS_PENDING]);
 
         AnalyzeProposalJob::dispatch($this);
+    }
+
+    /**
+     * Staging's Regenerate: run CALL 1 again exactly as for a new capture — the raw input and
+     * the Context as they stand now, the language detected afresh — for when the Term CALL 1
+     * made of it isn't what the learner meant. The Context and its clarifying answers stay
+     * (so does the count of answers), ignored words are remembered anyway, and a struck fixed
+     * expression stays struck if the new answer proposes it again (AnalyzeProposalJob).
+     */
+    public function regenerate(): void
+    {
+        $this->reanalyze(['language_id' => null, 'clarify_rounds' => $this->clarify_rounds], keepStruck: true);
     }
 
     /**

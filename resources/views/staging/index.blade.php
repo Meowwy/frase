@@ -145,6 +145,13 @@
                 }
             });
 
+            // Regenerate: the panel dims at once, then the re-render shows it reading again
+            // and the poll swaps the new proposal in, in the same place.
+            $list.on('click', '.js-regenerate', function () {
+                $(this).closest('.js-proposal').addClass('opacity-50 animate-pulse pointer-events-none');
+                post(this, '/regenerate').always(window.stagingRefresh);
+            });
+
             $list.on('click', '.js-retry', function () {
                 $(this).prop('disabled', true);
                 post(this, '/retry').always(window.stagingRefresh);

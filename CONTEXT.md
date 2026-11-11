@@ -168,6 +168,12 @@ expression the proposal also has: the card is deleted and only its note moves to
 switch in staging, on unless the learner turns it off. It is how a card is updated with a longer Term.
 _Avoid_: merge, combine, supersede
 
+**Regenerate**:
+Reading a proposal's raw input again in staging, with the Context as it stands, exactly as a new
+capture would, for when the Term CALL 1 made of it isn't what the learner meant. The panel is
+replaced in place. Never a card operation.
+_Avoid_: retry (that is for a failed read), refresh, re-capture
+
 **Duplicate**:
 A proposal whose Term, ignoring case, punctuation and spacing, is already a card in its language.
 Staging refuses it, whatever its Context.

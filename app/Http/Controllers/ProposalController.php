@@ -216,6 +216,19 @@ class ProposalController extends Controller
     }
 
     /**
+     * Regenerate the proposal: CALL 1 again on the raw input and the current Context, as for
+     * a new capture. The row shows as pending and is replaced in place by the new answer.
+     */
+    public function regenerate(Proposal $proposal)
+    {
+        $this->authorize('update', $proposal);
+
+        $proposal->regenerate();
+
+        return response()->json(['reanalyzing' => true]);
+    }
+
+    /**
      * Switch one of the learner's existing cards on (or off) to be replaced by this proposal
      * when it is approved. Nothing happens to it until then; approval checks again that the
      * card is still contained (see Proposal::replaceableCards()).

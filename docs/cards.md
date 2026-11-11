@@ -399,6 +399,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /staging/{proposal}/clarify` | answer the open clarifying question (`answer`), appended to the Context — see below |
 | `POST /staging/{proposal}/words/{word}/sense` | override the meaning of an already-saved word: `sense_id` or a new `translation` — see "The meaning check" |
 | `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
+| `POST /staging/{proposal}/regenerate` | **Regenerate**: run CALL 1 again as for a new capture (`Proposal::regenerate()`) — see below |
 | `POST /staging/{proposal}/replace/{card}` | `replace=0` / `replace=1` switches one contained card off (kept) or back on (the default) for replacing on approval. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
 | `POST /staging/{proposal}/approve` | `409` with `duplicate_card_id` on an identical Term (see "The duplicate check") or with `covering_card_id` on a covered proposal (see "Covered proposals"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
 | `DELETE /staging/{proposal}` | discard |
@@ -435,6 +436,18 @@ clears `language_options`, `clarification` and `foreign_language`, resets `clari
 new value, flips the status back to `pending` and re-dispatches. `AnalyzeProposalJob` reads a
 pre-set `language_id` as "pinned" and offers the model only that one language, so the re-run can't
 drift back to its original guess.
+
+**Regenerate** is the button beside Approve on every proposal panel, for when the Term CALL 1 made
+of the input (its typo fix, its reading) isn't what the learner meant. There is no input of its
+own: the learner writes what they meant into the Context as usual, then presses it.
+`Proposal::regenerate()` re-runs CALL 1 exactly as for a new capture — the raw input and the
+current Context, the language **unpinned** and detected again — while the Context, its clarifying
+answers and their count stay. The panel dims at once, the re-render shows it reading again, and the
+poll replaces it in place with the new proposal. Ignored words are remembered per language anyway;
+a struck fixed expression is the one per-proposal choice, so `reanalyze(keepStruck: true)` keeps
+the struck chips and `AnalyzeProposalJob::storeFixedExpressions()` keeps each one struck if the new
+answer proposes the same form again and drops it otherwise. A meaning picked on a green chip is not
+carried over (the meaning check runs again).
 
 **The language picker.** A Term can be a real word in more than one of the learner's languages
 (*bad* in English and Swedish), and which one they are learning it in decides everything CALL 1

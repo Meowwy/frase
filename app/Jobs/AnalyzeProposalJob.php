@@ -284,7 +284,14 @@ class AnalyzeProposalJob implements ShouldQueue
             }
         }
 
-        foreach (array_slice($clean, 0, 3) as $expression) {
+        $clean = array_slice($clean, 0, 3);
+
+        // Struck chips kept by a Regenerate (Proposal::regenerate()) stay struck where the new
+        // answer proposes the same form again, and go where it doesn't.
+        $kept = $this->proposal->fixedExpressions()->get()->keyBy(fn ($expression) => mb_strtolower($expression->form))->toBase();
+        $kept->except(array_keys($clean))->each->delete();
+
+        foreach (array_diff_key($clean, $kept->all()) as $expression) {
             $this->proposal->fixedExpressions()->create($expression);
         }
     }

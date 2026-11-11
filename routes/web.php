@@ -190,6 +190,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/staging/{proposal}/clarify', [ProposalController::class, 'clarify']);
     Route::post('/staging/{proposal}/words/{word}/sense', [ProposalController::class, 'sense']);
     Route::post('/staging/{proposal}/retry', [ProposalController::class, 'retry']);
+    Route::post('/staging/{proposal}/regenerate', [ProposalController::class, 'regenerate']);
     Route::post('/staging/{proposal}/replace/{card}', [ProposalController::class, 'replace']);
     Route::post('/staging/{proposal}/approve', [ProposalController::class, 'approve']);
     Route::delete('/staging/{proposal}', [ProposalController::class, 'destroy']);

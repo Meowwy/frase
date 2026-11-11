@@ -813,6 +813,30 @@ class CaptureStagingTest extends TestCase
         $this->assertSame(['kosta'], $proposal->baseWords->pluck('lemma')->all());
     }
 
+    public function test_regenerate_re_runs_call_one_unpinned_and_keeps_context_and_struck_expressions(): void
+    {
+        [$user, $language] = $this->learner();
+        $proposal = $this->completedProposal($user, $language);
+        $proposal->update(['context' => 'in a shop', 'clarify_rounds' => 1]);
+        $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'translation' => 'how much', 'struck' => true]);
+        $proposal->fixedExpressions()->create(['form' => 'kosta det', 'translation' => 'cost it']);
+
+        $this->fakeOpenAi($this->analysis(['term' => 'hur mycket kostar den', 'fixed_expressions' => [['form' => 'Hur mycket', 'translation' => 'how much']]]));
+
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/regenerate")->assertStatus(200);
+
+        $proposal->refresh();
+        $this->assertSame('hur mycket kostar den', $proposal->term);
+        $this->assertSame('in a shop', $proposal->context);
+        $this->assertSame(1, $proposal->clarify_rounds);
+        $this->assertSame([['hur mycket', true]], $proposal->fixedExpressions->map(fn ($e) => [$e->form, (bool) $e->struck])->all());
+        // Not pinned: the whole set was offered, so the schema still asks about a foreign Term.
+        Http::assertSent(fn ($request) => isset($request->data()['response_format']['json_schema']['schema']['properties']['foreign_language']));
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString('js-regenerate', $rows);
+    }
+
     public function test_a_term_at_home_in_two_languages_asks_for_the_language_first(): void
     {
         [$user, $swedish] = $this->learner();
