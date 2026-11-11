@@ -45,6 +45,8 @@
                 @if($session || $plan['batches'])
                     <x-forms.button id="startBtn" type="button" class="max-lg:w-full max-lg:min-h-12">{{ $session ? 'Continue' : 'Start' }}</x-forms.button>
                 @endif
+                {{-- Practice over whole Terms, no schedule (docs/frammenti.md "Write sentences"). --}}
+                <a href="{{ route('frammenti.sentences', ['language_id' => $language->id]) }}" class="text-sm text-white/60 underline hover:text-white max-lg:py-2">Write sentences with your Terms</a>
                 {{-- Classic: the same due words as flashcards, on the same schedule (docs/frammenti.md "Classic"). --}}
                 @if($classicDue)
                     <div class="mt-2 w-full border-t border-white/10 pt-4">

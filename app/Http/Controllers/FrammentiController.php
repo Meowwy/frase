@@ -20,6 +20,9 @@ use Illuminate\Support\Facades\Auth;
  */
 class FrammentiController extends Controller
 {
+    /** The most Terms one "Write sentences" round takes. */
+    private const MAX_SENTENCES = 10;
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -130,6 +133,55 @@ class FrammentiController extends Controller
         return $request->ajax()
             ? response()->noContent()
             : redirect()->route('frammenti', ['language_id' => $language->id]);
+    }
+
+    /**
+     * "Write sentences": the picker over the language's cards. Practice only — nothing here
+     * touches any schedule. See docs/frammenti.md "Write sentences".
+     */
+    public function sentences(Request $request)
+    {
+        $language = $this->targetLanguage((int) $request->query('language_id'));
+
+        return view('frammenti.sentences', [
+            'language' => $language,
+            'cards' => Auth::user()->cards()->where('language_id', $language->id)->latest('id')->get(['id', 'term', 'translation']),
+            'max' => self::MAX_SENTENCES,
+        ]);
+    }
+
+    /**
+     * Generate the sentences for the picked cards: one AI call, `{sentences: [{card_id, term,
+     * sentence, answer}]}`, or 503. The learner's own cards only; no write anywhere.
+     */
+    public function writeSentences(Request $request)
+    {
+        $data = $request->validate([
+            'language_id' => 'required|integer',
+            'card_ids' => 'required|array|min:1|max:'.self::MAX_SENTENCES,
+            'card_ids.*' => 'integer',
+        ]);
+        $user = Auth::user();
+        $language = $this->targetLanguage($data['language_id']);
+        $cards = $user->cards()->where('language_id', $language->id)->whereIn('id', $data['card_ids'])->get(['id', 'term', 'translation'])->values();
+
+        abort_if($cards->isEmpty(), 422);
+
+        $sentences = AI::writeSentences(
+            $cards->map(fn ($card) => ['term' => $card->term, 'translation' => (string) $card->translation])->all(),
+            $language->name,
+            Frammenti::nativeLanguageName($user),
+            $user->levelForLanguage($language),
+        );
+
+        if (! $sentences) {
+            return response()->json(['message' => 'Could not write the sentences.'], 503);
+        }
+
+        return response()->json(['sentences' => $cards->map(fn ($card, $i) => [
+            'card_id' => $card->id,
+            'term' => $card->term,
+        ] + $sentences[$i])->all()]);
     }
 
     /**

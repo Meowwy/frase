@@ -672,6 +672,34 @@ class FrammentiTest extends TestCase
         $this->assertSame('2026-10-15', $user->fresh()->today());
     }
 
+    public function test_write_sentences_turns_picked_terms_into_native_sentences_and_writes_nothing(): void
+    {
+        [$user, $language] = $this->learner();
+        $card = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => 'tycker om', 'translation' => 'likes', 'level' => 2]);
+        [$other] = $this->learner();
+        $foreign = Card::factory()->create(['user_id' => $other->id, 'language_id' => $language->id, 'term' => 'inte min']);
+
+        $this->actingAs($user)->get('/frammenti/sentences?language_id='.$language->id)->assertOk()->assertSee('tycker om')->assertDontSee('inte min');
+
+        Http::fake(['api.openai.com/v1/chat/completions' => Http::sequence()
+            ->push(['choices' => [['message' => ['content' => json_encode(['term_1' => ['sentence' => 'She likes coffee.', 'answer' => 'Hon [[tycker om]] kaffe.']])]]]])
+            // The second round's answer lacks the marked Term.
+            ->push(['choices' => [['message' => ['content' => json_encode(['term_1' => ['sentence' => 'She likes coffee.', 'answer' => 'Hon gillar kaffe.']])]]]]),
+        ]);
+
+        $this->actingAs($user)->postJson('/frammenti/sentences', ['language_id' => $language->id, 'card_ids' => [$card->id, $foreign->id]])
+            ->assertOk()
+            ->assertJsonPath('sentences.0.card_id', $card->id)
+            ->assertJsonPath('sentences.0.sentence', 'She likes coffee.')
+            ->assertJsonPath('sentences.0.answer', 'Hon [[tycker om]] kaffe.');
+
+        $this->assertSame(2, $card->fresh()->level);
+
+        // More than ten is refused; an answer without the marked Term fails the round.
+        $this->actingAs($user)->postJson('/frammenti/sentences', ['language_id' => $language->id, 'card_ids' => range(1, 11)])->assertStatus(422);
+        $this->actingAs($user)->postJson('/frammenti/sentences', ['language_id' => $language->id, 'card_ids' => [$card->id]])->assertStatus(503);
+    }
+
     public function test_classic_serves_due_words_and_expressions_as_flashcards(): void
     {
         [$user, $language] = $this->learner();

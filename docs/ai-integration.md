@@ -420,6 +420,23 @@ describes the data, never the exercise.
   anything else, empty when there's nothing to say. One, because a list of every slip buries the
   one that matters.
 
+### Write sentences — `AI::writeSentences($terms, $targetLanguage, $nativeLanguage, $level)`
+
+One call per "Write sentences" round (see [frammenti](frammenti.md) "Write sentences"), default
+reasoning effort, through `requestCardJson()`. Input: one line per picked card, its whole Term and
+translation. Output: per Term (its own schema property `term_1`…, for the same reason as the
+fragment slots) a short native `sentence` and its target-language `answer` with the Term marked
+`[[ ]]`.
+
+- **The sentence's natural rendering contains the Term**, in the sense its translation gives, in
+  whatever form the sentence needs (a Term is often an inflected phrase), so writing it means
+  producing the learner's own phrase in a new setting.
+- **A fresh, everyday context, never the Term alone** nor a translation of the Term by itself —
+  that would be card review, not writing.
+- **CEFR caps difficulty** through `levelInstruction()` (rule 2).
+- **Validated**: a non-empty sentence (any `[[ ]]` stripped) and a marked Term in the answer, for
+  every Term, or the whole round fails (`null` → 503).
+
 ## Conversation & challenge chat methods
 
 These power the three separate AI-chat features (see their own docs for the surrounding

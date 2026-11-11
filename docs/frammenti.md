@@ -246,6 +246,24 @@ is due ("Or go through the N due words the classic way"), as **Classic · flip c
   [learning-flow](learning-flow.md) "Saving"). Classic plans no `frammenti_sessions` row: it doesn't
   count towards the streak.
 
+## Write sentences
+
+A practice round over **whole Terms** rather than single items: the learner has words in the base
+but met them in their own phrases, and writing a phrase into a new sentence is a different skill
+from producing one word. **Write sentences with your Terms** on the start panel opens
+`GET /frammenti/sentences?language_id=` (`FrammentiController::sentences()`): the language's cards
+(Term and translation, newest first) as checkboxes with a filter box and **Pick 10 for me**; at
+most 10 (`MAX_SENTENCES`), fewer allowed. **Start** posts the ids to `POST /frammenti/sentences`
+(the learner's own cards in that language only), which makes one `AI::writeSentences()` call (see
+[ai-integration](ai-integration.md)) and answers `{sentences: [{card_id, term, sentence, answer}]}`
+or 503 (**Try again**).
+
+The round is played on the page and lives only there: the native sentence; a textarea for the
+target-language one; **Enter** or **Show answer** reveals what they wrote, the model answer with the
+Term highlighted, and the Term itself; **I had it** / **I didn't**; at the end a tally with each
+answer. It is **practice only**: no card level or schedule, no Frammenti level, no last recall is
+written, and no session is planned, so it doesn't count towards the streak.
+
 ## Article drill
 
 A noun's article has to be memorised with the noun (*en skola* but *ett hus*), and nothing in

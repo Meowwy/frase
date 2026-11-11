@@ -835,6 +835,65 @@ class AI
     }
 
     /**
+     * Frammenti's "Write sentences" practice (docs/frammenti.md): for each of the learner's
+     * whole Terms, one short native-language sentence whose natural target-language rendering
+     * contains the Term, plus that rendering with the Term marked [[ ]]. One call for the whole
+     * set. As in generateFragments(), each Term is its own schema property (`term_1`…), so the
+     * model can't drop or reorder one, and the prompt describes the data, not the exercise.
+     *
+     * @param  array<int, array{term: string, translation: string}>  $terms
+     * @return array<int, array{sentence: string, answer: string}>|null
+     */
+    public static function writeSentences(array $terms, string $targetLanguage, string $nativeLanguage, ?string $level): ?array
+    {
+        $system = "You write short, natural {$nativeLanguage} sentences for a learner of {$targetLanguage}, one per listed Term. "
+            ."Each sentence's natural {$targetLanguage} rendering contains its Term, in the sense its translation gives (the Term may take the form the sentence needs), "
+            .'and sets it in a fresh, everyday context — never the Term alone, never a translation of the Term by itself.'
+            .self::levelInstruction($level);
+
+        $lines = [];
+        $properties = [];
+        foreach ($terms as $i => $term) {
+            $key = 'term_'.($i + 1);
+            $lines[] = "{$key}: \"{$term['term']}\"".($term['translation'] !== '' ? " = \"{$term['translation']}\"" : '');
+            $properties[$key] = self::object([
+                'sentence' => ['type' => 'string', 'description' => "One short {$nativeLanguage} sentence, plain text."],
+                'answer' => ['type' => 'string', 'description' => "Its natural {$targetLanguage} rendering, with the Term (in the form used) wrapped in [[ ]]."],
+            ]);
+        }
+
+        $result = self::requestCardJson(
+            [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => "Terms:\n".implode("\n", $lines)],
+            ],
+            'write_sentences',
+            $properties,
+        );
+
+        if (! $result) {
+            return null;
+        }
+
+        $sentences = [];
+        foreach (array_keys($terms) as $i) {
+            $sentence = $result['term_'.($i + 1)] ?? [];
+            $text = trim(str_replace(['[[', ']]'], '', (string) ($sentence['sentence'] ?? '')));
+            $answer = trim((string) ($sentence['answer'] ?? ''));
+
+            if ($text === '' || preg_match('/\[\[.+?\]\]/', $answer) !== 1) {
+                Log::error('write_sentences returned an invalid sentence: '.json_encode($sentence));
+
+                return null;
+            }
+
+            $sentences[] = ['sentence' => $text, 'answer' => $answer];
+        }
+
+        return $sentences;
+    }
+
+    /**
      * Linked synonyms as a prompt names them: "lycklig" = "happy", ….
      *
      * @param  array<int, array{form: string, translation: string}>  $synonyms
