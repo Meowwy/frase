@@ -1340,7 +1340,7 @@ class CaptureStagingTest extends TestCase
         $this->assertSame($card->id, $covering()->id);
     }
 
-    public function test_an_identical_term_is_blocked_without_a_context(): void
+    public function test_an_identical_term_is_blocked(): void
     {
         [$user, $language] = $this->learner();
         Http::fake();
@@ -1351,21 +1351,39 @@ class CaptureStagingTest extends TestCase
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(409);
 
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
-        $this->assertStringContainsString('Regenerate that card', $rows);
+        $this->assertStringContainsString('You already have this Term', $rows);
+        $this->assertStringNotContainsString('Regenerate that card', $rows);
     }
 
-    public function test_an_identical_term_with_a_context_is_approved_as_a_second_card(): void
+    public function test_an_identical_term_is_blocked_whatever_its_context_case_or_punctuation(): void
     {
         [$user, $language] = $this->learner();
-        $existing = $this->cardUsing($user, $language, 'hur mycket kostar det');
+        $this->cardUsing($user, $language, 'Hur  mycket kostar det?');
         $proposal = $this->completedProposal($user, $language);
         $proposal->update(['context' => 'asking a friend, not a shop']);
 
-        $this->fakeOpenAi($this->cardContent());
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200);
+        Http::fake();
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(409);
+        $this->assertSame(1, Card::count());
 
-        $this->assertSame(2, Card::count());
-        $this->assertModelExists($existing);
+        // The same Term in another language is not a duplicate.
+        $other = Language::firstOrCreate(['code' => 'de'], ['name' => 'German', 'native_name' => 'Deutsch', 'flag' => '🇩🇪']);
+        Card::factory()->create(['user_id' => $user->id, 'language_id' => $other->id, 'term' => 'hur mycket kostar det']);
+        $this->assertCount(1, $proposal->duplicateCards());
+    }
+
+    public function test_a_card_whose_term_the_proposal_spells_out_is_offered_for_replacing(): void
+    {
+        [$user, $language] = $this->learner();
+        $hur = $this->baseWord($user, $language, 'hur', 'adverb');
+        $other = $this->baseWord($user, $language, 'annan', 'adjective');
+        // CALL 1 extracted the old Term differently, so the word rule alone would miss it.
+        $old = $this->cardUsing($user, $language, 'Hur mycket?', $hur, $other);
+
+        $proposal = $this->completedProposal($user, $language);
+        $replaceable = $proposal->replaceableCards(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'ignoredIndex', 'expressionPresenceIndex']));
+
+        $this->assertSame([$old->id], $replaceable->pluck('id')->all());
     }
 
     /**
@@ -1378,7 +1396,8 @@ class CaptureStagingTest extends TestCase
         $hur = $this->baseWord($user, $language, 'hur', 'adverb');
         $mycket = $this->baseWord($user, $language, 'mycket', 'adverb');
         $gammal = $this->baseWord($user, $language, 'gammal', 'adjective');
-        $contained = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
+        // Not spelled out inside the proposal's Term, so only the word rule can find it.
+        $contained = $this->cardUsing($user, $language, 'hur mycket kostade', $hur, $mycket);
         $wider = $this->cardUsing($user, $language, 'hur gammal är det mycket', $hur, $mycket, $gammal);
 
         $proposal = $this->completedProposal($user, $language);

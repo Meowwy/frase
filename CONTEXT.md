@@ -59,7 +59,7 @@ _Avoid_: target, answer, keyword, subject
 
 **Context**:
 The learner's own sentence or situation, given at capture so the term is captured in the sense they
-met it in, and kept so the card can be regenerated in that same sense. It can be added or edited in
+met it in, and kept on the card. It can be added or edited in
 staging, which re-reads the proposal. It fixes the sense; it never reaches the vocabulary base.
 _Avoid_: source, example, usage (those are the card's generated content, not the learner's input)
 
@@ -168,11 +168,10 @@ expression the proposal also has: the card is deleted and only its note moves to
 switch in staging, on unless the learner turns it off. It is how a card is updated with a longer Term.
 _Avoid_: merge, combine, supersede
 
-**Regenerate**:
-Replacing an existing card's generated content while its review progress, note and links stay as
-they are. Capturing a term already saved offers this; otherwise an identical Term is approved only
-with a Context of its own.
-_Avoid_: refresh, re-create, update
+**Duplicate**:
+A proposal whose Term, ignoring case, punctuation and spacing, is already a card in its language.
+Staging refuses it, whatever its Context.
+_Avoid_: repeat, copy; regenerate (a card's content is never regenerated)
 
 ### ORGANIZE — the vocabulary base
 

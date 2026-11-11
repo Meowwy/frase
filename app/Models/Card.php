@@ -72,17 +72,33 @@ class Card extends Model
         return $query->where('language_id', $languageId);
     }
 
+    protected static function booted(): void
+    {
+        // Kept in step with the Term, so the duplicate check is one indexed lookup.
+        static::saving(fn (Card $card) => $card->term_key = self::termKey((string) $card->term));
+    }
+
     /**
-     * Does the learner already have a card for this Term? A case-insensitive match within
-     * one language, against the Term alone.
+     * A Term reduced for comparison: lower case, punctuation dropped, spacing collapsed —
+     * "Vill de titta?" and "vill de  titta" are the same Term.
+     */
+    public static function termKey(string $term): string
+    {
+        $key = preg_replace('/[\p{P}\p{S}]+/u', ' ', mb_strtolower($term));
+
+        return trim(preg_replace('/\s+/u', ' ', $key));
+    }
+
+    /**
+     * Does the learner already have a card for this Term? A match on termKey() within one
+     * language, against the Term alone.
      *
      * Owning a base WORD of a Term is a different question and never blocks capturing the
-     * card — the learner decides for themselves whether a card of its own is worth it, and
-     * staging's already-present notice is what tells them about the base.
+     * card — staging's already-present notice is what tells them about the base.
      */
     public function scopeMatchingTerm($query, string $term)
     {
-        return $query->whereRaw('LOWER(term) = ?', [mb_strtolower(trim($term))]);
+        return $query->where('term_key', self::termKey($term));
     }
 
     public function synonyms()
@@ -117,9 +133,8 @@ class Card extends Model
 
     /**
      * CALL 2: write the card's fields and, for the proposal's `$newWords`, their details,
-     * without persisting anything. Shared by a proposal's approval (Proposal::approve) and
-     * regenerate() (which has no new words), so the native-language resolution lives in one
-     * place. Returns the translation (unless native) and `words`: the details of each new word,
+     * without persisting anything — Proposal::approve() persists it once the transaction
+     * opens. Returns the translation (unless native) and `words`: the details of each new word,
      * keyed "lemma|part_of_speech" (see WordDetails).
      *
      * Returns null on a refusal, a failed request or an unparseable answer, so the caller
@@ -150,35 +165,6 @@ class Card extends Model
     }
 
     /**
-     * Rewrite this card's generated content in place. Everything the learner built up
-     * around it — SRS level and schedule, the note, its base-word links,
-     * every manual link — survives untouched, because contentColumns() covers only what
-     * the AI writes.
-     *
-     * Only CALL 2 runs: the Term is already settled on the card, so there is nothing left
-     * for CALL 1 to decide. `$context` falls back to the
-     * card's own, so a regeneration keeps the sense it was captured in.
-     *
-     * Returns false if the call fails, leaving the card exactly as it was.
-     */
-    public function regenerate(?string $context = null): bool
-    {
-        $context ??= $this->context;
-
-        $content = self::generateContent($this->user, $this->language, $this->term, $context);
-
-        if (is_null($content)) {
-            return false;
-        }
-
-        $this->update(self::contentColumns($this->term, $context, $content));
-
-        logger('Card '.$this->id.' has been regenerated for '.$this->term);
-
-        return true;
-    }
-
-    /**
      * Write one generated card. No embedding is generated (switched off in v1.0, see
      * docs/search-and-linking.md).
      */
@@ -200,9 +186,8 @@ class Card extends Model
     }
 
     /**
-     * Map one generated card onto its columns. Deliberately covers ONLY what the AI
-     * writes — no `level`, `next_study_at` or `note` — so regenerate() can hand the
-     * result straight to update() without touching the learner's own progress.
+     * Map one generated card onto its columns: only what the AI writes; persist() adds the
+     * schedule.
      */
     private static function contentColumns(string $term, ?string $context, array $content): array
     {

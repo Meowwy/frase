@@ -184,27 +184,6 @@ class CardController extends Controller
     }
 
     /**
-     * Regenerate a card's AI-written content — offered in staging when a proposal resolves
-     * to a Term the learner already has, instead of ever making a second card.
-     *
-     * The card is rewritten in place rather than replaced, so its SRS progress, note,
-     * base-word links and manual links all survive; see Card::regenerate().
-     */
-    public function regenerate(\Illuminate\Http\Request $request, Card $card)
-    {
-        $this->authorize('update', $card);
-
-        // Same bounds as the capture form's context input (ProposalController@store).
-        $data = $request->validate(['context' => ['nullable', 'string', 'min:2', 'max:250']]);
-
-        if (! $card->regenerate($request->filled('context') ? trim($data['context']) : null)) {
-            return response()->json(['message' => 'There was an error while regenerating the card.'], 500);
-        }
-
-        return response()->json(['redirect' => '/cards/'.$card->id]);
-    }
-
-    /**
      * Remove a manual link between two cards (drops both mirrored pivot rows).
      */
     public function unlink(Card $card, Card $other)

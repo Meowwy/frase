@@ -16,7 +16,8 @@ Base columns from the original migration plus everything added since:
 | `translation` | native-language equivalent; `''` for a native-language card (column is `NOT NULL`) |
 | `definition` | no longer written or shown (`''` on new cards); the column is kept for now |
 | `note` | nullable free-text, user-editable, not AI-generated |
-| `context` | nullable — the learner's own context input, kept so a card can be regenerated in the sense it was captured in |
+| `context` | nullable — the learner's own context input (plus clarifying answers), kept so the card shows the sense it was captured in |
+| `term_key` | the Term reduced for the duplicate check (`Card::termKey()`), set on every save — see "The duplicate check" |
 | `level` | integer SRS box/level — see [learning-flow](learning-flow.md) "SRS algorithm" |
 | `last_studied`, `next_study_at` | SRS scheduling dates |
 | `embedding` | nullable JSON array (`array` cast) — no longer written (generation is off in v1.0); see [search-and-linking](search-and-linking.md) |
@@ -399,13 +400,13 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /staging/{proposal}/words/{word}/sense` | override the meaning of an already-saved word: `sense_id` or a new `translation` — see "The meaning check" |
 | `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
 | `POST /staging/{proposal}/replace/{card}` | `replace=0` / `replace=1` switches one contained card off (kept) or back on (the default) for replacing on approval. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
-| `POST /staging/{proposal}/approve` | `409` with `duplicate_card_id` on an identical Term that still blocks (see "The duplicate check") or with `covering_card_id` on a covered proposal (see "Covered proposals"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
+| `POST /staging/{proposal}/approve` | `409` with `duplicate_card_id` on an identical Term (see "The duplicate check") or with `covering_card_id` on a covered proposal (see "Covered proposals"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
 | `DELETE /staging/{proposal}` | discard |
 
 Deliberate shapes in the UI (`staging/index.blade.php`):
 
 - **Approve is always shown, and disabled whenever staging is asking something** — the language
-  picker, a clarifying question or a blocking duplicate. A disabled `<x-forms.button>` is dimmed with a
+  picker, a clarifying question or a duplicate Term. A disabled `<x-forms.button>` is dimmed with a
   not-allowed cursor, so it reads as inactive rather than just ignoring the click.
 - **Every action re-renders the whole list from `/staging/list`.** The rules that decide which
   controls are live then exist only in PHP (`Proposal::isApprovable()`) and cannot drift out of
@@ -461,8 +462,8 @@ language (the picker above) → `reading` (*take off* the phrasal verb or the no
 else"; `isApprovable()` is false while one is open. Answering posts to `POST /staging/{proposal}/clarify`,
 which appends the chosen line to the Context (`Proposal::answerClarification()`, `; `-joined,
 `Proposal::MAX_CONTEXT` = 500 characters) and re-runs CALL 1, which sees the grown Context and asks
-the next question or none. The answer is the stored Context, so it reaches CALL 2, keeps Regenerate
-in the same meaning and is visible on the card later; there is no separate path applying a meaning to
+the next question or none. The answer is the stored Context, so it reaches CALL 2 and is visible
+on the card later; there is no separate path applying a meaning to
 the chips. The learner's own Context counts as an answer, not a switch-off: the model asks only
 what it still leaves open. At most 3 answers per Term (`clarify_rounds`), then it stops asking.
 
@@ -507,7 +508,11 @@ Term, so it starts fresh. Containment is read off the presence indexes, whose ca
 word and expression counts: a card is contained when the proposal reaches it through as many
 distinct words and expressions as it has — and through a word only when the card uses it in the
 meaning this Term does (see "The meaning check"), so a card about *bank* the money is never
-replaced by default by one about the riverbank. A card with no words is never offered, and an identical
+replaced by default by one about the riverbank. Among the cards it reaches through at least one
+word or expression, a card is also contained when **its Term is spelled out word for word inside
+the proposal's** (`spellsOut()`, on `Card::termKey()` words, order ignored): CALL 1 doesn't always
+extract the shorter and the longer Term the same way, and the extended-Term case is exactly the one
+replacing exists for. A card with no words is never offered, and an identical
 Term is left to the duplicate notice. A card with exactly the proposal's words would make it
 covered, which is refused first.
 
@@ -554,42 +559,22 @@ is the caller; nothing else in the app writes a generated card.
 ## The duplicate check
 
 `Card::scopeMatchingTerm($term)` is the single definition of "the learner already has this": a
-case-insensitive match, within one language, against `term` alone — the `word` leg is gone with
-the column. Owning a base word of a Term is a different fact from owning a card for that Term, and
-never blocks capturing the card; staging's green already-present chip (above) is what surfaces the
-base-word fact.
+match, within one language, on **`cards.term_key`** — the Term reduced by `Card::termKey()` (lower
+case, punctuation dropped, spacing collapsed), kept in step by a `saving` hook and indexed with
+`(user_id, language_id)`, so *Hur mycket kostar det?* and *hur mycket kostar det* are one Term and
+the check stays one indexed lookup on the 2-second staging poll. Owning a base word of a Term is a
+different fact from owning a card for that Term, and never blocks capturing the card; staging's
+green already-present chip (above) is what surfaces the base-word fact.
 
-`Proposal::duplicateCards()` reads it. An identical Term doesn't always mean a duplicate — *run*
-the verb and *run* the noun are two cards — so the proposal is approvable despite a match **only
-if** it has a non-empty Context (`Proposal::blockingDuplicates()` is the matches otherwise, and
-`isApprovable()` requires it empty). While a match still blocks, staging names the card, disables
-Approve and offers **Regenerate that card** or Discard. The check runs at render time and again inside
-`ProposalController::approve()`, which answers `409` — the render is a view of the world a moment
-ago, and only the second one is authoritative.
-
-## Regenerate
-
-`Card::regenerate()` replaces an existing card's generated content while its review progress stays
-put: it `update()`s only the AI-written columns — `level`, `last_studied`, `next_study_at`, the
-`note`, the base-word links and every manual link are never touched. It carries
-the caller's `context` if one is given, and otherwise falls back to the card's stored `context`, so
-a regeneration keeps the sense the card was originally captured in. A `null` from the call returns
-`false` and leaves the card exactly as it was.
-
-**It runs CALL 2 only.** The Term is already settled on the card, so CALL 1 has nothing left to
-decide — re-running it would pay for language detection and
-a whole word extraction whose answer is thrown away. This is also why the capture path no longer
-stashes call 1's answer in the session for a later regeneration to reuse: there is no second call
-to save.
-
-`Card::contentColumns()` — the AI response → column mapping — covers **only** what the AI writes:
-no `level`, no `next_study_at`, no `note`. `persist()` adds those for a new card; `regenerate()`
-hands the array straight to `update()`, which is what makes "keep the progress" a property of the
-mapping rather than a list of fields someone has to remember to exclude.
-
-A repeat capture reaches it through staging: the proposal shows the identical card that is in
-the way and offers **Regenerate that card**, which posts to `POST /cards/{card}/regenerate` and then discards
-the proposal. See "The duplicate check" above.
+`Proposal::duplicateCards()` reads it, and **any match blocks**, whatever the Context: staging shows
+"You already have this Term" with a link to the card, Approve stays disabled and only Discard (or
+Regenerate, which may correct the Term) is left. There used to be two ways round it — a Context of
+its own made an identical Term approvable (*run* the verb beside *run* the noun), and **Regenerate
+that card** rewrote the existing card's content — and both are gone in v1.0: the same Term twice
+in one language is never worth a second card, and a card is updated by capturing the longer Term
+and **replacing** it (see "Replacing a contained card"). The check runs at render time and again
+inside `ProposalController::approve()`, which answers `409` — the render is a view of the world a
+moment ago, and only the second one is authoritative.
 
 ## Card detail page (`cards/show.blade.php`, `CardController@show`)
 

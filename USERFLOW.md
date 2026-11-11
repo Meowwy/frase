@@ -110,8 +110,7 @@ follow.
 
 When CALL 1 offered senses, staging shows them as a **sense picker** and Approve is disabled until
 one is picked. Picking a sense writes it into the proposal's Context and re-runs CALL 1, which now
-has a Context and extracts everything in the chosen sense. The sense is kept as the card's Context,
-so regenerating the card later stays in it.
+has a Context and extracts everything in the chosen sense. The sense is kept as the card's Context.
 
 #### Related cards
 
@@ -121,13 +120,9 @@ flood the panel. They are information only: staging never removes or merges an e
 
 #### An identical Term
 
-A proposal whose Term matches an existing card is flagged as such and is not approvable as it
-stands. The learner can **regenerate** that card, **discard** the proposal, or **merge** the old
-card into the new one. Two ways make it approvable:
-
-- giving the proposal a **Context** of its own — the way to hold *run* (verb) and *run* (noun) as
-  separate cards;
-- marking every identical card for merge — the way to replace a card.
+A proposal whose Term matches an existing card in its language (ignoring case, punctuation and
+spacing) is refused whatever its Context: staging says "You already have this Term" and the
+learner can only **discard** it. A card is updated by capturing a longer Term, which replaces it.
 
 Owning a base word of a Term never counts as already having that Term — the base and the card list
 are different questions, and the already-present group answers the base one.

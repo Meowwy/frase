@@ -182,23 +182,6 @@
                 });
             });
 
-            // Regenerate the card that's in the way instead of ever making a second one,
-            // then the proposal has nothing left to add.
-            $list.on('click', '.js-regenerate', function () {
-                const $btn = $(this).prop('disabled', true).text('Regenerating…');
-                const id = proposalId(this);
-
-                $.post('/cards/' + $(this).data('card-id') + '/regenerate', { _token: csrf })
-                    .done(function (data) {
-                        $.ajax({ url: '/staging/' + id, type: 'DELETE', data: { _token: csrf } })
-                            .always(function () { window.location = data.redirect; });
-                    })
-                    .fail(function () {
-                        if (window.toastr) { toastr.error('Could not regenerate that card.'); }
-                        $btn.prop('disabled', false).text('Regenerate that card');
-                    });
-            });
-
             // Discard deletes the proposal at once and leaves a one-line "discarded" note in
             // its place, like an approved row. Nothing is kept server-side, so Capture again
             // is a fresh capture of the same input; the new proposal joins the end of the list.

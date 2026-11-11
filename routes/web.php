@@ -215,8 +215,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/cards/{card:id}/links', [CardController::class, 'link']);
     Route::delete('/cards/{card:id}/links/{other:id}', [CardController::class, 'unlink']);
     Route::post('/cards/{card:id}/note', [CardController::class, 'saveNote']);
-    // Rewrite a card's AI content in place — staging's "Regenerate" on a duplicate Term.
-    Route::post('/cards/{card:id}/regenerate', [CardController::class, 'regenerate']);
     Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
         if ($card) {

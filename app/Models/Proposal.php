@@ -93,7 +93,7 @@ class Proposal extends Model
         return $this->status === self::STATUS_COMPLETED
             && (bool) $this->language_id
             && empty($this->clarification)
-            && $this->blockingDuplicates()->isEmpty();
+            && $this->duplicateCards()->isEmpty();
     }
 
     /**
@@ -381,10 +381,14 @@ class Proposal extends Model
             ->filter()
             ->unique('id');
 
+        // Or the card's Term is spelled out word for word inside this one ("Vill de titta på
+        // vårt hus?" in "…vårt stora hus?"), which catches an extended Term even where CALL 1
+        // extracted the two a little differently.
         return $wordCards
             ->concat($expressions->flatMap(fn (FixedExpression $expression) => $expression->cards))
             ->groupBy('id')
-            ->filter(fn (SupportCollection $hits) => $hits->count() === $hits->first()->base_words_count + $hits->first()->fixed_expressions_count)
+            ->filter(fn (SupportCollection $hits) => $hits->count() === $hits->first()->base_words_count + $hits->first()->fixed_expressions_count
+                || $this->spellsOut($hits->first()))
             ->map(fn (SupportCollection $hits) => $hits->first())
             ->reject(fn (Card $card) => $this->hasTermOf($card))
             ->sortByDesc('id')
@@ -429,13 +433,25 @@ class Proposal extends Model
 
     private function hasTermOf(Card $card): bool
     {
-        return mb_strtolower($card->term) === mb_strtolower((string) $this->term);
+        return Card::termKey($card->term) === Card::termKey((string) $this->term);
     }
 
     /**
-     * The cards the learner already has for this exact Term. The duplicate check narrows to
-     * the Term alone: owning a base word of a Term is a different fact, and the chip tray's
-     * already-present notice is what surfaces that one.
+     * Every word of the card's Term occurs in this proposal's Term, ignoring case and
+     * punctuation.
+     */
+    private function spellsOut(Card $card): bool
+    {
+        $words = fn (string $term) => array_filter(explode(' ', Card::termKey($term)));
+
+        return array_diff($words($card->term), $words((string) $this->term)) === [];
+    }
+
+    /**
+     * The cards the learner already has for this Term, compared ignoring case, punctuation
+     * and spacing (Card::termKey()). Any one blocks approval, whatever the Context: a longer
+     * Term replaces a card instead (see replaceableCards()). Owning a base word of a Term is a
+     * different fact, and the chip tray's already-present notice is what surfaces that one.
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, Card>
      */
@@ -449,18 +465,6 @@ class Proposal extends Model
             ->forLanguage($this->language_id)
             ->matchingTerm($this->term)
             ->get();
-    }
-
-    /**
-     * The identical cards that still stop this proposal being approved. A Context makes it
-     * a card of its own (*run* the verb beside *run* the noun); without one, the existing
-     * card is regenerated instead.
-     *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Card>
-     */
-    public function blockingDuplicates(): Collection
-    {
-        return filled($this->context) ? new Collection : $this->duplicateCards();
     }
 
     /**

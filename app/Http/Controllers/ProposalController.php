@@ -238,9 +238,9 @@ class ProposalController extends Controller
     {
         $this->authorize('update', $proposal);
 
-        if ($duplicate = $proposal->blockingDuplicates()->first()) {
+        if ($duplicate = $proposal->duplicateCards()->first()) {
             return response()->json([
-                'message' => 'You already have a card for "'.$duplicate->term.'". Add a Context or regenerate that card.',
+                'message' => 'You already have this Term: "'.$duplicate->term.'".',
                 'duplicate_card_id' => $duplicate->id,
             ], 409);
         }

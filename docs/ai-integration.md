@@ -223,9 +223,7 @@ values the lexicon allows. A language with no lexicon rows keeps the AI-only pat
 ### Call 2 — `AI::generateCard($term, $language, $languageCode, $nativeLanguage, $context, $newWords): ?array`
 
 Runs only once the proposal is **approved** — see [cards](cards.md) "Staging". `Card::generateContent()`
-resolves the native language and calls it; `Card::regenerate()` re-runs it alone (with no new
-words), since a card already carries everything call 1 would decide (see [cards](cards.md)
-"Regenerate"). One schema for every Term:
+resolves the native language and calls it. One schema for every Term:
 
 | Field | Rule |
 |---|---|

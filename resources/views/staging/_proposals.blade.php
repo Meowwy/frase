@@ -7,7 +7,6 @@
         $pending = $proposal->isAwaitingAnalysis();
         $failed = $proposal->hasFailed();
         $duplicates = $pending || $failed ? collect() : $proposal->duplicateCards();
-        $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
         // Only once the language and meaning are settled: either can change the words.
         $settled = ! ($pending || $failed || $proposal->language_options || $proposal->clarification);
         $covering = $settled ? $proposal->coveringCard($alreadyInBase, $ignoredWords, $expressionsInBase) : null;
@@ -101,16 +100,15 @@
                 </select>
             </div>
 
-            {{-- An identical Term is saved as a second card only with a Context of its own. --}}
-            @foreach($duplicates as $duplicate)
+            {{-- An identical Term (ignoring case, punctuation and spacing) is refused whatever
+                 its Context: a longer Term replaces a card, the same Term never repeats it. --}}
+            @if($duplicates->isNotEmpty())
                 <p class="mt-3 text-sm text-white/60">
-                    You already have
-                    <a href="/cards/{{ $duplicate->id }}" class="font-bold text-white hover:underline">{{ $duplicate->term }}</a>.
-                    @if($blocked->contains($duplicate))
-                        Add a Context to keep both, or regenerate it instead.
-                    @endif
+                    <span class="text-red-400">✕</span>
+                    You already have this Term:
+                    <a href="/cards/{{ $duplicates->first()->id }}" class="font-bold text-white hover:underline">{{ $duplicates->first()->term }}</a>
                 </p>
-            @endforeach
+            @endif
 
             {{-- The chip tray, in the order the Term spells its words. A new word is
                  strikeable: ✕ records it as ignored, so it is never proposed again. A word
@@ -259,9 +257,6 @@
             {{-- Below lg Approve stretches across the row, the primary action in thumb reach. --}}
             <div class="mt-4 flex items-center gap-2 max-lg:flex-wrap">
                 <x-forms.button class="js-approve max-lg:flex-1" :disabled="$proposal->isApprovable() ? 'false' : 'true'">Approve</x-forms.button>
-                @if($blocked->isNotEmpty())
-                    <x-forms.button class="js-regenerate max-lg:flex-1" data-card-id="{{ $blocked->first()->id }}">Regenerate that card</x-forms.button>
-                @endif
                 <x-forms.button-small class="js-discard max-lg:px-4">Discard</x-forms.button-small>
             </div>
         @endif

@@ -47,10 +47,9 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
 - **A term that adds nothing** — all its words and expressions are already on one of your cards
   (*book* when you have *She is reading a book*) — is refused: staging says so and links that card,
   and you can only clear it.
-- **Capturing a term you already have** is blocked until you give it a Context (to keep both, e.g.
-  *run* the verb and *run* the noun). Staging also offers to
-  **regenerate** the existing card instead — a fresh translation,
-  while your review progress, note, words and linked cards stay as they are. Having one of a term's
+- **Capturing a term you already have** (in the same language, ignoring capitals, punctuation and
+  spacing) is refused: staging says "You already have this Term" and links the card. To update a
+  card, capture the longer version and let it replace the old one (above). Having one of a term's
   *words* in your vocabulary base is a different thing, and never stops you saving the term.
 
 ## Multi-language vocabulary
