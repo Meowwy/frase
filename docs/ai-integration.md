@@ -432,7 +432,7 @@ describes the data, never the exercise.
 ### Write sentences — `AI::writeSentences($terms, $targetLanguage, $nativeLanguage, $level)`
 
 One call per "Write sentences" round (see [frammenti](frammenti.md) "Write sentences"), default
-reasoning effort, through `requestCardJson()`. Input: one line per picked card, its whole Term and
+reasoning effort, through `requestCardJson()` with a 60 s timeout (up to 50 Terms). Input: one line per picked card, its whole Term and
 translation. Output: per Term (its own schema property `term_1`…, for the same reason as the
 fragment slots) a short native `sentence` and its target-language `answer` with the Term marked
 `[[ ]]`.

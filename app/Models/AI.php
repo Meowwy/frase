@@ -869,6 +869,7 @@ class AI
             ],
             'write_sentences',
             $properties,
+            timeout: 60,
         );
 
         if (! $result) {

@@ -367,7 +367,7 @@ learning mode — it reviews no card.
 _Avoid_: translation mode (that is the card learning mode), flashcard Frammenti, review mode
 
 **Write sentences**:
-A Frammenti practice round over up to ten picked Terms: the AI writes a native sentence around
+A Frammenti practice round over up to fifty picked Terms: the AI writes a native sentence around
 each and the learner writes it in the target language, grading themselves. It changes no schedule.
 _Avoid_: sentence mode, translation (that is the card learning mode), drill
 

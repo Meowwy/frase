@@ -254,8 +254,8 @@ A practice round over **whole Terms** rather than single items: the learner has 
 but met them in their own phrases, and writing a phrase into a new sentence is a different skill
 from producing one word. **Write sentences with your Terms** on the start panel opens
 `GET /frammenti/sentences?language_id=` (`FrammentiController::sentences()`): the language's cards
-(Term and translation, newest first) as checkboxes with a filter box and **Pick 10 for me**; at
-most 10 (`MAX_SENTENCES`), fewer allowed. **Start** posts the ids to `POST /frammenti/sentences`
+(Term and translation, newest first) as checkboxes with a filter box and **Pick 10 for me** (`PICK_SENTENCES`); at
+most 50 (`MAX_SENTENCES`), fewer allowed. **Start** posts the ids to `POST /frammenti/sentences`
 (the learner's own cards in that language only), which makes one `AI::writeSentences()` call (see
 [ai-integration](ai-integration.md)) and answers `{sentences: [{card_id, term, sentence, answer}]}`
 or 503 (**Try again**).

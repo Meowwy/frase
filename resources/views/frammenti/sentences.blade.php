@@ -1,4 +1,4 @@
-{{-- "Write sentences" (docs/frammenti.md): pick up to 10 of your Terms, the AI writes a native
+{{-- "Write sentences" (docs/frammenti.md): pick up to 50 of your Terms, the AI writes a native
      sentence around each, you write it in the target language and grade yourself. Practice
      only — nothing is saved, so the whole round lives on this page. --}}
 <x-html-layout :tab-bar="false">
@@ -21,7 +21,7 @@
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                     <input id="filter" type="search" placeholder="Filter…" autocomplete="off"
                            class="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-base text-white focus:outline-none">
-                    <x-forms.button-small id="randomBtn" type="button" class="max-lg:min-h-11">Pick {{ $max }} for me</x-forms.button-small>
+                    <x-forms.button-small id="randomBtn" type="button" class="max-lg:min-h-11">Pick {{ $pick }} for me</x-forms.button-small>
                 </div>
                 <ul id="cardList" class="max-h-[55vh] divide-y divide-white/5 overflow-y-auto rounded-xl border border-white/10 bg-white/5">
                     @foreach($cards as $card)
@@ -81,6 +81,7 @@
     <script>
         $(function () {
             const max = {{ $max }};
+            const pick = {{ $pick }};
             const esc = s => $('<div>').text(s).html();
             const mark = s => esc(s).replace(/\[\[(.+?)\]\]/g, '<mark class="bg-orange-700/60 text-white rounded px-1">$1</mark>');
             let sentences = [], index = 0, grades = [];
@@ -106,7 +107,7 @@
 
             $('#randomBtn').on('click', function () {
                 const $all = $('.js-card-check').prop('checked', false).prop('disabled', false).get();
-                $all.sort(() => Math.random() - 0.5).slice(0, max).forEach(el => { el.checked = true; });
+                $all.sort(() => Math.random() - 0.5).slice(0, pick).forEach(el => { el.checked = true; });
                 refreshPick();
             });
 

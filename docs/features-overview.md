@@ -162,7 +162,7 @@ regardless of schedule), then a mode:
   over the translation of your latest card with it, its part of speech as a pill — flipped or
   written, missed ones repeated until right. It moves the same levels (a miss drops a word to the
   bottom, back tomorrow) and needs no AI.
-- **Write sentences**: pick up to 10 of your terms (or let it pick), and the AI writes a sentence
+- **Write sentences**: pick up to 50 of your terms (or let it pick), and the AI writes a sentence
   in your own language around each; you write it in the language you're learning, see one way to
   say it, and mark yourself. Pure practice — nothing is scheduled.
 - A **streak** counts the days you finish a session (one missed day a week is forgiven).

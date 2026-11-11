@@ -21,7 +21,10 @@ use Illuminate\Support\Facades\Auth;
 class FrammentiController extends Controller
 {
     /** The most Terms one "Write sentences" round takes. */
-    private const MAX_SENTENCES = 10;
+    private const MAX_SENTENCES = 50;
+
+    /** How many Terms "Pick for me" selects in a "Write sentences" round. */
+    private const PICK_SENTENCES = 10;
 
     public function index(Request $request)
     {
@@ -147,6 +150,7 @@ class FrammentiController extends Controller
             'language' => $language,
             'cards' => Auth::user()->cards()->where('language_id', $language->id)->latest('id')->get(['id', 'term', 'translation']),
             'max' => self::MAX_SENTENCES,
+            'pick' => self::PICK_SENTENCES,
         ]);
     }
 
