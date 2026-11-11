@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * också*, *på grund av*, *tycka om*) in its canonical form, with its native translation and
  * when it was last recalled. Like a base word, its translation is set once at creation and
  * never revised; it has no card schedule, only its Frammenti schedule (docs/frammenti.md).
- * Deleting it works as for a base word (see BaseWord), except it can't be marked known.
+ * Deleting it works as for a base word (see BaseWord), except it can't be marked ignored.
  * See docs/cards.md "The expression base".
  */
 class FixedExpression extends Model

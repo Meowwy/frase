@@ -141,16 +141,17 @@ way anything enters the vocabulary; **discard** is the other branch and leaves n
 _Avoid_: accept, confirm, publish, commit; decline and reject (the word is discard)
 
 **Strike**:
-Marking a proposed new word as a known word, so it never becomes a base word, or a proposed fixed
+Marking a proposed new word as an ignored word, so it never becomes a base word, or a proposed fixed
 expression so this proposal doesn't save it. It governs what enters the vocabulary and expression
 bases only — it never rewrites the Term.
 _Avoid_: exclude, skip, drop, delete, unlink
 
-**Known word**:
-A word the learner struck, or marked as known when deleting it from the vocabulary base, remembered
-per language by lemma and part of speech so that no inflected form of it is ever proposed again. Staging shows it aside, labelled *known*; tapping it **un-knows**
-it and the chip becomes proposable again.
-_Avoid_: ignored word, blacklist, excluded word, struck word
+**Ignored word**:
+A word the learner struck, or marked as ignored when deleting it from the vocabulary base,
+remembered per language by lemma and part of speech so that no inflected form of it is ever
+proposed again. Staging shows it aside, labelled *ignored*; tapping it includes it again and the
+chip becomes proposable. A card never links an ignored word.
+_Avoid_: known word (the learner may simply not want it), blacklist, excluded word, struck word
 
 **Related cards**:
 The learner's existing cards that share at least two base words, or one noun, with a proposal, shown on it in staging.
@@ -179,7 +180,7 @@ See [docs/cards.md](docs/cards.md).
 
 **Vocabulary base**:
 The learner's inventory of the words they are learning in one language — new or wanted words, never
-known ones — one entry per lemma **and part of speech**, independent of any card. Its jobs are
+ignored ones — one entry per lemma **and part of speech**, independent of any card. Its jobs are
 deduplication and coverage. Never shortened to *vocabulary*, which means their cards.
 _Avoid_: wordlist, lexicon, word bank, dictionary, vocabulary (bare) — *lexicon* is the
 downloaded reference dictionary below, which belongs to no learner
@@ -196,7 +197,7 @@ _Avoid_: focus word, headword, root, stem, vocabulary item
 **Delete (a base entry)**:
 Taking a base word or fixed expression out of its base, from `/base`. It disappears everywhere but
 keeps its card links and Frammenti progress, and comes back with them when a proposal with it is
-approved. A word can be deleted and marked as known at once; an expression can't be known.
+approved. A word can be deleted and marked as ignored at once; an expression can't be ignored.
 _Avoid_: remove, archive, hide, unlink, strike (striking happens in staging)
 
 **Lemma**:
@@ -358,7 +359,7 @@ _Avoid_: bonus, practice answer
 
 **Active words**:
 The base words and fixed expressions at tier II or above: the ones the learner can produce.
-_Avoid_: known words (that is struck words), mastered, learned
+_Avoid_: known words, ignored words (those are struck words), mastered, learned
 
 **Article drill**:
 Flip cards on the Frammenti page over the learner's nouns: the lemma on the front, the display

@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ListsBaseEntries;
 use App\Models\BaseWord;
 use App\Models\FixedExpression;
-use App\Models\KnownWord;
+use App\Models\IgnoredWord;
 use App\Support\LanguageGuideline;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -96,17 +96,17 @@ class BaseWordController extends Controller
     /**
      * Delete one entry from the base by flagging it: its card links and Frammenti progress
      * stay, and approving a proposal with it again brings it back (BaseWord::resolve). A word
-     * can also be marked `known`, so staging stops proposing it; an expression can't be known.
+     * can also be marked `ignored`, so staging stops proposing it; an expression can't be ignored.
      */
     public function destroy(Request $request, string $kind, int $id)
     {
         $entry = $this->entry($kind, $id);
 
-        if ($kind === 'word' && $request->boolean('known')) {
-            $alreadyKnown = KnownWord::where($entry->only('user_id', 'language_id', 'part_of_speech'))->whereLemma($entry->lemma)->exists();
+        if ($kind === 'word' && $request->boolean('ignored')) {
+            $alreadyIgnored = IgnoredWord::where($entry->only('user_id', 'language_id', 'part_of_speech'))->whereLemma($entry->lemma)->exists();
 
-            if (! $alreadyKnown) {
-                KnownWord::create($entry->only('user_id', 'language_id', 'lemma', 'part_of_speech'));
+            if (! $alreadyIgnored) {
+                IgnoredWord::create($entry->only('user_id', 'language_id', 'lemma', 'part_of_speech'));
             }
         }
 

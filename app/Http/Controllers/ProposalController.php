@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeProposalJob;
 use App\Models\Card;
-use App\Models\KnownWord;
+use App\Models\IgnoredWord;
 use App\Models\Proposal;
 use App\Models\ProposalBaseWord;
 use App\Models\ProposalFixedExpression;
@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Auth;
  *
  * Capture writes a proposal and returns immediately — no card, no language picker, no
  * waiting on the AI. Everything else here is the learner acting on what CALL 1 came back
- * with: striking a candidate word as known or a fixed expression, correcting a wrong language detection, editing
+ * with: striking a candidate word as ignored or a fixed expression, correcting a wrong language detection, editing
  * the Context (or picking a sense, which is the same thing), picking the language of a Term
  * at home in several, switching on an existing card for it to replace, and finally approving (which writes the card and runs CALL 2) or discarding.
  *
@@ -82,12 +82,12 @@ class ProposalController extends Controller
     }
 
     /**
-     * Strike a new candidate word as known, or tap a known one to un-know it. A known word
+     * Strike a new candidate word as ignored, or tap an ignored one to un-ignore it. An ignored word
      * is remembered across captures (on lemma + part of speech, so every inflected form is
      * covered) and never becomes a base word. It never rewrites the Term — the card still
      * teaches the whole phrase, just linked to fewer words.
      */
-    public function known(Request $request, Proposal $proposal, ProposalBaseWord $word)
+    public function ignore(Request $request, Proposal $proposal, ProposalBaseWord $word)
     {
         $this->authorize('update', $proposal);
         abort_unless($word->proposal_id === $proposal->id, 404);
@@ -98,10 +98,10 @@ class ProposalController extends Controller
             'part_of_speech' => $word->part_of_speech,
         ];
 
-        $existing = KnownWord::where($attributes)->whereLemma($word->lemma);
+        $existing = IgnoredWord::where($attributes)->whereLemma($word->lemma);
 
-        $request->boolean('known')
-            ? ($existing->exists() || KnownWord::create($attributes + ['lemma' => $word->lemma]))
+        $request->boolean('ignored')
+            ? ($existing->exists() || IgnoredWord::create($attributes + ['lemma' => $word->lemma]))
             : $existing->delete();
 
         return response()->noContent();
@@ -109,7 +109,7 @@ class ProposalController extends Controller
 
     /**
      * Strike (or un-strike) one fixed expression so it isn't saved. Unlike a word this is
-     * per proposal: a struck fixed expression is never remembered as known.
+     * per proposal: a struck fixed expression is never remembered as ignored.
      */
     public function strikeExpression(Request $request, Proposal $proposal, ProposalFixedExpression $expression)
     {
@@ -248,7 +248,7 @@ class ProposalController extends Controller
         // Staging shows a covered proposal as refused, with no Approve; this is the backstop.
         $batch = collect([$proposal]);
 
-        if ($covering = $proposal->coveringCard(Proposal::presenceIndex($batch), Proposal::knownIndex($batch), Proposal::expressionPresenceIndex($batch))) {
+        if ($covering = $proposal->coveringCard(Proposal::presenceIndex($batch), Proposal::ignoredIndex($batch), Proposal::expressionPresenceIndex($batch))) {
             return response()->json([
                 'message' => 'There is already a card with exactly these words: "'.$covering->term.'".',
                 'covering_card_id' => $covering->id,
@@ -301,7 +301,7 @@ class ProposalController extends Controller
             // Proposal::presenceIndex() for why that matters on a polled endpoint. Related
             // cards are read off alreadyInBase, so they add no query of their own.
             'alreadyInBase' => Proposal::presenceIndex($proposals),
-            'knownWords' => Proposal::knownIndex($proposals),
+            'ignoredWords' => Proposal::ignoredIndex($proposals),
             'expressionsInBase' => Proposal::expressionPresenceIndex($proposals),
         ];
     }

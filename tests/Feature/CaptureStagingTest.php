@@ -6,7 +6,7 @@ use App\Jobs\AnalyzeProposalJob;
 use App\Models\BaseWord;
 use App\Models\Card;
 use App\Models\FixedExpression;
-use App\Models\KnownWord;
+use App\Models\IgnoredWord;
 use App\Models\Language;
 use App\Models\LexiconEntry;
 use App\Models\Proposal;
@@ -385,10 +385,10 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
-     * Striking records the word as known and governs base membership only — the Term is
+     * Striking records the word as ignored and governs base membership only — the Term is
      * untouched.
      */
-    public function test_striking_a_word_records_it_as_known_without_rewriting_the_term(): void
+    public function test_striking_a_word_records_it_as_ignored_without_rewriting_the_term(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
@@ -396,10 +396,10 @@ class CaptureStagingTest extends TestCase
         $struck = $proposal->baseWords->firstWhere('lemma', 'hur');
 
         $this->actingAs($user)
-            ->postJson("/staging/{$proposal->id}/words/{$struck->id}/known", ['known' => 1])
+            ->postJson("/staging/{$proposal->id}/words/{$struck->id}/ignored", ['ignored' => 1])
             ->assertNoContent();
 
-        $this->assertDatabaseHas('known_words', [
+        $this->assertDatabaseHas('ignored_words', [
             'user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'hur', 'part_of_speech' => 'adverb',
         ]);
 
@@ -413,13 +413,13 @@ class CaptureStagingTest extends TestCase
     }
 
     /**
-     * A known word is matched on lemma + part of speech, so a later capture of any inflected
-     * form shows it aside as known, and approving doesn't link it.
+     * An ignored word is matched on lemma + part of speech, so a later capture of any inflected
+     * form shows it aside as ignored, and approving doesn't link it.
      */
-    public function test_a_known_word_is_shown_as_known_in_a_later_proposal_and_not_linked(): void
+    public function test_an_ignored_word_is_shown_as_ignored_in_a_later_proposal_and_not_linked(): void
     {
         [$user, $language] = $this->learner();
-        KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'kosta', 'part_of_speech' => 'verb']);
+        IgnoredWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'kosta', 'part_of_speech' => 'verb']);
         $this->fakeOpenAi($this->analysis([
             'term' => 'kostade',
             'base_words' => [
@@ -431,8 +431,8 @@ class CaptureStagingTest extends TestCase
         $word = $user->proposals()->sole()->baseWords->sole();
 
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
-        $this->assertStringContainsString('data-word-id="'.$word->id.'" data-known="0"', $rows);
-        $this->assertStringNotContainsString('data-known="1"', $rows);
+        $this->assertStringContainsString('data-word-id="'.$word->id.'" data-ignored="0"', $rows);
+        $this->assertStringNotContainsString('data-ignored="1"', $rows);
 
         $this->actingAs($user)->postJson("/staging/{$word->proposal_id}/approve")->assertStatus(200);
 
@@ -440,34 +440,34 @@ class CaptureStagingTest extends TestCase
         $this->assertSame(0, BaseWord::count());
     }
 
-    public function test_un_knowing_a_word_brings_its_chip_back_as_new(): void
+    public function test_un_ignoring_a_word_brings_its_chip_back_as_new(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
-        KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'hur', 'part_of_speech' => 'adverb']);
+        IgnoredWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'hur', 'part_of_speech' => 'adverb']);
         $proposal = $this->completedProposal($user, $language);
         $word = $proposal->baseWords->firstWhere('lemma', 'hur');
 
         $this->actingAs($user)
-            ->postJson("/staging/{$proposal->id}/words/{$word->id}/known", ['known' => 0])
+            ->postJson("/staging/{$proposal->id}/words/{$word->id}/ignored", ['ignored' => 0])
             ->assertNoContent();
 
-        $this->assertSame(0, KnownWord::count());
+        $this->assertSame(0, IgnoredWord::count());
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
-        $this->assertStringContainsString('data-word-id="'.$word->id.'" data-known="1"', $rows);
+        $this->assertStringContainsString('data-word-id="'.$word->id.'" data-ignored="1"', $rows);
     }
 
     /**
      * Approval is never gated on how many base words a card has: none, or more than five.
      */
-    public function test_a_proposal_with_every_word_known_still_approves(): void
+    public function test_a_proposal_with_every_word_ignored_still_approves(): void
     {
         [$user, $language] = $this->learner();
         Queue::fake();
         $proposal = $this->completedProposal($user, $language);
 
         foreach ($proposal->baseWords as $word) {
-            KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => $word->lemma, 'part_of_speech' => $word->part_of_speech]);
+            IgnoredWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => $word->lemma, 'part_of_speech' => $word->part_of_speech]);
         }
 
         $this->fakeOpenAi($this->cardContent());
@@ -1272,7 +1272,7 @@ class CaptureStagingTest extends TestCase
         $proposal = $this->completedProposal($user, $language);
         $batch = collect([$proposal]);
 
-        $this->assertSame($latest->id, $proposal->coveringCard(Proposal::presenceIndex($batch), Proposal::knownIndex($batch), Proposal::expressionPresenceIndex($batch))->id);
+        $this->assertSame($latest->id, $proposal->coveringCard(Proposal::presenceIndex($batch), Proposal::ignoredIndex($batch), Proposal::expressionPresenceIndex($batch))->id);
 
         $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
         $this->assertStringContainsString('at least one card with exactly these words', $rows);
@@ -1283,7 +1283,7 @@ class CaptureStagingTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_a_known_word_does_not_stop_a_proposal_being_covered_but_a_new_word_does(): void
+    public function test_an_ignored_word_does_not_stop_a_proposal_being_covered_but_a_new_word_does(): void
     {
         [$user, $language] = $this->learner();
         $hur = $this->baseWord($user, $language, 'hur', 'adverb');
@@ -1291,12 +1291,12 @@ class CaptureStagingTest extends TestCase
         $card = $this->cardUsing($user, $language, 'hur mycket', $hur, $mycket);
 
         $proposal = $this->completedProposal($user, $language);
-        $covering = fn () => $proposal->coveringCard(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'knownIndex', 'expressionPresenceIndex']));
+        $covering = fn () => $proposal->coveringCard(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'ignoredIndex', 'expressionPresenceIndex']));
 
         // kosta is new, so the card adds a word to the base.
         $this->assertNull($covering());
 
-        KnownWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'kosta', 'part_of_speech' => 'verb']);
+        IgnoredWord::create(['user_id' => $user->id, 'language_id' => $language->id, 'lemma' => 'kosta', 'part_of_speech' => 'verb']);
 
         $this->assertSame($card->id, $covering()->id);
     }
@@ -1312,7 +1312,7 @@ class CaptureStagingTest extends TestCase
         $proposal = $this->completedProposal($user, $language);
         $proposal->fixedExpressions()->create(['form' => 'hur mycket', 'translation' => 'how much']);
         $proposal->load('fixedExpressions');
-        $covering = fn () => $proposal->coveringCard(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'knownIndex', 'expressionPresenceIndex']));
+        $covering = fn () => $proposal->coveringCard(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'ignoredIndex', 'expressionPresenceIndex']));
 
         $this->assertNull($covering());
 
@@ -1363,7 +1363,7 @@ class CaptureStagingTest extends TestCase
         $wider = $this->cardUsing($user, $language, 'hur gammal är det mycket', $hur, $mycket, $gammal);
 
         $proposal = $this->completedProposal($user, $language);
-        $replaceable = fn () => $proposal->replaceableCards(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'knownIndex', 'expressionPresenceIndex']));
+        $replaceable = fn () => $proposal->replaceableCards(...array_map(fn ($index) => Proposal::$index(collect([$proposal])), ['presenceIndex', 'ignoredIndex', 'expressionPresenceIndex']));
 
         $this->assertSame([$contained->id], $replaceable()->pluck('id')->all());
 

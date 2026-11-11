@@ -10,8 +10,8 @@
         $blocked = $pending || $failed ? collect() : $proposal->blockingDuplicates();
         // Only once the language and meaning are settled: either can change the words.
         $settled = ! ($pending || $failed || $proposal->language_options || $proposal->clarification);
-        $covering = $settled ? $proposal->coveringCard($alreadyInBase, $knownWords, $expressionsInBase) : null;
-        $replaceable = $settled ? $proposal->replaceableCards($alreadyInBase, $knownWords, $expressionsInBase) : collect();
+        $covering = $settled ? $proposal->coveringCard($alreadyInBase, $ignoredWords, $expressionsInBase) : null;
+        $replaceable = $settled ? $proposal->replaceableCards($alreadyInBase, $ignoredWords, $expressionsInBase) : collect();
     @endphp
 
     {{-- The raw input and Context ride along so a discarded row can capture them again. --}}
@@ -99,14 +99,14 @@
             @endforeach
 
             {{-- The chip tray, in the order the Term spells its words. A new word is
-                 strikeable: ✕ records it as known, so it is never proposed again. A word
+                 strikeable: ✕ records it as ignored, so it is never proposed again. A word
                  already in the base has nothing to decide (approval links it), so it only wears
-                 a green border. Known words sit aside, tapped to un-know. --}}
+                 a green border. Ignored words sit aside, tapped to include again. --}}
             @php
-                $groups = $proposal->baseWords->groupBy(fn ($word) => $proposal->groupOf($word, $alreadyInBase, $knownWords));
+                $groups = $proposal->baseWords->groupBy(fn ($word) => $proposal->groupOf($word, $alreadyInBase, $ignoredWords));
             @endphp
             <div class="mt-3 flex flex-wrap gap-2">
-                @forelse($proposal->baseWords->diff($groups->get(\App\Models\Proposal::GROUP_KNOWN, [])) as $word)
+                @forelse($proposal->baseWords->diff($groups->get(\App\Models\Proposal::GROUP_IGNORED, [])) as $word)
                     @if($groups->get(\App\Models\Proposal::GROUP_PRESENT, collect())->contains($word))
                         @php
                             $saved = $alreadyInBase->get($proposal->presenceKeyFor($word));
@@ -135,8 +135,8 @@
                                 {{ $word->displayForm() }}
                                 <span class="text-xs text-white/40">{{ $word->part_of_speech }}</span>
                             </span>
-                            <button type="button" class="js-known text-white/50 hover:text-white max-lg:-my-3 max-lg:-mr-3 max-lg:p-3"
-                                    data-word-id="{{ $word->id }}" data-known="1" title="I know this word">✕</button>
+                            <button type="button" class="js-ignore text-white/50 hover:text-white max-lg:-my-3 max-lg:-mr-3 max-lg:p-3"
+                                    data-word-id="{{ $word->id }}" data-ignored="1" title="Ignore this word">✕</button>
                         </span>
                     @endif
                 @empty
@@ -144,13 +144,13 @@
                 @endforelse
             </div>
 
-            @if($groups->has(\App\Models\Proposal::GROUP_KNOWN))
+            @if($groups->has(\App\Models\Proposal::GROUP_IGNORED))
                 <div class="mt-2 flex flex-wrap gap-2 text-xs text-white/50">
-                    @foreach($groups->get(\App\Models\Proposal::GROUP_KNOWN) as $word)
-                        <button type="button" class="js-known rounded-lg border border-white/5 px-2 py-0.5 hover:text-white max-lg:px-3 max-lg:py-2 max-lg:text-sm"
-                                data-word-id="{{ $word->id }}" data-known="0" title="Tap to un-know">
+                    @foreach($groups->get(\App\Models\Proposal::GROUP_IGNORED) as $word)
+                        <button type="button" class="js-ignore rounded-lg border border-white/5 px-2 py-0.5 hover:text-white max-lg:px-3 max-lg:py-2 max-lg:text-sm"
+                                data-word-id="{{ $word->id }}" data-ignored="0" title="Tap to include it again">
                             {{ $word->displayForm() }}
-                            <span class="text-white/30">known</span>
+                            <span class="text-white/30">ignored</span>
                         </button>
                     @endforeach
                 </div>

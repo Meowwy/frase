@@ -183,7 +183,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/capture', [ProposalController::class, 'store'])->name('capture');
     Route::get('/staging', [ProposalController::class, 'index'])->name('staging');
     Route::get('/staging/list', [ProposalController::class, 'list'])->name('staging.list');
-    Route::post('/staging/{proposal}/words/{word}/known', [ProposalController::class, 'known']);
+    Route::post('/staging/{proposal}/words/{word}/ignored', [ProposalController::class, 'ignore']);
     Route::post('/staging/{proposal}/expressions/{expression}/strike', [ProposalController::class, 'strikeExpression']);
     Route::post('/staging/{proposal}/language', [ProposalController::class, 'language']);
     Route::post('/staging/{proposal}/context', [ProposalController::class, 'context']);

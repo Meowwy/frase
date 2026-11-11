@@ -143,7 +143,7 @@ effort and not while a clarifying question is open (the words will be extracted 
   `collateral damage` from putting *damage* in the base; that a word occurring only inside one of
   the `fixed_expressions` is skipped (*tycka om* is learnt whole); and that an **article** is never listed,
   at any level (an article is never worth a vocabulary entry, so there is nothing for PHP to
-  decide). Everything level- or learner-dependent — the B1+ function-word filter, known words,
+  decide). Everything level- or learner-dependent — the B1+ function-word filter, ignored words,
   already-present words — is deterministic PHP after the call instead (see [cards](cards.md)).
 
 Where the **grammatical attributes** go in the schema is the one awkward part, and it is forced:
@@ -224,7 +224,7 @@ words), since a card already carries everything call 1 would decide (see [cards]
 | `base_words` | only when `$newWords` is non-empty: one entry per new word, in the listed order, `lemma` and `part_of_speech` echoed back (the lemma and part of speech are CALL 1's, settled; the echo is only how the answer is matched to the word), then `translation` (the lemma's equivalent in the sense the Term uses it, ≤2 variants), `dictionary_form` and the language's attributes |
 
 `$newWords` is the proposal's linked candidates the base doesn't hold — `Proposal::approve()` works
-it out from the presence index, so a known or already-present word is never described. Each word
+it out from the presence index, so an ignored or already-present word is never described. Each word
 carries an `ask` list: the dictionary form and grammar attributes its language defines for its part
 of speech, **minus every one the lexicon answers with a single value** (`WordDetails::fieldsToAsk()`).
 The schema holds only the fields some word still lacks, a word with an empty `ask` is marked

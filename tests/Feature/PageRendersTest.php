@@ -121,7 +121,7 @@ class PageRendersTest extends TestCase
         $response->assertSee('ett hus');
         $response->assertSee('noun');
         $response->assertSee('Approve');
-        $response->assertSee('js-known', false);
+        $response->assertSee('js-ignore', false);
     }
 
     /**

@@ -3,7 +3,7 @@
      the cards that word or expression is part of, and its synonyms. Each row carries its own
      content in a template (the cards are eager-loaded with the page), so a click costs no
      request. The panel's bin deletes the entry, after a dialog that for a base word also offers
-     marking it known.
+     marking it ignored.
 
      Each checked row gets a panel of its own below, kept across searches and pages, and two
      checked entries can be marked as synonyms. On /base checked words can be added to a
@@ -124,18 +124,18 @@
             <span id="baseDeleteTitle" class="font-bold text-white"></span> <span id="baseDeleteVerb">leaves</span> the base, its cards and Frammenti.
             Saving <span id="baseDeleteIt">it</span> in a new card brings it back, with its old cards and progress.
         </p>
-        <p id="baseDeleteKnownHint"><span class="font-bold text-white">Mark as known</span> also stops staging from proposing it again.</p>
+        <p id="baseDeleteIgnoredHint"><span class="font-bold text-white">Mark as ignored</span> also stops staging from proposing it again.</p>
     </div>
     <div class="flex flex-wrap justify-end gap-3">
         <button type="button" onclick="closeModal('confirm-delete-base')"
                 class="px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
             Cancel
         </button>
-        <button type="button" id="baseDeleteKnown" data-known="1"
+        <button type="button" id="baseDeleteIgnored" data-ignored="1"
                 class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-white/10 hover:bg-white/20 border border-white/10 transition-all max-lg:min-h-12 max-lg:flex-1">
-            Mark as known
+            Mark as ignored
         </button>
-        <button type="button" data-known="0"
+        <button type="button" data-ignored="0"
                 class="js-base-delete-confirm px-5 py-2 rounded-xl font-bold bg-red-600 hover:bg-red-500 text-white transition-all max-lg:min-h-12 max-lg:flex-1">
             Delete
         </button>
@@ -354,14 +354,14 @@
             });
         });
 
-        // An expression can't be known, so a dialog that touches one offers plain delete only.
+        // An expression can't be ignored, so a dialog that touches one offers plain delete only.
         function askDelete(keys, title) {
             pendingKeys = keys;
             const one = keys.length === 1;
             $('#baseDeleteTitle').text(one ? title : keys.length + ' entries');
             $('#baseDeleteVerb').text(one ? 'leaves' : 'leave');
             $('#baseDeleteIt').text(one ? 'it' : 'one');
-            $('#baseDeleteKnown, #baseDeleteKnownHint').toggle(keys.every(key => key.startsWith('word:')));
+            $('#baseDeleteIgnored, #baseDeleteIgnoredHint').toggle(keys.every(key => key.startsWith('word:')));
             openModal('confirm-delete-base');
         }
 
@@ -378,11 +378,11 @@
 
         $('.js-base-delete-confirm').on('click', function () {
             const keys = pendingKeys;
-            const known = $(this).data('known');
+            const ignored = $(this).data('ignored');
             $.when(...keys.map(key => $.ajax({
                 url: '/base/' + key.replace(':', '/'),
                 type: 'DELETE',
-                data: { _token: csrf, known },
+                data: { _token: csrf, ignored },
             }))).done(function () {
                 closeModal('confirm-delete-base');
                 keys.forEach(key => { rowOf(key).remove(); checked.delete(key); });

@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Nothing here is a vocabulary-base entry yet. Whether it would become one is derived
  * live (Proposal::groupOf), so striking it never touches this row — it records a
- * KnownWord instead, and un-knowing brings the chip straight back.
+ * IgnoredWord instead, and un-ignoring brings the chip straight back.
  */
 class ProposalBaseWord extends Model
 {

@@ -79,11 +79,11 @@ exactly one of three groups:
   vocabulary base. Shown in place with a thin green border and no strike control, since there is
   nothing to decide. Linked to the new card on approval. *Run*
   the verb and *run* the noun are different base words, not duplicates of each other.
-- **Known** — the learner struck this word before. Shown aside, labelled *known*, never linked.
-  Tapping it **un-knows** it and it becomes a new chip again.
+- **Ignored** — the learner struck this word before. Shown aside, labelled *ignored*, never linked.
+  Tapping it includes it again and it becomes a new chip.
 - **New** — strikeable. Created and linked on approval unless struck.
 
-**Striking** a new chip records it as a **known word**, remembered per language by lemma and part
+**Striking** a new chip records it as an **ignored word**, remembered per language by lemma and part
 of speech, so that word — in any inflected form, since the match is on the lemma — is never
 proposed again. Striking **never rewrites the Term**: `hur mycket kostar det` with `hur` struck is
 still a card for the whole phrase, just linked to fewer base words.
@@ -162,7 +162,7 @@ The card detail page shows the card's base words and fixed expressions beside it
 One entry per **lemma and part of speech** per language — the **base word**: the lemma, its part
 of speech, its native translation (set once, at proposal time, never revised), any grammatical
 attributes that part of speech carries, and its **last recall**. It holds only words the learner
-is learning — new or wanted ones, never known ones. The base carries no sense finer than part of
+is learning — new or wanted ones, never ignored ones. The base carries no sense finer than part of
 speech, no card schedule and no generated content; sense lives on cards. It does carry each
 word's Frammenti progress. Its jobs are deduplication and
 coverage — telling the learner what they've already met, and which words appear across many cards
@@ -239,7 +239,7 @@ serves every card, and the answer is always the whole Term.
 
 - **Migrating existing cards.** Existing data is expendable; a fresh start on deploy is
   acceptable.
-- **Remembering struck fixed expressions** as known.
+- **Remembering struck fixed expressions** as ignored.
 - **The hide-a-word review mode** (a base word of a multi-word Term hidden mid-sentence). It would
   need the Term's own spelling of each word, which is no longer stored.
 - **Downloaded dictionaries for languages other than Swedish.** The plan is one per supported

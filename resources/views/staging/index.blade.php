@@ -88,9 +88,9 @@
                     });
             }
 
-            // Strike a new word as known, or tap a known one to un-know it.
-            $list.on('click', '.js-known', function () {
-                post(this, '/words/' + $(this).data('word-id') + '/known', { known: $(this).data('known') })
+            // Strike a new word as ignored, or tap an ignored one to un-ignore it.
+            $list.on('click', '.js-ignore', function () {
+                post(this, '/words/' + $(this).data('word-id') + '/ignored', { ignored: $(this).data('ignored') })
                     .done(window.stagingRefresh);
             });
 

@@ -33,7 +33,7 @@ class Proposal extends Model
 
     public const GROUP_PRESENT = 'present';
 
-    public const GROUP_KNOWN = 'known';
+    public const GROUP_IGNORED = 'ignored';
 
     public const GROUP_NEW = 'new';
 
@@ -176,18 +176,18 @@ class Proposal extends Model
 
     /**
      * Which group one candidate falls into, checked in this order: **already present** in
-     * the vocabulary base (shown aside, linked on approval), **known** (struck once, shown
+     * the vocabulary base (shown aside, linked on approval), **ignored** (struck once, shown
      * aside, never linked), or **new** (strikeable; created and linked on approval). Already
      * present wins if both ever apply. Takes the indexes so a whole list is resolved with
      * one query per store, never one per chip.
      */
-    public function groupOf(ProposalBaseWord $word, SupportCollection $present, SupportCollection $known): string
+    public function groupOf(ProposalBaseWord $word, SupportCollection $present, SupportCollection $ignored): string
     {
         $key = $this->presenceKeyFor($word);
 
         return match (true) {
             $present->has($key) => self::GROUP_PRESENT,
-            $known->has($key) => self::GROUP_KNOWN,
+            $ignored->has($key) => self::GROUP_IGNORED,
             default => self::GROUP_NEW,
         };
     }
@@ -211,15 +211,15 @@ class Proposal extends Model
     }
 
     /**
-     * Which of a whole list's candidate words the learner has struck as **known**, keyed
+     * Which of a whole list's candidate words the learner has struck as **ignored**, keyed
      * like presenceIndex() and computed the same way: live, once per list.
      *
      * @param  \Illuminate\Support\Collection<int, self>  $proposals
-     * @return \Illuminate\Support\Collection<string, KnownWord>
+     * @return \Illuminate\Support\Collection<string, IgnoredWord>
      */
-    public static function knownIndex(Collection|SupportCollection $proposals): SupportCollection
+    public static function ignoredIndex(Collection|SupportCollection $proposals): SupportCollection
     {
-        return self::indexCandidates(KnownWord::query(), $proposals);
+        return self::indexCandidates(IgnoredWord::query(), $proposals);
     }
 
     /**
@@ -266,7 +266,7 @@ class Proposal extends Model
     }
 
     /**
-     * The rows of one store (base words or known words) matching any candidate of the
+     * The rows of one store (base words or ignored words) matching any candidate of the
      * list, keyed like presenceKeyFor().
      */
     private static function indexCandidates(Builder $query, Collection|SupportCollection $proposals): SupportCollection
@@ -318,19 +318,19 @@ class Proposal extends Model
     /**
      * The most recently saved card that already carries **every** base word and fixed
      * expression this proposal would link — capturing *book* beside "She is reading a book".
-     * Such a proposal adds nothing to the vocabulary base, so staging refuses it. Known words
+     * Such a proposal adds nothing to the vocabulary base, so staging refuses it. Ignored words
      * and struck expressions don't count (they are never linked), and a proposal that links
      * nothing at all is never covered. Cards with the identical Term are left out: the
      * duplicate notice shows those.
      *
      * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
-     * @param  \Illuminate\Support\Collection<string, KnownWord>  $known  see knownIndex()
+     * @param  \Illuminate\Support\Collection<string, IgnoredWord>  $ignored  see ignoredIndex()
      * @param  \Illuminate\Support\Collection<string, FixedExpression>  $presentExpressions  see expressionPresenceIndex()
      */
-    public function coveringCard(SupportCollection $present, SupportCollection $known, SupportCollection $presentExpressions): ?Card
+    public function coveringCard(SupportCollection $present, SupportCollection $ignored, SupportCollection $presentExpressions): ?Card
     {
         // Each linked word's or expression's cards, or null for one not in the base yet.
-        $cardSets = $this->linkedWords($present, $known)
+        $cardSets = $this->linkedWords($present, $ignored)
             ->map(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word))?->cards)
             ->concat($this->linkedExpressions($presentExpressions)
                 ->map(fn (ProposalFixedExpression $expression) => $presentExpressions->get($this->expressionKeyFor($expression))?->cards))
@@ -358,15 +358,15 @@ class Proposal extends Model
      * proposal reaches it through as many distinct words and expressions as it has.
      *
      * @param  \Illuminate\Support\Collection<string, BaseWord>  $present  see presenceIndex()
-     * @param  \Illuminate\Support\Collection<string, KnownWord>  $known  see knownIndex()
+     * @param  \Illuminate\Support\Collection<string, IgnoredWord>  $ignored  see ignoredIndex()
      * @param  \Illuminate\Support\Collection<string, FixedExpression>  $presentExpressions  see expressionPresenceIndex()
      * @return \Illuminate\Support\Collection<int, Card>
      */
-    public function replaceableCards(SupportCollection $present, SupportCollection $known, SupportCollection $presentExpressions): SupportCollection
+    public function replaceableCards(SupportCollection $present, SupportCollection $ignored, SupportCollection $presentExpressions): SupportCollection
     {
         // A card reaches through a word only if it uses it in the meaning this Term does: a
         // card about *bank* the money is not contained in one about the riverbank.
-        $wordCards = $this->linkedWords($present, $known)
+        $wordCards = $this->linkedWords($present, $ignored)
             ->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)))
             ->unique(fn (ProposalBaseWord $word) => $this->presenceKeyFor($word))
             ->flatMap(fn (ProposalBaseWord $word) => match (true) {
@@ -392,11 +392,11 @@ class Proposal extends Model
     }
 
     /**
-     * The candidate words approval links: all but the known ones.
+     * The candidate words approval links: all but the ignored ones.
      */
-    private function linkedWords(SupportCollection $present, SupportCollection $known): SupportCollection
+    private function linkedWords(SupportCollection $present, SupportCollection $ignored): SupportCollection
     {
-        return $this->baseWords->reject(fn (ProposalBaseWord $word) => $this->groupOf($word, $present, $known) === self::GROUP_KNOWN);
+        return $this->baseWords->reject(fn (ProposalBaseWord $word) => $this->groupOf($word, $present, $ignored) === self::GROUP_IGNORED);
     }
 
     /**
@@ -478,11 +478,11 @@ class Proposal extends Model
         $user = $this->user;
 
         $present = self::presenceIndex(collect([$this]));
-        $known = self::knownIndex(collect([$this]));
+        $ignored = self::ignoredIndex(collect([$this]));
         $presentExpressions = self::expressionPresenceIndex(collect([$this]));
 
         // Only a word the base doesn't hold yet is described: CALL 2 is paid for exactly those.
-        $newWords = $this->linkedWords($present, $known)
+        $newWords = $this->linkedWords($present, $ignored)
             ->reject(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)))
             ->map(fn (ProposalBaseWord $word) => $word->only('lemma', 'part_of_speech'))
             ->values()
@@ -494,11 +494,11 @@ class Proposal extends Model
             return null;
         }
 
-        $card = DB::transaction(function () use ($user, $language, $content, $present, $known, $presentExpressions) {
+        $card = DB::transaction(function () use ($user, $language, $content, $present, $ignored, $presentExpressions) {
             $card = Card::persist($user, $language, $this->term, $this->context, $content);
 
-            // Known words are never linked; already-present and new ones both resolve below.
-            foreach ($this->linkedWords($present, $known) as $candidate) {
+            // Ignored words are never linked; already-present and new ones both resolve below.
+            foreach ($this->linkedWords($present, $ignored) as $candidate) {
                 // A present word has no details here, and needs none: resolve() reuses its row.
                 $details = $content['words'][$candidate->lemma.'|'.$candidate->part_of_speech] ?? [];
 
@@ -524,7 +524,7 @@ class Proposal extends Model
             // Replace: only a card that is still contained goes, so a mark left from before the
             // words changed does nothing. Its note moves to the new card; its review progress
             // and manual links go with it — deleting cascades every link.
-            $replaced = $this->replaceableCards($present, $known, $presentExpressions)
+            $replaced = $this->replaceableCards($present, $ignored, $presentExpressions)
                 ->filter(fn (Card $old) => $this->isMarkedForReplace($old));
 
             if ($replaced->isNotEmpty()) {

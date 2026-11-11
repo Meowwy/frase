@@ -22,11 +22,11 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   a lone word with several meanings, like *run* or *bank*, asks you to pick one before it can be
   approved, and a term that is a real word in two of your languages, like *bad*, first asks which
   language you mean), and the individual words it wants to add to your vocabulary base as a tray of
-  chips. **Strike** a chip and that word is remembered as **known**: it is left out now and never
+  chips. **Strike** a chip and that word is remembered as **ignored**: it is left out now and never
   proposed again, in any form — the card still teaches the whole term either way, and a card may
   keep any number of words, none included. A word you already have stays in the tray with a green
-  border and nothing to decide (it is linked to the new card automatically); known words are shown
-  aside — tap one to un-know it.
+  border and nothing to decide (it is linked to the new card automatically); ignored words are shown
+  aside — tap one to include it again.
 - **Approve** writes the card and its words — and only then is the translation
   generated, so nothing is spent on a term you throw away. You stay on staging:
   the proposal shrinks to one line, then becomes a link to the new card. **Discard** leaves
@@ -76,7 +76,7 @@ expressions). Click a row and the panel on the right lists those cards' terms;
 clicking a word or expression on a card's page brings you here with it already picked.
 
 The panel's bin **deletes** the entry. A word can be deleted on its own, or also **marked as
-known**, so staging never proposes it again; an expression can only be deleted. A deleted entry
+ignored**, so staging never proposes it again; an expression can only be deleted. A deleted entry
 disappears from the base, from your cards' pages and from Frammenti, but nothing is lost: save it
 in a new card and it comes back with its old cards, its synonyms and its Frammenti progress.
 

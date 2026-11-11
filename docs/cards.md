@@ -76,7 +76,7 @@ Retired: `Card::phraseHtml()` (nothing left to bold, once there is no focus word
 
 Unique on `(user_id, language_id, lemma, part_of_speech)` — this is the real dedup key, not
 `lemma` alone. The database index is case-sensitive, and the lemma keeps the spelling the AI gave it
-(a German noun is "Haus"), so every lookup — staging's presence/known indexes, `resolve()`, the
+(a German noun is "Haus"), so every lookup — staging's presence/ignored indexes, `resolve()`, the
 edit collision check — matches the lemma **ignoring case** (`MatchesLemma`: `whereLemma()` tries
 the as-given, lower-case and capitalised spellings, `lemmaKey()` compares the rest), and "Hus" finds
 "hus" instead of adding a twin. `grammar_attributes`, `translation` and `dictionary_form` are set
@@ -114,15 +114,15 @@ Each candidate falls into exactly one **group** (`Proposal::groupOf()`), checked
    no strike control, and linked to the new card on approval (`BaseWord::resolve()`
    reuses the row). Linking it is what makes coverage work, and hiding it would lose the fact the
    learner wants to see.
-2. **Known** (`Proposal::knownIndex()`): matches `known_words` on the same key, so striking *hus*
-   once covers *huset* and *husen*. Shown aside, labelled *known*; tapping it un-knows it. Never
+2. **Ignored** (`Proposal::ignoredIndex()`): matches `ignored_words` on the same key, so striking *hus*
+   once covers *huset* and *husen*. Shown aside, labelled *ignored*; tapping it includes it again. Never
    linked or created.
 3. **New**: strikeable; created and linked on approval.
 
 Already present wins if both ever apply (only a new chip can be struck, so in practice they don't).
 The groups are **never stored**, always computed at staging render time and again at approval, which
 is why a word the learner acquires or strikes between capture and approval is still recognised, and
-why every candidate stays on the proposal — un-knowing a word brings its chip straight back.
+why every candidate stays on the proposal — including a word again brings its chip straight back.
 
 Each store is resolved for a whole list in **one** query, keyed by `Proposal::presenceKeyFor()`,
 rather than one query per chip. That is not premature: `/staging/list` re-renders the entire tray every 2 seconds
@@ -241,7 +241,7 @@ from one check and is enabled at exactly two. Each checked row gets its own pane
 built from the row's template and **kept in a JS map**, so checks survive the live search and
 paging (unlike `/cards`, whose selection is scoped to one view). The X on a checked panel unchecks
 it. Below lg the action bar does this instead (see above); its **Delete** opens the same dialog for
-every checked entry at once, one `DELETE` per entry, offering **Mark as known** only when all of
+every checked entry at once, one `DELETE` per entry, offering **Mark as ignored** only when all of
 them are base words. A panel shows a Synonyms section only when the entry has any, each synonym a chip whose hover X
 (always shown below lg) unlinks it. A link or unlink reloads the rows on screen.
 
@@ -265,9 +265,9 @@ lemma. Checked entries' panels have no pen, as with the bin. The rows reload aft
 
 The panel's bin (`DELETE /base/{word|expression}/{id}`, `BaseWordController@destroy`) deletes the
 entry it shows, after a dialog. A **word** offers two ways: plain delete, or delete and **mark as
-known** (`known=1`), which also inserts its `known_words` row exactly as striking it in staging
+ignored** (`ignored=1`), which also inserts its `ignored_words` row exactly as striking it in staging
 does, so it is never proposed again. An **expression** offers plain delete only, since a fixed
-expression is never remembered as known.
+expression is never remembered as ignored.
 
 Deleting never removes the row. It sets `deleted`, and a **global scope** (`notDeleted`, on
 `BaseWord` and `FixedExpression`) hides the row from every query, so it leaves the base page, the
@@ -279,7 +279,7 @@ synonym links and Frammenti schedule stay.
 
 It comes back the only way an entry is made: a proposal with that lemma and part of speech (or
 that form) is approved. Since the deleted row no longer counts as present, staging shows the word
-as a **new** chip (or *known*, if it was marked so, until un-known), and `BaseWord::resolve()` /
+as a **new** chip (or *ignored*, if it was marked so, until included again), and `BaseWord::resolve()` /
 `FixedExpression::resolve()` find it past the scope and clear the flag. It returns with its old
 card links, synonyms and Frammenti progress, not as a new item.
 
@@ -364,18 +364,19 @@ A candidate has no translation any more: CALL 1 only names the words, and descri
 approval, when it is paid for only the words the base lacks (see [ai-integration](ai-integration.md)
 "Why two calls").
 
-`known_words` — what the learner has struck, per learner and language: `user_id`, `language_id`,
-`lemma`, `part_of_speech`, unique on all four. Striking a new chip inserts a row; un-knowing deletes
-it.
+`ignored_words` — the **ignored words**, what the learner has struck, per learner and language: `user_id`, `language_id`,
+`lemma`, `part_of_speech`, unique on all four. Striking a new chip inserts a row; including it again deletes
+it. Called *known words* (`known_words`, `KnownWord`) until v1.0, renamed because striking says the
+learner doesn't want the word, not that they know it.
 
 `proposal_fixed_expressions` — the fixed-expression chips, at most 3 per proposal: `form`,
 `translation`, `struck`. Striking one is **per proposal** — unlike a word, a fixed
-expression is never remembered as known. Each chip is either **already present** (matches
+expression is never remembered as ignored. Each chip is either **already present** (matches
 `fixed_expressions` on form, case-insensitively, via `Proposal::expressionPresenceIndex()` — one
 query per list: green-bordered, not strikeable, linked) or **new** (strikeable; created unless struck).
 
 **`Proposal::approve()`** first works out which linked candidates are new to the base and has CALL 2
-describe exactly those, then resolves the `base_words` rows for every candidate that isn't known
+describe exactly those, then resolves the `base_words` rows for every candidate that isn't ignored
 (reusing an existing one per the check above) and first-or-creates the `fixed_expressions` row for
 every fixed expression that isn't struck (an already-present one is linked even if it was struck
 before it entered the base), writes the card and its `card_base_word` / `card_fixed_expression`
@@ -389,7 +390,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /capture` (name `capture`) | validates `capturedWord`/`context`, writes the `proposals` row, dispatches `AnalyzeProposalJob`, answers JSON with the new staged count. Shared with the extension — see [browser-extension](browser-extension.md) |
 | `GET /staging` | the feed: every proposal, in capture order (oldest first), across every language |
 | `GET /staging/list` | the same list as `{rows, count, pending}` JSON, rendered from `staging/_proposals.blade.php` |
-| `POST /staging/{proposal}/words/{word}/known` | `known=1` strikes a new chip (inserts its `known_words` row), `known=0` un-knows it |
+| `POST /staging/{proposal}/words/{word}/ignored` | `ignored=1` strikes a new chip (inserts its `ignored_words` row), `ignored=0` includes it again |
 | `POST /staging/{proposal}/expressions/{expression}/strike` | `struck=1` / `struck=0` on one fixed-expression chip |
 | `POST /staging/{proposal}/language` | correct the detected language, or answer the language picker — see below |
 | `POST /staging/{proposal}/context` | add, edit or clear the Context — see below |
@@ -509,7 +510,7 @@ expression it would link is already in the base *and* on one and the same existi
 beside "She is reading a book"). Such a card would add nothing to the vocabulary base, so staging
 **refuses** it: the row collapses to one line, like a discarded one, saying there is already at
 least one card with exactly these words and linking the most recently saved such card, with only a
-bin to clear it. `ProposalController::approve()` checks again and answers `409`. Known words and
+bin to clear it. `ProposalController::approve()` checks again and answers `409`. Ignored words and
 struck expressions don't count (they are never linked); a proposal with a new word or expression,
 or with nothing to link at all, is never covered. It is only checked once the language and sense
 are settled, since either can change the words. The expression presence index carries its cards
