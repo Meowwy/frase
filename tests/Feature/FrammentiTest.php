@@ -142,14 +142,22 @@ class FrammentiTest extends TestCase
         $this->assertSame([0, null], [$word->frammenti_level, $word->frammenti_due_on]);
         $this->assertSame(1, Frammenti::plan($user, $language)['due']);
 
-        // 0 → 1 … 8, back in 1, 2, 4 … 128 days; level 8 stays and keeps coming back in 128.
-        foreach ([[1, 1], [2, 2], [3, 4], [4, 8], [5, 16], [6, 32], [7, 64], [8, 128], [8, 128]] as [$level, $days]) {
+        // 0 → 1 … 7, back in 1, 2, 4 … 64 days.
+        foreach ([[1, 1], [2, 2], [3, 4], [4, 8], [5, 16], [6, 32], [7, 64]] as [$level, $days]) {
             $this->answer($user, $word, true);
             $word->refresh();
             $this->assertSame($level, $word->frammenti_level);
             $this->assertSame(now()->addDays($days)->toDateString(), $word->frammenti_due_on);
             $this->travelTo(now()->addDays($days));
         }
+
+        // Level 8 is the end: no due date, never due again, still an active word.
+        $this->answer($user, $word, true);
+        $word->refresh();
+        $this->assertSame([8, null], [$word->frammenti_level, $word->frammenti_due_on]);
+        $this->travelTo(now()->addYears(2));
+        $this->assertSame(0, Frammenti::plan($user, $language)['due']);
+        $this->assertSame(1, Frammenti::activeWords($user, $language));
     }
 
     public function test_a_miss_resets_to_level_zero_due_today(): void
@@ -202,7 +210,7 @@ class FrammentiTest extends TestCase
         [$user, $language] = $this->learner();
         $this->unlock($user, $language);
         $expected = [];
-        foreach (['I' => [0, 2], 'II' => [3, 5], 'III' => [8]] as $tier => $levels) {
+        foreach (['I' => [0, 2], 'II' => [3, 5], 'III' => [7]] as $tier => $levels) {
             foreach ($levels as $level) {
                 $expected[$this->word($user, $language, 'nivå'.$level, $this->due($level))->id] = $tier;
             }
@@ -235,6 +243,8 @@ class FrammentiTest extends TestCase
         $due = $this->words($user, $language, 2, $this->due(level: 2));
         $soon = array_map(fn ($day) => $this->word($user, $language, 'snart'.$day, ['frammenti_level' => 3, 'frammenti_due_on' => '2026-10-'.$day]), [15, 16, 17]);
         $this->word($user, $language, 'senare', ['frammenti_level' => 3, 'frammenti_due_on' => '2026-10-20']);
+        // At the top level: no due date, and never filler either.
+        $this->word($user, $language, 'klar', ['frammenti_level' => 8, 'frammenti_due_on' => null]);
         $this->fakeAi();
 
         $this->assertEqualsCanonicalizing(

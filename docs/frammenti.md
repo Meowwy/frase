@@ -65,12 +65,18 @@ appears too.
 ## The schedule
 
 Every base word and fixed expression has `frammenti_level` (0–8, default 0) and `frammenti_due_on`
-(a date; null until first answered). An item is **due** when `due_on` is null or ≤ today. Due dates
+(a date; null until first answered, and null again at level 8). An item is **due** when it is below
+level 8 and `due_on` is null or ≤ today. Due dates
 are calendar dates in the user's timezone (`User::today()`), so "due today" means the same thing
 all day. The rules live in `Frammenti::answer()` and always run on the item's **stored** state:
 
-- **Correct**: level + 1 (capped at 8, `MAX_LEVEL`), due in **2^(level − 1)** days on the new level:
-  1, 2, 4 … 128. Level 8 keeps coming back every 128 days.
+- **Correct**: level + 1, due in **2^(level − 1)** days on the new level: 1, 2, 4 … 64 (level 7).
+  **Reaching level 8 (`MAX_LEVEL`) ends the schedule**: the due date is nulled and the item is
+  never due again (`Frammenti::isRetired()`), so it drops out of the plan, the due counts and
+  dealing, filler included. It stays in the base and counts as an active word. It used to come
+  back every 128 days, which kept spending fragments on words the learner had produced correctly
+  seven times in a row over four months; migration `2026_11_11_000005` nulled the due date of the
+  items already there.
 - **Wrong**: back to **level 0, due today**, so it is dealt again in a later batch of the session
   and climbs from 0 once it's right.
 - **Not due** (filler): an **early answer**, no schedule change; a correct one still stamps last
@@ -110,6 +116,7 @@ It runs in PHP before the AI call and fills 5 slots:
 1. **Due items, at random.** No priority order: every due item is equally owed, and a random pick
    mixes tiers and parts of speech.
 2. **Filler** when fewer than 5 are due: the not-due items closest to due, as early answers.
+   Level-8 items are never filler.
 
 The request sends the batch on screen (`on_screen`), and **its items are never dealt**: an item
 appears at most once per batch, and a miss on screen comes back in a later batch rather than in the

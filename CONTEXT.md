@@ -314,7 +314,8 @@ _Avoid_: box, stage, streak, score, difficulty
 
 **Due**:
 A card whose next review date has arrived. Also the default session scope: due cards only. In
-Frammenti, a base word or fixed expression never answered or whose due date has arrived.
+Frammenti, a base word or fixed expression below the top level (8) never answered or whose due
+date has arrived; at level 8 it is never due again.
 _Avoid_: pending, scheduled, ready
 
 **Cram**:

@@ -193,7 +193,8 @@ class Frammenti
     /**
      * Apply one answer to an item's STORED schedule — never to a level the client sent.
      * Only a due item's answer counts: right climbs one level and comes back in
-     * 2^(level − 1) days, wrong drops to level 0 and stays due today. Any other answer
+     * 2^(level − 1) days (never, once it reaches MAX_LEVEL), wrong drops to level 0 and
+     * stays due today. Any other answer
      * (filler) is early and changes nothing.
      *
      * $last marks the last fragment of a batch, which counts the batch done and, at the
@@ -206,9 +207,12 @@ class Frammenti
 
         if (self::isDue($item, $today)) {
             $item->frammenti_level = $correct ? min($item->frammenti_level + 1, self::MAX_LEVEL) : 0;
-            $item->frammenti_due_on = $correct
-                ? Carbon::parse($today)->addDays(2 ** ($item->frammenti_level - 1))->toDateString()
-                : $today;
+            $item->frammenti_due_on = match (true) {
+                ! $correct => $today,
+                // Reaching the top level ends the schedule: never due again.
+                self::isRetired($item) => null,
+                default => Carbon::parse($today)->addDays(2 ** ($item->frammenti_level - 1))->toDateString(),
+            };
         }
 
         // All three tiers are production, so every correct answer is a recall.
@@ -247,7 +251,8 @@ class Frammenti
         $level = $user->levelForLanguage($language);
         // A base collection: an Eloquent one's except() goes by model id, not by these keys.
         $all = self::items($user, $language)->toBase()->keyBy(fn ($item) => self::key($item));
-        [$due, $notDue] = $all->except($onScreen)->partition(fn ($item) => self::isDue($item, $today));
+        // An item at the top level is never dealt, not even as filler.
+        [$due, $notDue] = $all->except($onScreen)->reject(fn ($item) => self::isRetired($item))->partition(fn ($item) => self::isDue($item, $today));
         $synonyms = EntrySynonym::of($all);
 
         $slots = [];
@@ -359,10 +364,19 @@ class Frammenti
         return $streak;
     }
 
-    /** Due: never answered (no due date yet) or its due date has arrived. */
+    /**
+     * Due: never answered (no due date yet) or its due date has arrived — unless it has
+     * reached MAX_LEVEL, which is never due again (its due date is null, see answer()).
+     */
     private static function isDue(BaseWord|FixedExpression $item, string $today): bool
     {
-        return $item->frammenti_due_on === null || $item->frammenti_due_on <= $today;
+        return ! self::isRetired($item) && ($item->frammenti_due_on === null || $item->frammenti_due_on <= $today);
+    }
+
+    /** At MAX_LEVEL: out of every session, due or filler, for good. Still an active word. */
+    public static function isRetired(BaseWord|FixedExpression $item): bool
+    {
+        return $item->frammenti_level >= self::MAX_LEVEL;
     }
 
     /**

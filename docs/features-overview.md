@@ -144,7 +144,8 @@ regardless of schedule), then a mode:
 
 - Your daily drill with your own words and fixed expressions, in short AI-written sentences, five
   at a time. Each word has its own schedule, separate from your cards, like an Anki card: get it
-  right and it goes up a level and comes back after 1, 2, 4 … up to 128 days; miss it and it drops
+  right and it goes up a level and comes back after 1, 2, 4 … up to 64 days, and once it reaches
+  the top level (8) it's done and never comes back; miss it and it drops
   to level 0 and comes back later in the same session. It never changes a card's review date.
 - A session takes the words that are due, in random order, and tells you up front: "14 due → 3
   batches · ~7 min" (at most 10 batches). Leave and come back and you continue where you were;
