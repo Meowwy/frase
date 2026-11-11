@@ -40,12 +40,14 @@ class StatusPageTest extends TestCase
             ->assertOk()
             ->assertSee('Ready — 2 nouns (1 with a gender)', false)
             ->assertSee('1 verbs (1 with a dictionary form)', false)
-            ->assertSee('Not loaded — the AI answers grammar for this language');
+            ->assertSee('Not loaded — the AI answers grammar for this language')
+            ->assertSee('Lexicon search')
+            ->assertSee('statusLexiconSearch', false);
     }
 
     public function test_an_empty_lexicon_is_reported_as_not_loaded(): void
     {
-        $this->actingAs($this->learner())->get('/profile/status')->assertOk()->assertDontSee('Ready');
+        $this->actingAs($this->learner())->get('/profile/status')->assertOk()->assertDontSee('Ready')->assertDontSee('Lexicon search');
     }
 
     public function test_openai_is_ok_when_the_model_record_comes_back(): void

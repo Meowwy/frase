@@ -339,7 +339,8 @@ homograph's rows stay together), each with the display form built from only the 
 of (as a staging chip is) and every row's raw fields. `GET /lexicon/search?language_id=&q=`
 (`LexiconController`, any language — the lexicon is shared reference data) serves it to the shared
 `<x-lexicon-search>` component (see [frontend-patterns](frontend-patterns.md)), which is used by
-"Add word manually" below.
+"Add word manually" below and by the status page's Lexicon search (see
+[auth-and-users](auth-and-users.md)).
 
 ### Adding a word by hand
 

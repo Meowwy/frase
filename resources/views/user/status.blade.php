@@ -37,6 +37,23 @@
             @endif
         </x-panel>
 
+        {{-- Everything the lexicon holds for a word, for the languages that have one. --}}
+        @php $searchable = $languages->filter(fn ($language) => $lexicon->has($language->code))->values(); @endphp
+        @if($searchable->isNotEmpty())
+            <x-panel>
+                <h2 class="text-xl font-bold mb-2">Lexicon search</h2>
+                <p class="text-sm text-white/50 mb-4">Type a word to see every entry the lexicon has for it, with all its fields.</p>
+                @if($searchable->count() > 1)
+                    <select id="statusLexiconLanguage" class="mb-3 rounded-lg border border-white/10 bg-[#111] px-3 py-2 text-base text-white focus:outline-none">
+                        @foreach($searchable as $language)
+                            <option value="{{ $language->id }}">{{ $language->flag }} {{ $language->name }}</option>
+                        @endforeach
+                    </select>
+                @endif
+                <x-lexicon-search id="statusLexiconSearch" :language-id="$searchable->first()->id" :detailed="true" />
+            </x-panel>
+        @endif
+
         <a href="/profile" class="inline-block max-lg:py-2">
             <x-forms.button-small>Back to account</x-forms.button-small>
         </a>
@@ -52,6 +69,11 @@
                     .removeClass('text-white/50');
             }).fail(function () {
                 $('#openaiStatus').text('✗ The check itself failed.').addClass('text-red-400').removeClass('text-white/50');
+            });
+
+            // Searching another language: the same search, pointed at it.
+            $('#statusLexiconLanguage').on('change', function () {
+                $('#statusLexiconSearch').data('language-id', $(this).val()).find('.js-lexicon-query').trigger('input');
             });
         });
     </script>

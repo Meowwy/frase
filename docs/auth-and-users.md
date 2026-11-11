@@ -51,10 +51,14 @@ to `/profile/edit` and the wordbox ordering page. [Frammenti](frammenti.md) has 
 
 ## `/profile/status` (`StatusController`)
 
-A "System status" button on `/profile` opens a small page for answering "why isn't this working" without reading logs. It has two panels, open to any signed-in user (the app is invite-only, and nothing on it is secret):
+A "System status" button on `/profile` opens a small page for answering "why isn't this working" without reading logs. It has these panels, open to any signed-in user (the app is invite-only, and nothing on it is secret):
 
 - **OpenAI** — the page renders first and then asks `GET /profile/status/openai` (JSON `{ok, message}`), which runs `AI::checkConnection()`: a `GET /v1/models/{model}` of the app's own chat model. OpenAI has no dedicated health endpoint, and this one is free (no tokens), needs the key, and so proves reachability, a valid key and that the model exists in one request, with a 5-second timeout. It names the failure: no key set, unreachable, key rejected (401), model unavailable (404), or the status it answered with.
 - **Lexicon** — per language the learner studies (and any other with rows): *Ready* with the number of nouns (and how many have a gender) and verbs (and how many have a dictionary form), from `Lexicon::summary()`, or *Not loaded*, meaning the AI answers that language's grammar. Only Swedish has an importer; see [cards](cards.md) "The lexicon".
+- **Lexicon search** — only when some listed language has a lexicon (a select picks among them when
+  there are several): the shared `<x-lexicon-search>` in `detailed` mode, listing every field the
+  lexicon holds (lemma, part of speech, gender, dictionary form, paradigm…) for each entry of each
+  matching lemma + part of speech — for checking what the lexicon will answer for a word.
 
 ## `/profile/edit`
 
