@@ -111,7 +111,9 @@ is what Frammenti drills (below), word by word on its own schedule. See [cards](
 
 `/cards` — every saved term in one searchable table: filter by language and search by term as you
 type. Each row shows the term, its translation and the date you saved it, newest first. Select
-multiple cards to bulk-delete them. Opening a card
+multiple cards to bulk-delete them. A card's edit page also lists its words: strike one to unlink
+it (and ignore it, as in staging), or add another word from your base, choosing which meaning the
+card uses. Opening a card
 gives you **previous/next** arrows to walk that language's terms in the same order the list shows
 them, without going back to the list each time. See [cards](cards.md).
 

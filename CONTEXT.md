@@ -142,7 +142,8 @@ _Avoid_: accept, confirm, publish, commit; decline and reject (the word is disca
 
 **Strike**:
 Marking a proposed new word as an ignored word, so it never becomes a base word, or a proposed fixed
-expression so this proposal doesn't save it. It governs what enters the vocabulary and expression
+expression so this proposal doesn't save it. On a card's edit page, striking a linked word unlinks
+it and ignores it the same way; striking an expression only unlinks it. It governs what enters the vocabulary and expression
 bases only — it never rewrites the Term.
 _Avoid_: exclude, skip, drop, delete, unlink
 

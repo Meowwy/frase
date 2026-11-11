@@ -653,6 +653,25 @@ heading is `font-medium`, not `font-bold` — there is no focus word left to emp
 the Term itself is what's shown. Because a whole-sentence Term can be much longer than a single
 word, the heading wraps (`flex-wrap` + `break-words`).
 
+## Editing a card's words (`cards/edit.blade.php`)
+
+Below the Term/translation/note form, the edit page lists the card's linked base words (display
+form, part of speech, the meaning the card uses) and fixed expressions as chips, each with the
+staging **Strike** ✕, and an **Add a word from your base** search. Each change is its own request
+and reloads the page; all go through `CardPolicy`.
+
+- **Striking a word** (`DELETE /cards/{card}/words/{baseWord}`) detaches it from this card and
+  adds it to the language's ignored words, exactly as striking a chip in staging does — the card
+  keeps no link to a struck word. The base entry itself stays: other cards may use it.
+- **Striking an expression** (`DELETE /cards/{card}/expressions/{expression}`) only detaches it:
+  an expression is never remembered as ignored.
+- **Adding a word** searches the learner's **own base** in the card's language
+  (`GET /cards/{card}/word-search?q=`, a lemma prefix, words not linked yet), never the lexicon:
+  a link is always to an entry the base already has, so the one-entry-per-lemma-and-part-of-speech
+  rule can't be broken from here. A word with several meanings shows them as a select;
+  `POST /cards/{card}/words` (`base_word_id`, `base_word_sense_id`) links it in that meaning (the
+  first when none or a foreign one is given).
+
 ## Manual card linking ("Linked cards")
 
 Users manually link two of their **same-language** cards from the card detail page. Links are

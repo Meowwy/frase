@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreCardRequest;
 use App\Http\Requests\UpdateCardRequest;
+use App\Models\BaseWord;
 use App\Models\Card;
+use App\Models\FixedExpression;
+use App\Models\IgnoredWord;
 use App\Models\Theme;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -218,7 +221,96 @@ class CardController extends Controller
     {
         $this->authorize('update', $card);
 
+        $card->load(['language', 'baseWords.senses', 'baseWords.language', 'fixedExpressions']);
+
         return view('cards.edit', ['card' => $card]);
+    }
+
+    /**
+     * The edit page's "Add word": the learner's own base words in the card's language (never
+     * the lexicon — a link is to an entry the base already has) that the card doesn't link
+     * yet, with their meanings to choose from.
+     */
+    public function wordSearch(\Illuminate\Http\Request $request, Card $card)
+    {
+        $this->authorize('update', $card);
+
+        $q = trim((string) $request->query('q', ''));
+
+        if ($q === '') {
+            return response()->json(['results' => []]);
+        }
+
+        $words = Auth::user()->baseWords()->with(['senses', 'language'])
+            ->where('language_id', $card->language_id)
+            ->whereNotIn('id', $card->baseWords()->pluck('base_words.id'))
+            ->where('lemma', 'like', $q.'%')
+            ->orderBy('lemma')
+            ->limit(10)
+            ->get();
+
+        return response()->json(['results' => $words->map(fn (BaseWord $word) => [
+            'id' => $word->id,
+            'display_form' => $word->displayForm(),
+            'part_of_speech' => $word->part_of_speech,
+            'senses' => $word->senses->map->only('id', 'translation')->values(),
+        ])]);
+    }
+
+    /**
+     * Link one of the learner's base words to this card, in the meaning chosen (the word's
+     * first when it has one only). The base itself is untouched: one entry per lemma + part
+     * of speech, so linking never creates one.
+     */
+    public function linkWord(\Illuminate\Http\Request $request, Card $card)
+    {
+        $this->authorize('update', $card);
+
+        $data = $request->validate([
+            'base_word_id' => ['required', 'integer'],
+            'base_word_sense_id' => ['nullable', 'integer'],
+        ]);
+
+        $word = Auth::user()->baseWords()->where('language_id', $card->language_id)->findOrFail($data['base_word_id']);
+        $sense = $word->senses()->find($data['base_word_sense_id'] ?? 0) ?? $word->senses()->first();
+
+        $card->baseWords()->syncWithoutDetaching([$word->id => ['base_word_sense_id' => $sense?->id]]);
+
+        return response()->noContent();
+    }
+
+    /**
+     * Strike a word off this card, as in staging: the card no longer links it, and it becomes
+     * an ignored word of the language, so staging never proposes it again. The base entry
+     * itself stays — other cards may use it.
+     */
+    public function strikeWord(Card $card, BaseWord $baseWord)
+    {
+        $this->authorize('update', $card);
+        abort_unless($card->baseWords()->whereKey($baseWord->id)->exists(), 404);
+
+        $card->baseWords()->detach($baseWord->id);
+
+        $attributes = $baseWord->only('user_id', 'language_id', 'part_of_speech');
+
+        if (! IgnoredWord::where($attributes)->whereLemma($baseWord->lemma)->exists()) {
+            IgnoredWord::create($attributes + ['lemma' => $baseWord->lemma]);
+        }
+
+        return response()->noContent();
+    }
+
+    /**
+     * Take a fixed expression off this card. An expression is never remembered as ignored
+     * (as in staging), so this only drops the link.
+     */
+    public function strikeExpression(Card $card, FixedExpression $expression)
+    {
+        $this->authorize('update', $card);
+
+        $card->fixedExpressions()->detach($expression->id);
+
+        return response()->noContent();
     }
 
     /**

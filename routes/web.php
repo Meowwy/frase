@@ -226,6 +226,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/cards/{card:id}/links', [CardController::class, 'link']);
     Route::delete('/cards/{card:id}/links/{other:id}', [CardController::class, 'unlink']);
     Route::post('/cards/{card:id}/note', [CardController::class, 'saveNote']);
+    // The edit page's words: add a base word, strike a word (→ ignored) or an expression.
+    Route::get('/cards/{card:id}/word-search', [CardController::class, 'wordSearch']);
+    Route::post('/cards/{card:id}/words', [CardController::class, 'linkWord']);
+    Route::delete('/cards/{card:id}/words/{baseWord}', [CardController::class, 'strikeWord']);
+    Route::delete('/cards/{card:id}/expressions/{expression}', [CardController::class, 'strikeExpression']);
     Route::post('/cards/{card:id}/delete', function ($id) {
         $card = Auth::user()->cards()->find($id);
         if ($card) {
