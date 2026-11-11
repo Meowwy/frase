@@ -58,7 +58,20 @@ class AnalyzeProposalJob implements ShouldQueue
                 $languages->map(fn (Language $l) => ['code' => $l->code, 'name' => $l->name])->all(),
                 optional($user->nativeLanguage)->name ?? $user->native_language,
                 $this->proposal->context,
+                detectForeign: ! $this->proposal->language_id,
             );
+
+            // The Term is in none of the learner's languages: nothing is proposed, staging
+            // shows the refusal and offers only Discard.
+            if ($foreign = trim((string) ($analysis['foreign_language'] ?? ''))) {
+                $this->proposal->update([
+                    'term' => trim((string) ($analysis['term'] ?? '')) ?: $this->proposal->raw_input,
+                    'foreign_language' => $foreign,
+                    'status' => Proposal::STATUS_COMPLETED,
+                ]);
+
+                return;
+            }
 
             $term = trim((string) ($analysis['term'] ?? ''));
             $language = $analysis ? $languages->firstWhere('name', $analysis['language'] ?? null) : null;

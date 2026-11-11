@@ -126,6 +126,25 @@ class CaptureStagingTest extends TestCase
         $this->assertSame(['hur', 'kosta', 'mycket'], $proposal->baseWords->pluck('lemma')->sort()->values()->all());
     }
 
+    public function test_a_term_in_none_of_the_learners_languages_is_refused(): void
+    {
+        [$user] = $this->learner();
+        $this->fakeOpenAi($this->analysis(['foreign_language' => 'German', 'term' => 'Wie viel kostet das']));
+
+        $this->actingAs($user)->postJson('/capture', ['capturedWord' => 'Wie viel kostet das']);
+
+        $proposal = $user->proposals()->sole();
+        $this->assertSame('German', $proposal->foreign_language);
+        $this->assertNull($proposal->language_id);
+        $this->assertCount(0, $proposal->baseWords);
+        $this->assertFalse($proposal->isApprovable());
+        Http::assertSent(fn ($request) => isset($request->data()['response_format']['json_schema']['schema']['properties']['foreign_language']));
+
+        $rows = $this->actingAs($user)->getJson('/staging/list')->json('rows');
+        $this->assertStringContainsString("in German, which isn't one of your languages", html_entity_decode($rows, ENT_QUOTES));
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(422);
+    }
+
     public function test_an_a2_learner_keeps_the_function_words(): void
     {
         [$user] = $this->learner('A2');

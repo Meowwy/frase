@@ -111,7 +111,7 @@ _Avoid_: inbox, queue, drafts, pending, review (that belongs to LEARN)
 One captured Term awaiting approval in staging, together with everything the AI proposes for it: the
 Term with its typos fixed, its base words, its fixed expressions and, while its meaning is still open,
 one clarifying question — or, for a Term at home in several of the learner's languages, only the languages to
-pick from.
+pick from. A Term in none of the learner's languages gets nothing: staging refuses it.
 _Avoid_: draft, candidate, suggestion, staged card (it is more than a card)
 
 **Language picker**:

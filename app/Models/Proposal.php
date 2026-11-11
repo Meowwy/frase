@@ -145,7 +145,7 @@ class Proposal extends Model
     {
         $this->baseWords()->delete();
         $this->fixedExpressions()->delete();
-        $this->update(['clarify_rounds' => 0, ...$attributes, 'language_options' => null, 'clarification' => null, 'status' => self::STATUS_PENDING]);
+        $this->update(['clarify_rounds' => 0, ...$attributes, 'language_options' => null, 'clarification' => null, 'foreign_language' => null, 'status' => self::STATUS_PENDING]);
 
         AnalyzeProposalJob::dispatch($this);
     }

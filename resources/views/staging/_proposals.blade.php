@@ -32,6 +32,20 @@
                 <x-forms.button-small class="js-retry ml-auto max-lg:px-3">Try again</x-forms.button-small>
                 <button type="button" class="js-discard text-white/50 hover:text-white max-lg:min-h-11 max-lg:min-w-11" title="Delete">🗑</button>
             </div>
+        @elseif($proposal->foreign_language)
+            {{-- Refused: CALL 1 found the Term in a language that is none of the learner's,
+                 so nothing was proposed. Approve stays visible but inactive. --}}
+            <div class="border-b border-white/10 pb-3">
+                <span class="js-term text-2xl font-medium break-words">{{ $proposal->term }}</span>
+            </div>
+            <p class="mt-3 text-sm text-white/60">
+                <span class="text-red-400">✕</span>
+                This Term is in {{ $proposal->foreign_language }}, which isn't one of your languages.
+            </p>
+            <div class="mt-4 flex items-center gap-2">
+                <x-forms.button class="js-approve max-lg:flex-1" disabled="true">Approve</x-forms.button>
+                <x-forms.button-small class="js-discard max-lg:px-4">Discard</x-forms.button-small>
+            </div>
         @elseif($proposal->language_options)
             {{-- The language picker: the Term is a real word in more than one of the
                  learner's languages, so CALL 1 asks before extracting anything. Picking one

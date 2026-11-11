@@ -342,7 +342,8 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `user_id` | |
 | `language_id` | nullable until CALL 1 resolves it — detection is CALL 1's job — and while the language picker is waiting on the learner |
 | `language_options` | nullable JSON (`array` cast) — the language picker's options, as language ids with CALL 1's own pick first. Set only when CALL 1 found the Term at home in more than one of the learner's languages; nothing else (words, fixed expressions, a question) is stored alongside it |
-| `raw_input` | the term as typed/pasted, known immediately |
+| `foreign_language` | nullable — set when CALL 1 found the Term in a language that is none of the learner's (see "A Term in another language" below); nothing else is stored with it |
+| `raw_input` | the term as typed/pasted, available immediately |
 | `context` | nullable, the learner's own input — editable in staging (see below) |
 | `term` | nullable until CALL 1 resolves |
 | `clarification` | nullable JSON (`array` cast) — the one open question, `{topic, question, options: [{label, context}, …]}`, up to 4 options (see "The clarifying question") |
@@ -429,7 +430,7 @@ Deliberate shapes in the UI (`staging/index.blade.php`):
 **Correcting the language or editing the Context re-runs CALL 1** (`Proposal::reanalyze()`) rather
 than patching the row: the candidate words were extracted, translated and tagged for the old
 language and sense, so they cannot be carried over. It deletes the word and fixed-expression chips,
-clears `language_options` and `clarification`, resets `clarify_rounds` (unless the caller sets it), writes the
+clears `language_options`, `clarification` and `foreign_language`, resets `clarify_rounds` (unless the caller sets it), writes the
 new value, flips the status back to `pending` and re-dispatches. `AnalyzeProposalJob` reads a
 pre-set `language_id` as "pinned" and offers the model only that one language, so the re-run can't
 drift back to its original guess.
@@ -444,6 +445,13 @@ other language and has nothing left to ask. Pinning, rather than writing the lan
 Context the way a sense is, keeps the learner's Context their own: it is stored on the card and
 reaches CALL 2. The language comes first because meanings depend on it; a clarifying question can follow on
 the re-run.
+
+**A Term in another language.** The learner's languages are their target languages (plus the
+native one when they collect native-language vocabulary). When an unpinned CALL 1 says the Term is
+in none of them, `AnalyzeProposalJob` stores only the Term and `foreign_language`, with no
+language, words or question, and staging shows the proposal as refused — "This Term is in German,
+which isn't one of your languages" — with Approve disabled (it has no language) and Discard.
+Nothing is offered to fix it, since there is no language of theirs to save it in.
 
 **The clarifying question.** Staging must leave the learner with exactly the meaning they want,
 for a word, a phrase or a sentence alike, so CALL 1 asks about **anything the Term and the Context

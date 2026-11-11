@@ -183,7 +183,8 @@ class AI
      * [['code' => 'sv', 'name' => 'Swedish'], ...] — detection picks from it rather than
      * from every language there is.
      *
-     * Returns ['language' => string, 'other_languages' => [string, ...] (only offered with
+     * Returns ['foreign_language' => string ('' unless the Term is in none of the learner's
+     * languages; only asked when $detectForeign), 'language' => string, 'other_languages' => [string, ...] (only offered with
      * two or more candidate languages), 'term' => string, 'clarification' => [] or one
      * ['topic', 'question', 'options' => [['label', 'context'], ...]], 'fixed_expressions' => [['form',
      * 'translation'], ...], 'base_words' => [['lemma', 'part_of_speech'], ...]] or null on
@@ -191,7 +192,7 @@ class AI
      *
      * @param  array<int, array{code:string, name:string}>  $candidateLanguages
      */
-    public static function analyzeTerm(string $term, array $candidateLanguages, ?string $nativeLanguage, ?string $context = null): ?array
+    public static function analyzeTerm(string $term, array $candidateLanguages, ?string $nativeLanguage, ?string $context = null, bool $detectForeign = true): ?array
     {
         logger('Analyzing term '.$term);
 
@@ -211,7 +212,20 @@ class AI
             $user .= " Context: \"{$context}\".";
         }
 
-        $properties = [
+        $properties = [];
+
+        // First, so the model commits to it before anything else: without it the `language`
+        // enum forced a Term in some other language into one of the learner's (a German
+        // Term labelled Swedish, with nonsense words extracted). A pinned re-run skips it —
+        // the learner has said which language it is.
+        if ($detectForeign) {
+            $properties['foreign_language'] = [
+                'type' => 'string',
+                'description' => 'Leave this an EMPTY string unless the Term is clearly written in a language that is NONE of the learner\'s languages listed (and not the native language either, unless it is listed). Then give that language\'s English name (e.g. "German") and fill the other fields with anything minimal - they are thrown away. A name, a loanword, or a word that also exists in one of the learner\'s languages does NOT count: leave it empty.',
+            ];
+        }
+
+        $properties += [
             'language' => [
                 'type' => 'string',
                 'enum' => $names,

@@ -82,6 +82,7 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
 
 ```
 {
+  foreign_language,                          // '' — or the Term's language when it is none of the learner's (unpinned runs only)
   language,                                  // one of the candidate language NAMES
   other_languages: [name, ...],              // only in the schema with 2+ candidate languages
   term,
@@ -91,7 +92,15 @@ up front. `$candidateLanguages` is the learner's own attached set as `[['code' =
 }
 ```
 
-- **`language` is first**: strict structured outputs emit keys in schema order, so the model
+- **`foreign_language` comes before everything**: empty unless the Term is clearly in a language
+  that is none of the learner's (a name, a loanword or a word that also exists in one of theirs
+  doesn't count). It exists because `language` is an `enum` over the learner's languages, so a
+  German Term captured by a Swedish+English learner was forced into one of them and nonsense words
+  were extracted. When it is filled, `AnalyzeProposalJob` stores only the Term and
+  `proposals.foreign_language` and drops the rest; staging refuses the proposal (see
+  [cards](cards.md) "Staging"). A pinned re-run (the learner picked or corrected the language) is
+  not asked (`$detectForeign = false`): the learner has said which language it is.
+- **`language`** follows: strict structured outputs emit keys in schema order, so the model
   commits to it before writing anything whose rules depend on it. It is an `enum` over the
   candidate names, so an unknown language can't come back at all.
 - **`other_languages`** is empty unless the Term, exactly as written, is also a real, common word
