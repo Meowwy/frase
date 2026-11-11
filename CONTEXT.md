@@ -360,6 +360,12 @@ A planned run of batches over the due items in one language: finite, fixed when 
 on return. Another can follow the same day while items are still due.
 _Avoid_: lesson, round, workout
 
+**Classic**:
+The flashcard alternative to a Frammenti session: the same due base words and fixed expressions,
+on the same schedule, flipped or written in the card-review view instead of AI fragments. Not a
+learning mode — it reviews no card.
+_Avoid_: translation mode (that is the card learning mode), flashcard Frammenti, review mode
+
 **Early answer**:
 An answer to an item that isn't due — filler in a short batch. It doesn't move the schedule.
 _Avoid_: bonus, practice answer

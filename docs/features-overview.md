@@ -136,6 +136,10 @@ regardless of schedule), then a mode:
 - **Translation** (the first mode) — see the translation, recall the term, flip to check. The
   classic Anki-style review. A card in your own native language has no translation, so Translation
   mode leaves it out.
+- Answer by flipping the card, or choose **Write the answer**: type it, press Enter to see the
+  answer beside what you wrote, then mark yourself right or wrong.
+- Each card is saved the moment you get it right, so closing the window loses nothing; a card you
+  missed and haven't got right yet is left as it was if you quit.
 - Reviews use **spaced repetition**: getting a card right pushes its next review further out
   (doubling each time), getting it wrong resets it to "review again tomorrow."
 - See [learning-flow](learning-flow.md).
@@ -154,6 +158,10 @@ regardless of schedule), then a mode:
   whole sentence into the language you're learning, 6–8 write your own sentence for a situation
   ("Tell your friend…"), which the AI checks (other mistakes are corrected but don't count against
   the word). Words at tier II and up are your **Active words** — the ones you can produce.
+- **Classic** is the other way through the same due words: as flashcards — the word's translation
+  over the translation of your latest card with it, its part of speech as a pill — flipped or
+  written, missed ones repeated until right. It moves the same levels (a miss drops a word to the
+  bottom, back tomorrow) and needs no AI.
 - A **streak** counts the days you finish a session (one missed day a week is forgiven).
 - Opens for a language once you've saved enough words in it: at least 5 words of any kind, or at
   A1/A2 (or with no level set) at least 10 nouns, 5 verbs and 5 adjectives or adverbs.

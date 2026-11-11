@@ -11,7 +11,8 @@ in [conversation-challenge](conversation-challenge.md)'s sibling doc, the SRS-sp
 The **Learn** nav link goes to `/setLearning`, a language-aware card-set builder (closure in
 `web.php`, not a controller — see [overview](overview.md) "Routing"). Flow: pick a target language (the
 `<x-language-switcher>` row — multi-language users only, client-side toggle, no DB calls —
-see [multi-language](multi-language.md)) → **Due** (default) vs. **Cram** → a learning mode. A
+see [multi-language](multi-language.md)) → **Due** (default) vs. **Cram** → **Flip cards**
+(default) vs. **Write the answer** (the answer style, see "Flashcard view details") → a learning mode. A
 session is always every card of the language; wordboxes group base words for gap-fill and play no
 part here (see [wordboxes-themes-tags](wordboxes-themes-tags.md)).
 
@@ -22,7 +23,7 @@ must change the other, or the counts shown in the builder will disagree with wha
 actually serves.
 
 Selection is submitted to `GET /startLearningSet/{mode}` as `language_id` / `scope`
-(`due|cram`) query params, handled by
+(`due|cram`) / `style` (`cards|writing`, `Learning::answerStyle()`) query params, handled by
 **`Learning::startLearningSet()`** (a static method used directly as the route action — see
 [overview](overview.md)). It validates ownership of the language, normalizes `scope` to a
 known value, and stores a **structured array** in `session('learning_filter')` before rendering.
@@ -45,8 +46,9 @@ Accepts **either** the structured array from the builder (dispatches to
 `getCardsForSelection()`) **or** the legacy string filter (`'due'` or a theme name) for the old entry points — kept as one method so `renderLearningView()` doesn't need
 to know which flow it's serving.
 
-Both code paths share the same **due-set cap**, `Learning::onlyDue()`: if more than 20 cards are
-due, only **15** are served and `session(['more_cards_available' => true])` is set (the UI can then
+Both code paths share the same **due-set cap**, `Learning::onlyDue()`: if more than 20
+(`Learning::DUE_CAP`) cards are due, only **15** (`DUE_SERVED`) are served (Frammenti's
+[Classic](frammenti.md#classic) uses the same two constants) and `session(['more_cards_available' => true])` is set (the UI can then
 show a "there are more due" hint); otherwise all due cards are served. `cram` scope returns
 everything, uncapped. A theme is looked up
 among the learner's own themes; an unknown one serves nothing. The returned collection is always
@@ -76,8 +78,8 @@ card has no translation and is left out of the deck, rather than shown with an e
 hint: the hint used to be the card's blanked example sentence, and cards no longer have one.
 
 The full set is serialized as a JS variable (`let cards = [...];`) and handed
-to `learning/index.blade.php`, which drives the whole session **client-side** — no per-card request
-during review.
+to `learning/index.blade.php`, which drives the session **client-side**: dealing, flipping and
+repeating need no request, and only saving a card does (see "Saving" below).
 
 A correct answer clears the card (SRS level/`next_study_at` advance —
 see "SRS algorithm" below) and stamps last-recall on **every** base word and fixed expression
@@ -99,7 +101,7 @@ set, the builder counts, the dashboard counts — filters `level < 8`). Nothing 
 it stays reachable via `cram`.
 
 Persisting a result (`AjaxController@saveLearning` — the whole of what that controller is now,
-`POST /saveLearning`) reads a JSON array of
+`POST /saveLearning`; `204` to an AJAX request, else a redirect to `/completeLearning`) reads a JSON array of
 `{id, result}` from the request, and per card: sets `next_study_at` via the formula above,
 increments `level` on a correct result or **resets it to 1** on a wrong one, stamps
 `last_studied = now()`, saves. The cards are loaded through `Auth::user()->cards()`, so an id
@@ -111,11 +113,20 @@ expression linked to that card (`Card::stampRecall()`).
 Conversation mode's recap (`ChatController@recap`) applies the `results` branch's behaviour
 directly, base-word stamping included.
 
-**In-session flow is repeat-until-correct**, entirely client-side: a card marked *Wrong* is
-recorded locally (only actually persisted to `/saveLearning` as whatever its **final** result in
-the session was, once) and stays in the deck until answered *Correct*; the session ends only when
-the local deck queue is empty. The visible "queue" counter is the real remaining-card count, not
-a one-pass countdown.
+**In-session flow is repeat-until-correct**: a card marked *Wrong* stays in the deck until
+answered *Correct*; the session ends only when the local deck queue is empty. The visible "queue"
+counter is the real remaining-card count, not a one-pass countdown.
+
+**Saving.** A card's grade is its **first** answer, and it is posted (AJAX, one request per card,
+in order on one promise chain) **the moment the card leaves the deck** — answered correctly, at
+once or after misses. So closing the browser or losing the connection loses nothing already
+cleared: a later due session simply doesn't serve those cards again, which is how a session is
+"continued". A card still waiting on its repeat after a miss is **not** saved when the learner
+leaves (Save and quit, or closing the tab): it keeps its level and stays due exactly like a card
+never shown. Sending everything once at the end used to lose the whole session when the window
+closed, and **Save and quit** used to send those pending misses as well. Save and quit now only
+waits for the saves in flight and posts the form empty, for the redirect. The article drill and
+Classic use the same view and the same per-card saving, on their own endpoints.
 
 ## Flashcard view details (`learning/index.blade.php`)
 
@@ -138,9 +149,15 @@ a one-pass countdown.
   the numpad both work. Each button shows its key(s) as an `<x-kbd>` badge (hidden below lg, where
   there is no keyboard to press).
 - The **hint** panel is hidden for any entry whose `hint` is empty, which today is every entry. It is kept, not deleted, so a future hint source only has to fill the field.
-- The results form posts to the view's `action` prop, `/saveLearning` by default. Frammenti's
-  [article drill](frammenti.md#article-drill) reuses the view for its noun flip cards and passes
-  its own endpoint, so its answers never touch a card's schedule.
+- The results go to the view's `action` prop, `/saveLearning` by default. Frammenti's
+  [article drill](frammenti.md#article-drill) and [Classic](frammenti.md#classic) reuse the view
+  and pass their own endpoints, so their answers never touch a card's schedule.
+- **Answer style** (`answerStyle` prop): `cards` flips the card; `writing` puts an input under it —
+  the learner writes the answer and **Enter** (or Show answer / tapping the card) reveals the back
+  with "You wrote: …" beside it. Nothing is matched: they grade themselves with the same Wrong /
+  Correct buttons. Offered by the builder for card review and by Classic.
+- An entry's optional **`pill`** shows above the card in an orange pill — Classic's part of
+  speech. Card review sends none, so it stays hidden there.
 
 ## Conversation mode (live AI roleplay chat)
 

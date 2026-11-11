@@ -54,6 +54,16 @@
                         data-scope="cram">Cram all cards</button>
             </div>
 
+            {{-- How to answer: flip the card, or write the Term first (shown, never matched). --}}
+            <div class="mt-3 flex gap-2">
+                <button type="button"
+                        class="style-btn px-4 py-2 rounded-lg font-bold text-white transition bg-white/10 hover:bg-white/20 opacity-100 ring-2 ring-white/70 max-lg:min-h-12 max-lg:flex-1"
+                        data-style="cards">Flip cards</button>
+                <button type="button"
+                        class="style-btn px-4 py-2 rounded-lg font-bold text-white transition bg-white/10 hover:bg-white/20 opacity-40 max-lg:min-h-12 max-lg:flex-1"
+                        data-style="writing">Write the answer</button>
+            </div>
+
             <x-section-heading>
                 <span id="reviewSentence" class="max-lg:leading-loose">Review <span id="startScope" class="bg-orange-800 text-white rounded-full px-3 py-1">due cards</span> by...</span>
                 <span id="noCardsSentence" class="hidden">No cards to review</span>
@@ -88,6 +98,7 @@
                 const state = {
                     languageId: '{{ $activeLanguageId }}',
                     scope: 'due',          // 'due' | 'cram'
+                    style: 'cards',        // 'cards' | 'writing'
                 };
 
                 // How many cards the current selection yields. For 'due' we mirror the
@@ -126,6 +137,7 @@
                     const params = $.param({
                         language_id: state.languageId,
                         scope: state.scope,
+                        style: state.style,
                     });
                     $('.mode-link').each(function () {
                         $(this).attr('href', '/startLearningSet/' + $(this).data('mode') + '?' + params);
@@ -147,6 +159,15 @@
                         $(this).toggleClass('opacity-100 ring-2 ring-white/70', on).toggleClass('opacity-40', !on);
                     });
                     updateStartHeading();
+                    updateModeLinks();
+                });
+
+                $('.style-btn').on('click', function () {
+                    state.style = String($(this).data('style'));
+                    $('.style-btn').each(function () {
+                        const on = String($(this).data('style')) === state.style;
+                        $(this).toggleClass('opacity-100 ring-2 ring-white/70', on).toggleClass('opacity-40', !on);
+                    });
                     updateModeLinks();
                 });
 

@@ -206,13 +206,12 @@ class Frammenti
         $today = $user->today();
 
         if (self::isDue($item, $today)) {
-            $item->frammenti_level = $correct ? min($item->frammenti_level + 1, self::MAX_LEVEL) : 0;
-            $item->frammenti_due_on = match (true) {
-                ! $correct => $today,
-                // Reaching the top level ends the schedule: never due again.
-                self::isRetired($item) => null,
-                default => Carbon::parse($today)->addDays(2 ** ($item->frammenti_level - 1))->toDateString(),
-            };
+            if ($correct) {
+                self::climb($item, $today);
+            } else {
+                $item->frammenti_level = 0;
+                $item->frammenti_due_on = $today;
+            }
         }
 
         // All three tiers are production, so every correct answer is a recall.
@@ -230,6 +229,88 @@ class Frammenti
         }
 
         return $session;
+    }
+
+    /**
+     * A correct answer to a due item: one level up, back in 2^(level − 1) days — or never,
+     * once it reaches MAX_LEVEL.
+     */
+    private static function climb(BaseWord|FixedExpression $item, string $today): void
+    {
+        $item->frammenti_level = min($item->frammenti_level + 1, self::MAX_LEVEL);
+        $item->frammenti_due_on = self::isRetired($item)
+            ? null
+            : Carbon::parse($today)->addDays(2 ** ($item->frammenti_level - 1))->toDateString();
+    }
+
+    /**
+     * The items due now in one language, at random — what a Frammenti session plans over and
+     * what Classic serves.
+     */
+    public static function dueItems(User $user, Language $language): Collection
+    {
+        $today = $user->today();
+
+        return self::items($user, $language)->filter(fn ($item) => self::isDue($item, $today))->shuffle()->values();
+    }
+
+    /**
+     * Classic: the due items as flashcards, capped like a due card session (Learning::DUE_CAP).
+     * Front: the item's translation in the meaning its latest card uses, over that card's own
+     * translation; back: the display form; the part of speech as a pill. Ids are "type:id".
+     *
+     * @return array<int, array{id: string, front: string, back: string, hint: string, pill: string}>
+     */
+    public static function classicEntries(User $user, Language $language): array
+    {
+        $items = self::dueItems($user, $language);
+
+        if ($items->count() > Learning::DUE_CAP) {
+            $items = $items->take(Learning::DUE_SERVED);
+        }
+
+        return $items->map(function (BaseWord|FixedExpression $item) {
+            $isWord = $item instanceof BaseWord;
+            // The latest card holding it; for a word, the link names the meaning that card uses.
+            $card = $item->cards()->orderByDesc('cards.created_at')->orderByDesc('cards.id')->first();
+            $meaning = $isWord && $card?->pivot?->base_word_sense_id
+                ? $item->senses()->whereKey($card->pivot->base_word_sense_id)->value('translation')
+                : null;
+
+            return [
+                'id' => self::key($item),
+                'front' => trim(($meaning ?? $item->translation)."\n".($card?->translation ?? '')),
+                'back' => $isWord ? $item->displayForm() : $item->form,
+                'hint' => '',
+                'pill' => $isWord ? $item->part_of_speech : 'expression',
+            ];
+        })->all();
+    }
+
+    /**
+     * One Classic answer, on the item's stored schedule like answer(): only a due item moves.
+     * Right climbs exactly as in Frammenti; wrong drops it the way a wrong card drops — to the
+     * bottom level, back the next day (Learning::getNextStudyDay()) — rather than due again
+     * today, since Classic repeats a miss within the session itself.
+     */
+    public static function answerClassic(User $user, BaseWord|FixedExpression $item, bool $correct): void
+    {
+        $today = $user->today();
+
+        if (self::isDue($item, $today)) {
+            if ($correct) {
+                self::climb($item, $today);
+            } else {
+                $item->frammenti_level = 0;
+                $item->frammenti_due_on = Learning::getNextStudyDay($item->frammenti_level, 0)
+                    ->setTimezone($user->timezone ?? config('app.timezone'))->toDateString();
+            }
+        }
+
+        if ($correct) {
+            $item->last_recalled_at = now();
+        }
+        $item->save();
     }
 
     /**

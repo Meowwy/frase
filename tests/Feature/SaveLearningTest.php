@@ -47,6 +47,19 @@ class SaveLearningTest extends TestCase
         $this->assertSame(2, $card->level);
     }
 
+    public function test_a_card_saved_as_it_leaves_the_deck_answers_no_content(): void
+    {
+        $owner = User::factory()->create();
+        $card = Card::factory()->create(['user_id' => $owner->id, 'level' => 3, 'next_study_at' => now()]);
+
+        $this->actingAs($owner)->post('/saveLearning', ['results' => json_encode([['id' => $card->id, 'result' => 0]])], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertNoContent();
+        $this->assertSame(1, $card->fresh()->level);
+
+        // Leaving posts nothing new and only redirects.
+        $this->actingAs($owner)->post('/saveLearning', ['results' => '[]'])->assertRedirect('/completeLearning');
+    }
+
     public function test_a_correct_review_stamps_the_cards_base_words_and_fixed_expressions(): void
     {
         $owner = User::factory()->create();

@@ -8,6 +8,7 @@ use App\Models\BaseWord;
 use App\Models\FixedExpression;
 use App\Models\Frammenti;
 use App\Models\Language;
+use App\Models\Learning;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -38,6 +39,7 @@ class FrammentiController extends Controller
             'activeWords' => $language ? Frammenti::activeWords($user, $language) : 0,
             'streak' => Frammenti::streak($user),
             'articles' => $language && ArticleDrill::available($language) ? ArticleDrill::due($user, $language)->count() : null,
+            'classicDue' => $language ? Frammenti::dueItems($user, $language)->count() : 0,
         ]);
     }
 
@@ -54,12 +56,14 @@ class FrammentiController extends Controller
             'cards' => 'let cards = '.json_encode($cards).';',
             'cardCount' => count($cards),
             'action' => route('frammenti.articles', ['language_id' => $language->id]),
+            'answerStyle' => 'cards',
         ]);
     }
 
     /**
-     * Persist a finished article-drill session: `results`, `{id, result}` per noun, its
-     * first answer. Another learner's id is skipped, as on /saveLearning.
+     * Persist article-drill answers: `results`, `{id, result}` per noun, its first answer,
+     * sent as each noun leaves the deck (AJAX, 204) and once more, empty, to leave (a redirect
+     * back to Frammenti). Another learner's id is skipped, as on /saveLearning.
      */
     public function saveArticles(Request $request)
     {
@@ -74,7 +78,58 @@ class FrammentiController extends Controller
             }
         }
 
-        return redirect()->route('frammenti', ['language_id' => $language->id]);
+        return $request->ajax()
+            ? response()->noContent()
+            : redirect()->route('frammenti', ['language_id' => $language->id]);
+    }
+
+    /**
+     * Classic: the due words and fixed expressions as flashcards in the card-review view,
+     * answered by flipping (`style=cards`) or by typing first (`style=writing`). The
+     * alternative to a Frammenti session, on the same schedule. See docs/frammenti.md "Classic".
+     */
+    public function classic(Request $request)
+    {
+        $user = Auth::user();
+        $language = $this->targetLanguage((int) $request->query('language_id'));
+
+        abort_unless(Frammenti::enough($user, $language), 422);
+
+        $cards = Frammenti::classicEntries($user, $language);
+
+        return view('learning.index', [
+            'cards' => 'let cards = '.json_encode($cards).';',
+            'cardCount' => count($cards),
+            'action' => route('frammenti.classic', ['language_id' => $language->id]),
+            'answerStyle' => Learning::answerStyle($request->query('style')),
+        ]);
+    }
+
+    /**
+     * Save Classic answers — each item's first answer, sent as it leaves the deck — on the
+     * Frammenti schedule. Keys are "type:id"; another learner's item is skipped.
+     */
+    public function saveClassic(Request $request)
+    {
+        $user = Auth::user();
+        $language = $this->targetLanguage((int) $request->input('language_id'));
+
+        foreach (json_decode($request->input('results'), true) ?? [] as $r) {
+            [$type, $id] = array_pad(explode(':', (string) ($r['id'] ?? '')), 2, 0);
+            $relation = match ($type) {
+                'base_word' => $user->baseWords(),
+                'fixed_expression' => $user->fixedExpressions(),
+                default => null,
+            };
+
+            if ($item = $relation?->where('language_id', $language->id)->find((int) $id)) {
+                Frammenti::answerClassic($user, $item, ($r['result'] ?? 0) === 1);
+            }
+        }
+
+        return $request->ajax()
+            ? response()->noContent()
+            : redirect()->route('frammenti', ['language_id' => $language->id]);
     }
 
     /**

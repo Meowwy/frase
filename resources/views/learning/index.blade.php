@@ -1,6 +1,10 @@
-{{-- `action` is where the results go: the article drill (docs/frammenti.md) posts them to its
-     own endpoint, so it never touches a card's schedule. --}}
-@props(['cards', 'cardCount', 'action' => '/saveLearning'])
+{{-- `action` is where the results go: the article drill and Classic (docs/frammenti.md) post
+     them to their own endpoints, so they never touch a card's schedule. Each card's result is
+     posted (AJAX) as soon as it leaves the deck; leaving posts the form, empty, for the
+     redirect. `answerStyle` is `cards` (flip) or `writing` (type it, Enter reveals the answer,
+     nothing is matched, then the same self-grading). An entry's optional `pill` (Classic's part
+     of speech) shows above the card. --}}
+@props(['cards', 'cardCount', 'action' => '/saveLearning', 'answerStyle' => 'cards'])
 {{-- Below lg this is laid out like a native flashcard app: Save and quit at the top, a compact
      full-width card (tap it to flip) centred in the space left, and at the bottom a fixed panel:
      the counters as one row of small pills over Flip — or Wrong | Correct — as big buttons. The
@@ -18,14 +22,26 @@
 
     <div class="flex justify-center items-center max-lg:flex-1">
         <div class="flex-col items-center max-lg:w-full">
+            <div class="mb-2 flex justify-center">
+                <span id="cardPill" class="hidden rounded-full bg-orange-800 px-3 py-1 text-sm text-white"></span>
+            </div>
             <div class="flashcard" id="flashcard">
-                <div class="front" id="front">
+                <div class="front" id="front" style="white-space: pre-line">
                     No cards loaded.
                 </div>
-                <div class="back" id="back">
+                <div class="back" id="back" style="white-space: pre-line">
                     No cards loaded.
                 </div>
             </div>
+            @if($answerStyle === 'writing')
+                {{-- Writing: the attempt is never matched, only shown next to the answer. --}}
+                <div class="mx-auto mb-4 lg:max-w-[300px]">
+                    <input id="writeInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"
+                           placeholder="Write it, then press Enter"
+                           class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-base text-white focus:outline-none">
+                    <p id="writtenAnswer" class="hidden mt-2 text-sm text-white/60">You wrote: <span class="text-white"></span></p>
+                </div>
+            @endif
             <div>
                 {{-- Hidden for a card without a hint. No mode carries one now; the
                      panel stays so a future hint source can switch it back on. --}}
@@ -103,12 +119,26 @@
             correctInfo.innerText = (totalCards - cards.length).toString();
         }
 
+        // Saves go out one by one, in order; leaving waits for them. A card is saved once it
+        // leaves the deck, with its first answer — one still waiting on a repeat after a miss
+        // is never saved, so quitting leaves it due as if it had not been shown.
+        let saving = $.Deferred().resolve().promise();
+
+        function save(result) {
+            saving = saving.then(() => $.ajax({
+                url: resultsForm.action,
+                type: 'POST',
+                data: { _token: '{{ csrf_token() }}', results: JSON.stringify([result]) },
+            }).then(null, () => $.Deferred().resolve()));
+        }
+
         // Grade the current card and move on: a correct answer clears it from the deck,
         // a wrong one keeps it in rotation until it is answered correctly.
         function advance(correct) {
             recordResult(correct ? 1 : 0);
 
             if (correct) {
+                save(results.find(r => r.id === cards[currentIndex].id));
                 cards.splice(currentIndex, 1);
 
                 if (cards.length === 0) {
@@ -132,9 +162,11 @@
 
         exitBtn.addEventListener('click', end);
 
+        // Everything cleared is already saved (or on its way); the form only leaves.
         function end() {
-            resultsInput.value = JSON.stringify(results);
-            resultsForm.submit();
+            exitBtn.disabled = true;
+            resultsInput.value = '[]';
+            saving.always(() => resultsForm.submit());
         }
 
         const flashcard = document.getElementById('flashcard');
@@ -144,23 +176,55 @@
         const correctBtn = document.getElementById('correctBtn');
         const flipBtn = document.getElementById('flipBtn');
 
+        const pill = document.getElementById('cardPill');
+        const writeInput = document.getElementById('writeInput');
+        const writtenAnswer = document.getElementById('writtenAnswer');
+
+        if (writeInput) {
+            flipBtn.firstChild.textContent = 'Show answer';
+        }
+
         function showCard() {
             flashcard.classList.remove('is-flipped');
             front.textContent = cards[currentIndex].front;
+            pill.textContent = cards[currentIndex].pill || '';
+            pill.classList.toggle('hidden', ! cards[currentIndex].pill);
             wrongBtn.classList.add('hidden');
             correctBtn.classList.add('hidden');
             flipBtn.classList.remove('hidden');
             hintText.textContent = 'Click to show hint.';
             hintElement.classList.toggle('hidden', ! cards[currentIndex].hint);
+            if (writeInput) {
+                writeInput.value = '';
+                writeInput.disabled = false;
+                writtenAnswer.classList.add('hidden');
+                writeInput.focus();
+            }
             updateCounters();
         }
 
         function flip() {
+            // Writing: reveal once, beside what was written, then grade as with cards.
+            if (writeInput) {
+                if (flashcard.classList.contains('is-flipped')) return;
+                writtenAnswer.querySelector('span').textContent = writeInput.value.trim() || '—';
+                writtenAnswer.classList.remove('hidden');
+                writeInput.disabled = true;
+            }
             back.textContent = cards[currentIndex].back;
             flashcard.classList.toggle('is-flipped');
             flipBtn.classList.add('hidden');
             wrongBtn.classList.remove('hidden');
             correctBtn.classList.remove('hidden');
+        }
+
+        if (writeInput) {
+            writeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    flip();
+                }
+            });
         }
 
         flashcard.addEventListener('click', flip);

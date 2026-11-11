@@ -9,8 +9,10 @@ use Illuminate\Support\Facades\Auth;
 class AjaxController extends Controller
 {
     /**
-     * Persist a finished flashcard session: `results`, `{id, result}` per card, batched into
-     * this one request at session end. A correct result clears the card (level and schedule
+     * Persist flashcard results: `results`, `{id, result}` per card, its first answer, sent as
+     * soon as the card leaves the deck (answered correctly), so closing the browser loses
+     * nothing already cleared, and a card still waiting on a repeat after a miss is not saved
+     * at all — it stays due as if never shown. A correct result clears the card (level and schedule
      * advance) and stamps last-recall on every base word and fixed expression linked to it:
      * producing the Term is producing all of them.
      *
@@ -45,6 +47,8 @@ class AjaxController extends Controller
             }
         }
 
-        return redirect('/completeLearning');
+        // Each card is saved by itself (AJAX) as it leaves the deck; the plain post at the end
+        // carries nothing new and only leaves the session.
+        return $request->ajax() ? response()->noContent() : redirect('/completeLearning');
     }
 }

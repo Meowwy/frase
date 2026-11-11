@@ -45,6 +45,20 @@
                 @if($session || $plan['batches'])
                     <x-forms.button id="startBtn" type="button" class="max-lg:w-full max-lg:min-h-12">{{ $session ? 'Continue' : 'Start' }}</x-forms.button>
                 @endif
+                {{-- Classic: the same due words as flashcards, on the same schedule (docs/frammenti.md "Classic"). --}}
+                @if($classicDue)
+                    <div class="mt-2 w-full border-t border-white/10 pt-4">
+                        <p class="text-sm text-white/60">Or go through the {{ $classicDue }} due {{ Str::plural('word', $classicDue) }} the classic way, as flashcards:</p>
+                        <div class="mt-3 flex flex-wrap justify-center gap-2">
+                            <a href="{{ route('frammenti.classic', ['language_id' => $language->id, 'style' => 'cards']) }}" class="max-lg:w-full">
+                                <x-forms.button-small type="button" class="max-lg:w-full max-lg:min-h-12">Classic · flip cards</x-forms.button-small>
+                            </a>
+                            <a href="{{ route('frammenti.classic', ['language_id' => $language->id, 'style' => 'writing']) }}" class="max-lg:w-full">
+                                <x-forms.button-small type="button" class="max-lg:w-full max-lg:min-h-12">Classic · write</x-forms.button-small>
+                            </a>
+                        </div>
+                    </div>
+                @endif
             </x-panel>
 
             <div id="loading" class="hidden py-16 text-center text-white/60 animate-pulse">Writing your fragments…</div>

@@ -7,6 +7,11 @@ use Illuminate\Support\Str;
 
 class Learning
 {
+    /** Past this many due cards, a due session serves only DUE_SERVED of them. */
+    public const DUE_CAP = 20;
+
+    public const DUE_SERVED = 15;
+
     /**
      * The cards a session serves. Takes either the structured selection from the builder,
      * or a legacy string filter from the older entry points: 'due' or a theme name.
@@ -42,11 +47,11 @@ class Learning
     {
         $query->whereDate('next_study_at', '<=', now()->toDateString())->where('level', '<', 8);
 
-        $more = (clone $query)->count() > 20;
+        $more = (clone $query)->count() > self::DUE_CAP;
         session(['more_cards_available' => $more]);
 
         if ($more) {
-            $query->limit(15);
+            $query->limit(self::DUE_SERVED);
         }
     }
 
@@ -134,12 +139,19 @@ class Learning
 
         $cards = self::cardEntries(self::getCardsForLearning(session('learning_filter')), $mode);
 
-        // The view drives the whole session client-side from this one JS variable — no
-        // per-card request during review.
+        // The view drives the session client-side from this one JS variable, saving each
+        // card as it leaves the deck (see docs/learning-flow.md).
         return view('learning.index', [
             'cards' => 'let cards = '.json_encode($cards).';',
             'cardCount' => count($cards),
+            'answerStyle' => self::answerStyle(request()->query('style')),
         ]);
+    }
+
+    /** How the learner answers: flip the card (`cards`) or type it first (`writing`). */
+    public static function answerStyle(?string $style): string
+    {
+        return $style === 'writing' ? 'writing' : 'cards';
     }
 
     /**

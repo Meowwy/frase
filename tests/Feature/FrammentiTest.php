@@ -671,4 +671,48 @@ class FrammentiTest extends TestCase
         $this->assertSame('Europe/Prague', $user->fresh()->timezone);
         $this->assertSame('2026-10-15', $user->fresh()->today());
     }
+
+    public function test_classic_serves_due_words_and_expressions_as_flashcards(): void
+    {
+        [$user, $language] = $this->learner();
+        $this->unlock($user, $language);
+        $bank = $this->word($user, $language, 'bank', $this->due(level: 2) + ['translation' => 'bank']);
+        $riverbank = $bank->addSense('riverbank');
+        $card = Card::factory()->create(['user_id' => $user->id, 'language_id' => $language->id, 'term' => 'vid flodens bank', 'translation' => 'by the river bank']);
+        $card->baseWords()->attach($bank->id, ['base_word_sense_id' => $riverbank->id]);
+        FixedExpression::create(['user_id' => $user->id, 'language_id' => $language->id, 'form' => 'tycka om', 'translation' => 'to like'] + $this->due());
+
+        $response = $this->actingAs($user)->get('/frammenti/classic?language_id='.$language->id.'&style=writing')->assertOk();
+
+        $response->assertSee('"front":"riverbank\nby the river bank"', false)
+            ->assertSee('"pill":"noun"', false)
+            ->assertSee('"id":"fixed_expression:', false)
+            ->assertSee('writeInput', false);
+        // Only the due ones: the unlock words are due far ahead.
+        $response->assertDontSee('substantiv1');
+
+        $this->actingAs($user)->get('/frammenti?language_id='.$language->id)->assertSee('Classic · flip cards');
+    }
+
+    public function test_classic_answers_move_the_frammenti_schedule_and_a_miss_drops_to_the_bottom_until_tomorrow(): void
+    {
+        [$user, $language] = $this->learner();
+        $right = $this->word($user, $language, 'hus', $this->due(level: 3));
+        $wrong = $this->word($user, $language, 'bil', $this->due(level: 5));
+        $notDue = $this->word($user, $language, 'båt', ['frammenti_level' => 2, 'frammenti_due_on' => '2099-01-01']);
+
+        $this->actingAs($user)->post('/frammenti/classic?language_id='.$language->id, ['results' => json_encode([
+            ['id' => 'base_word:'.$right->id, 'result' => 1],
+            ['id' => 'base_word:'.$wrong->id, 'result' => 0],
+            ['id' => 'base_word:'.$notDue->id, 'result' => 0],
+        ])], ['X-Requested-With' => 'XMLHttpRequest'])->assertNoContent();
+
+        $this->assertSame([4, '2026-10-22'], [$right->fresh()->frammenti_level, $right->fresh()->frammenti_due_on]);
+        $this->assertNotNull($right->fresh()->last_recalled_at);
+        $this->assertSame([0, '2026-10-15'], [$wrong->fresh()->frammenti_level, $wrong->fresh()->frammenti_due_on]);
+        $this->assertSame([2, '2099-01-01'], [$notDue->fresh()->frammenti_level, $notDue->fresh()->frammenti_due_on]);
+
+        // Leaving posts nothing and goes back to Frammenti.
+        $this->actingAs($user)->post('/frammenti/classic?language_id='.$language->id, ['results' => '[]'])->assertRedirect(route('frammenti', ['language_id' => $language->id]));
+    }
 }

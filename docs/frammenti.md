@@ -10,7 +10,8 @@ simple Anki-style schedule, and a **session** plays the items that are due.
 Frammenti **never touches a card's schedule** and never clears a card. Clearing a card still stamps
 last recall on its base words, but never moves their Frammenti schedule: a Term is produced as a
 whole, which is weak evidence about each word, and coupling two schedules makes both harder to
-reason about. Code: `App\Models\Frammenti` (schedule, plan, dealing, streak),
+reason about. The same due items can instead be gone through as flashcards — [Classic](#classic).
+Code: `App\Models\Frammenti` (schedule, plan, dealing, streak),
 `App\Models\FrammentiSession`, `FrammentiController`, `AI::generateFragments()`,
 `AI::evaluateSentence()`, `resources/views/frammenti/index.blade.php`.
 
@@ -215,6 +216,36 @@ phone keyboard's own Enter key takes the same step; the gap and the answer field
 autocorrect (and the gap auto-capitalisation), so the phone never rewrites a target-language
 answer into something the learner didn't type.
 
+## Classic
+
+**Classic** is the alternative to a Frammenti session at the same level: the same due base words
+and fixed expressions, on the same schedule, but as flashcards in the card-review view instead of
+AI-written fragments — no AI call at all. The start panel offers it below Start whenever anything
+is due ("Or go through the N due words the classic way"), as **Classic · flip cards** or
+**Classic · write** (`GET /frammenti/classic?language_id=&style=cards|writing`,
+`FrammentiController::classic()`); it needs the language to be open, like a session.
+
+- **Which items**: `Frammenti::dueItems()` — exactly what a session would plan over, in random
+  order — capped the way a due card session is (`Learning::DUE_CAP`: past 20, 15 are served).
+- **The card** (`Frammenti::classicEntries()`): the front is the item's translation **in the
+  meaning its latest card uses** (the card ↔ base-word link names the meaning; a fixed expression
+  has one translation) and, under it, **that card's own translation**, so the item is asked in a
+  context the learner saved; the back is the display form (*ett hus*, *komm|a -er*) or the
+  expression's form. The part of speech (or *expression*) shows as a pill above the card, which
+  card review doesn't have.
+- **In the session** it is card review: a miss comes back in the same session until it is right,
+  and only the first answer counts.
+- **Scheduling** (`Frammenti::answerClassic()`, `POST /frammenti/classic`, ids `type:id`): only a
+  due item moves, as in `answer()`. Right climbs exactly as in a session (level + 1, the same
+  intervals, never due again at 8) and stamps last recall. **Wrong drops it the way a wrong card
+  drops**: to the bottom level (0 here, as a card goes back to its bottom level 1) and due the next
+  day (`Learning::getNextStudyDay()`), not today — a session re-deals a miss in a later batch, while
+  Classic has already repeated it in the session.
+- **Saving**: each item is posted as it leaves the deck, so closing the browser loses nothing
+  answered, and an item still waiting on a repeat after a miss is not saved at all (see
+  [learning-flow](learning-flow.md) "Saving"). Classic plans no `frammenti_sessions` row: it doesn't
+  count towards the streak.
+
 ## Article drill
 
 A noun's article has to be memorised with the noun (*en skola* but *ett hus*), and nothing in
@@ -239,8 +270,9 @@ on the front (*hus*), the display form on the back (*ett hus*). It needs no AI c
   scope. In-session it behaves as a card review: a wrong noun comes back until it's right, and only its
   first answer is saved.
 - **Endpoints**: `GET /frammenti/articles?language_id=` renders the session; the view posts
-  `results` (`[{id, result}]`) to `POST /frammenti/articles`, which applies `ArticleDrill::answer()`
-  to the learner's own nouns (another learner's id is skipped) and redirects back to `/frammenti`.
+  `results` (`[{id, result}]`) to `POST /frammenti/articles` as each noun leaves the deck, which
+  applies `ArticleDrill::answer()` to the learner's own nouns (another learner's id is skipped);
+  leaving redirects back to `/frammenti`.
   A non-target language is 403. It never goes through `/saveLearning`, which would move card
   schedules.
 
