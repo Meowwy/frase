@@ -7,6 +7,7 @@ use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\FrammentiController;
 use App\Http\Controllers\GapFillExerciseController;
+use App\Http\Controllers\IgnoredWordController;
 use App\Http\Controllers\LexiconController;
 use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\RegisteredUserController;
@@ -204,6 +205,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/base/synonyms', [BaseWordController::class, 'unlink']);
     // "Add word manually": a lexicon word straight into the base (one small AI call).
     Route::post('/base/words', [BaseWordController::class, 'store']);
+    // Ignored words: what staging never proposes again, per language.
+    Route::get('/base/ignored', [IgnoredWordController::class, 'index'])->name('base.ignored');
+    Route::post('/base/ignored', [IgnoredWordController::class, 'store']);
+    Route::delete('/base/ignored/{ignoredWord}', [IgnoredWordController::class, 'destroy']);
     // The shared lexicon search (<x-lexicon-search>).
     Route::get('/lexicon/search', [LexiconController::class, 'search'])->name('lexicon.search');
 

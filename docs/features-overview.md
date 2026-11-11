@@ -76,6 +76,10 @@ word or translation as you type, or filter by part of speech (*expression* shows
 expressions). Click a row and the panel on the right lists those cards' terms;
 clicking a word or expression on a card's page brings you here with it already picked.
 
+**Ignored words** (top right) lists the words you struck or marked as ignored in that language;
+remove one and staging can propose it again, and with a dictionary you can search it and ignore a
+word before it ever comes up.
+
 **Add word manually** (top right, for a language with a dictionary — Swedish today): search the
 dictionary and add a word straight to the base, without capturing a term; its translations are
 written for you. A word you had ignored stops being ignored.

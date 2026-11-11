@@ -339,7 +339,7 @@ homograph's rows stay together), each with the display form built from only the 
 of (as a staging chip is) and every row's raw fields. `GET /lexicon/search?language_id=&q=`
 (`LexiconController`, any language — the lexicon is shared reference data) serves it to the shared
 `<x-lexicon-search>` component (see [frontend-patterns](frontend-patterns.md)), which is used by
-"Add word manually" below and by the status page's Lexicon search (see
+"Add word manually" below, the ignored-words page (above) and the status page's Lexicon search (see
 [auth-and-users](auth-and-users.md)).
 
 ### Adding a word by hand
@@ -397,6 +397,19 @@ approval, when it is paid for only the words the base lacks (see [ai-integration
 `lemma`, `part_of_speech`, unique on all four. Striking a new chip inserts a row; including it again deletes
 it. Called *known words* (`known_words`, `KnownWord`) until v1.0, renamed because striking says the
 learner doesn't want the word, not that they know it.
+
+### Ignored words
+
+`/base/ignored` (`IgnoredWordController`, linked as **Ignored words** on the right of `/base`'s
+language row, with the same per-language links) lists one language's ignored words in the `/base`
+table look: the word as the base would show it (an ignored word stores no grammar, so the article or
+dictionary form comes from what the lexicon is sure of, else the bare lemma), the lemma, part of
+speech and the date it was ignored, 50 a page, alphabetical. The row's ✕ (`DELETE
+/base/ignored/{id}`, the learner's own only) takes it off the list, so staging proposes it again.
+For a language with a lexicon the page also has the shared lexicon search with **Ignore** on each
+result (`POST /base/ignored`, idempotent): only a lexicon word can be ignored up front, because its
+lemma and part of speech are then exactly the key staging matches on. Without a lexicon the list
+and removal work and the search is hidden.
 
 `proposal_fixed_expressions` — the fixed-expression chips, at most 3 per proposal: `form`,
 `translation`, `struck`. Striking one is **per proposal** — unlike a word, a fixed

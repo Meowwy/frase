@@ -1,30 +1,33 @@
-{{-- /base's title, the language filter and, right-aligned on the same row, "Add word manually"
-     for a language with a lexicon (docs/cards.md "Adding a word by hand"). --}}
+{{-- /base's title, the language filter and, right-aligned on the same row, the link to the
+     ignored words and "Add word manually" for a language with a lexicon (docs/cards.md "Adding a
+     word by hand", "Ignored words"). --}}
 <h1 class="text-2xl font-bold mb-6">Vocabulary base</h1>
 
-@if($targetLanguages->count() > 1 || $hasLexicon)
-    <div class="mb-4 flex flex-wrap items-center gap-2">
-        @if($targetLanguages->count() > 1)
-            @foreach($targetLanguages as $language)
-                <a href="{{ route('base', ['language_id' => $language->id]) }}"
-                   @class([
-                       'rounded-lg border border-white/10 px-3 py-1 text-sm transition-colors max-lg:py-2.5',
-                       'bg-blue-600/30 ring-1 ring-blue-500' => (int) $activeLanguageId === $language->id,
-                       'bg-white/5 hover:bg-white/10' => (int) $activeLanguageId !== $language->id,
-                   ])>
-                    {{ $language->flag }} {{ $language->name }}
-                </a>
-            @endforeach
-        @endif
+<div class="mb-4 flex flex-wrap items-center gap-2">
+    @if($targetLanguages->count() > 1)
+        @foreach($targetLanguages as $language)
+            <a href="{{ route('base', ['language_id' => $language->id]) }}"
+               @class([
+                   'rounded-lg border border-white/10 px-3 py-1 text-sm transition-colors max-lg:py-2.5',
+                   'bg-blue-600/30 ring-1 ring-blue-500' => (int) $activeLanguageId === $language->id,
+                   'bg-white/5 hover:bg-white/10' => (int) $activeLanguageId !== $language->id,
+               ])>
+                {{ $language->flag }} {{ $language->name }}
+            </a>
+        @endforeach
+    @endif
 
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+        <a href="{{ route('base.ignored', ['language_id' => $activeLanguageId]) }}"
+           class="px-2 py-1 text-sm text-white/60 hover:text-white hover:underline max-lg:py-2.5">Ignored words</a>
         @if($hasLexicon)
             <button type="button" onclick="openModal('add-base-word')"
-                    class="ml-auto rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm transition-colors hover:bg-white/10 max-lg:py-2.5">
+                    class="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm transition-colors hover:bg-white/10 max-lg:py-2.5">
                 + Add word manually
             </button>
         @endif
     </div>
-@endif
+</div>
 
 @if($hasLexicon)
     <x-modal name="add-base-word" title="Add a word">

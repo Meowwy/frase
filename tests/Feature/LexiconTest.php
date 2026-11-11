@@ -91,6 +91,31 @@ class LexiconTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_the_ignored_words_page_lists_removes_and_adds_from_the_lexicon(): void
+    {
+        [$user, $swedish, $english] = $this->learner();
+        $ignored = IgnoredWord::create(['user_id' => $user->id, 'language_id' => $swedish->id, 'lemma' => 'hus', 'part_of_speech' => 'noun']);
+
+        $this->actingAs($user)->get('/base/ignored?language_id='.$swedish->id)
+            ->assertOk()
+            ->assertSee('ett hus')
+            ->assertSee('Search the dictionary to ignore');
+
+        $this->actingAs($user)->postJson('/base/ignored', ['language_id' => $swedish->id, 'lemma' => 'husera', 'part_of_speech' => 'verb'])->assertNoContent();
+        $this->actingAs($user)->postJson('/base/ignored', ['language_id' => $swedish->id, 'lemma' => 'husera', 'part_of_speech' => 'verb'])->assertNoContent();
+        $this->actingAs($user)->postJson('/base/ignored', ['language_id' => $swedish->id, 'lemma' => 'bil', 'part_of_speech' => 'noun'])->assertStatus(422);
+        $this->assertSame(2, IgnoredWord::count());
+
+        [$other] = $this->learner();
+        $this->actingAs($other)->deleteJson('/base/ignored/'.$ignored->id)->assertNotFound();
+        $this->actingAs($user)->deleteJson('/base/ignored/'.$ignored->id)->assertNoContent();
+        $this->assertModelMissing($ignored);
+
+        // A language with no lexicon lists its words but offers no search.
+        $user->languages()->attach($english->id, ['users_level' => 'B1']);
+        $this->actingAs($user)->get('/base/ignored?language_id='.$english->id)->assertOk()->assertDontSee('Search the dictionary to ignore');
+    }
+
     public function test_a_word_the_lexicon_lacks_is_refused(): void
     {
         [$user, $swedish] = $this->learner();
