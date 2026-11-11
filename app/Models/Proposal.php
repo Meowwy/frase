@@ -42,7 +42,7 @@ class Proposal extends Model
     protected $casts = [
         'language_options' => 'array',
         'clarification' => 'array',
-        'replace_card_ids' => 'array',
+        'keep_card_ids' => 'array',
     ];
 
     /** How many clarifying questions staging asks about one Term before it stops asking. */
@@ -114,9 +114,13 @@ class Proposal extends Model
             || ($this->status !== self::STATUS_COMPLETED && ! $this->isAwaitingAnalysis());
     }
 
+    /**
+     * Replacing is on by default: a contained card goes on approval unless the learner
+     * switched it off (kept).
+     */
     public function isMarkedForReplace(Card $card): bool
     {
-        return in_array($card->id, $this->replace_card_ids ?? [], true);
+        return ! in_array($card->id, $this->keep_card_ids ?? [], true);
     }
 
     /**
@@ -125,9 +129,9 @@ class Proposal extends Model
      */
     public function markForReplace(Card $card, bool $replace): void
     {
-        $ids = collect($this->replace_card_ids)->reject(fn (int $id) => $id === $card->id);
+        $ids = collect($this->keep_card_ids)->reject(fn (int $id) => $id === $card->id);
 
-        $this->update(['replace_card_ids' => ($replace ? $ids->push($card->id) : $ids)->values()->all()]);
+        $this->update(['keep_card_ids' => ($replace ? $ids : $ids->push($card->id))->values()->all()]);
     }
 
     /**
@@ -360,17 +364,24 @@ class Proposal extends Model
      */
     public function replaceableCards(SupportCollection $present, SupportCollection $known, SupportCollection $presentExpressions): SupportCollection
     {
-        $words = $this->linkedWords($present, $known)
-            ->map(fn (ProposalBaseWord $word) => $present->get($this->presenceKeyFor($word)))
-            ->filter()
-            ->unique('id');
+        // A card reaches through a word only if it uses it in the meaning this Term does: a
+        // card about *bank* the money is not contained in one about the riverbank.
+        $wordCards = $this->linkedWords($present, $known)
+            ->filter(fn (ProposalBaseWord $word) => $present->has($this->presenceKeyFor($word)))
+            ->unique(fn (ProposalBaseWord $word) => $this->presenceKeyFor($word))
+            ->flatMap(fn (ProposalBaseWord $word) => match (true) {
+                filled($word->new_sense_translation) => collect(),
+                filled($word->base_word_sense_id) => $present->get($this->presenceKeyFor($word))->cards
+                    ->filter(fn (Card $card) => in_array($card->pivot->base_word_sense_id, [null, $word->base_word_sense_id])),
+                default => $present->get($this->presenceKeyFor($word))->cards,
+            });
 
         $expressions = $this->linkedExpressions($presentExpressions)
             ->map(fn (ProposalFixedExpression $expression) => $presentExpressions->get($this->expressionKeyFor($expression)))
             ->filter()
             ->unique('id');
 
-        return $words->flatMap(fn (BaseWord $word) => $word->cards)
+        return $wordCards
             ->concat($expressions->flatMap(fn (FixedExpression $expression) => $expression->cards))
             ->groupBy('id')
             ->filter(fn (SupportCollection $hits) => $hits->count() === $hits->first()->base_words_count + $hits->first()->fixed_expressions_count)

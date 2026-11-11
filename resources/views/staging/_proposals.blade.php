@@ -219,7 +219,7 @@
             @endif
 
             {{-- Cards this one contains entirely (every word and expression), so it makes them
-                 redundant. A switch, off by default: nothing happens to the card until approval. --}}
+                 redundant. A switch, on by default: nothing happens to the card until approval. --}}
             @foreach($replaceable as $card)
                 @php $marked = $proposal->isMarkedForReplace($card); @endphp
                 <div @class([

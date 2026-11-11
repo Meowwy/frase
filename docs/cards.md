@@ -347,7 +347,7 @@ CALL 2 and the card write happen only once the learner **approves** it.
 | `term` | nullable until CALL 1 resolves |
 | `clarification` | nullable JSON (`array` cast) — the one open question, `{topic, question, options: [{label, context}, …]}`, up to 4 options (see "The clarifying question") |
 | `clarify_rounds` | how many questions have been answered; at `Proposal::MAX_CLARIFY_ROUNDS` the model's next question is dropped |
-| `replace_card_ids` | nullable JSON (`array` cast) — the existing cards switched on to be replaced on approval (see "Replacing a contained card" below) |
+| `keep_card_ids` | nullable JSON (`array` cast) — the contained cards the learner switched **off**; every other one is replaced on approval (see "Replacing a contained card" below) |
 | `source` | `'web'` \| `'extension'` |
 | `status` | `pending` \| `processing` \| `completed` \| `failed` — the same async shape as `gap_fill_exercises` + `GenerateGapFillJob` (see [gap-fill](gap-fill.md)), so the fast-path skeleton polls/resolves the same way |
 
@@ -396,7 +396,7 @@ proposal exactly as it was in staging rather than a half-written card.
 | `POST /staging/{proposal}/clarify` | answer the open clarifying question (`answer`), appended to the Context — see below |
 | `POST /staging/{proposal}/words/{word}/sense` | override the meaning of an already-saved word: `sense_id` or a new `translation` — see "The meaning check" |
 | `POST /staging/{proposal}/retry` | run CALL 1 again on a failed or stalled proposal (`Proposal::reanalyze()`) |
-| `POST /staging/{proposal}/replace/{card}` | `replace=1` / `replace=0` switches one card on or off to be replaced on approval. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
+| `POST /staging/{proposal}/replace/{card}` | `replace=0` / `replace=1` switches one contained card off (kept) or back on (the default) for replacing on approval. `403` unless the card is the learner's own, `422` unless it is in the proposal's language |
 | `POST /staging/{proposal}/approve` | `409` with `duplicate_card_id` on an identical Term that still blocks (see "The duplicate check") or with `covering_card_id` on a covered proposal (see "Covered proposals"), `422` when the proposal isn't approvable yet, else `{url, term, staged_count}` — staging doesn't redirect, the row collapses to a link to the new card |
 | `DELETE /staging/{proposal}` | discard |
 
@@ -484,9 +484,11 @@ The reverse of a covered proposal: an existing card is **contained** in a propos
 (`Proposal::replaceableCards()`) when **every** base word and fixed expression on the card is one
 the proposal would link too (*Sverige* beside a new "Jag kommer från Sverige"). The new card makes
 it redundant, so staging gives each such card a line of its own above Approve with a **Replace it
-on approve** switch, **off by default** — replacing deletes a card, so it is only ever the
-learner's choice. The switch writes `replace_card_ids` and does nothing else; discarding the
-proposal leaves the card alone.
+on approve** switch, **on by default**: a contained card is almost always the shorter version the
+learner is extending (*Vill de titta på vårt hus?* → *…vårt stora hus?*), and the switch is how
+an existing card is updated with a longer Term — there is no separate update flow. The learner can
+still switch it off. The switch writes `keep_card_ids` (the cards switched **off**; empty means
+"replace them all") and does nothing else; discarding the proposal leaves the card alone.
 
 On approve, inside the transaction that writes the new card, each switched-on card that is
 **still** contained goes (a switch left on from before the words changed does nothing). Only its
@@ -494,7 +496,9 @@ On approve, inside the transaction that writes the new card, each switched-on ca
 manual links are deleted with it by the FK cascades — the learner should actually review the longer
 Term, so it starts fresh. Containment is read off the presence indexes, whose cards carry their
 word and expression counts: a card is contained when the proposal reaches it through as many
-distinct words and expressions as it has. A card with no words is never offered, and an identical
+distinct words and expressions as it has — and through a word only when the card uses it in the
+meaning this Term does (see "The meaning check"), so a card about *bank* the money is never
+replaced by default by one about the riverbank. A card with no words is never offered, and an identical
 Term is left to the duplicate notice. A card with exactly the proposal's words would make it
 covered, which is refused first.
 

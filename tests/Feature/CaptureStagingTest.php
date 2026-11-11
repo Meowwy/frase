@@ -1382,7 +1382,7 @@ class CaptureStagingTest extends TestCase
         $this->assertStringNotContainsString('data-card-id="'.$wider->id.'"', $rows);
     }
 
-    public function test_approving_replaces_a_switched_on_card_and_carries_its_note(): void
+    public function test_approving_replaces_a_contained_card_by_default_and_carries_its_note(): void
     {
         [$user, $language] = $this->learner();
         $hur = $this->baseWord($user, $language, 'hur', 'adverb');
@@ -1392,7 +1392,8 @@ class CaptureStagingTest extends TestCase
         $kept = $this->cardUsing($user, $language, 'mycket', $mycket);
 
         $proposal = $this->completedProposal($user, $language);
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 1])->assertNoContent();
+        $this->assertTrue($proposal->isMarkedForReplace($old));
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$kept->id}", ['replace' => 0])->assertNoContent();
 
         $this->fakeOpenAi($this->cardContent());
         $url = $this->actingAs($user)->postJson("/staging/{$proposal->id}/approve")->assertStatus(200)->json('url');
@@ -1409,9 +1410,11 @@ class CaptureStagingTest extends TestCase
         $old = $this->cardUsing($user, $language, 'hur', $hur);
         $proposal = $this->completedProposal($user, $language);
 
-        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 1]);
         $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 0]);
         $this->assertFalse($proposal->fresh()->isMarkedForReplace($old));
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 1]);
+        $this->assertTrue($proposal->fresh()->isMarkedForReplace($old));
+        $this->actingAs($user)->postJson("/staging/{$proposal->id}/replace/{$old->id}", ['replace' => 0]);
 
         [$other] = $this->learner();
         $foreign = Card::factory()->create(['user_id' => $other->id, 'language_id' => $language->id]);

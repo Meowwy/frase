@@ -162,8 +162,9 @@ refuses it, since it would add nothing to the vocabulary base.
 _Avoid_: redundant, not needed, merge (there is no merging)
 
 **Replace**:
-Switching on, in staging, an existing card whose every base word and fixed expression a proposal
-also has, so that approving the proposal deletes it; only its note moves to the new card.
+What approving a proposal does, by default, to an existing card whose every base word and fixed
+expression the proposal also has: the card is deleted and only its note moves to the new card. A
+switch in staging, on unless the learner turns it off. It is how a card is updated with a longer Term.
 _Avoid_: merge, combine, supersede
 
 **Regenerate**:

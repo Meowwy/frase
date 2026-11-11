@@ -41,8 +41,9 @@ the app turns it into a flashcard — by way of **staging**, where they get the 
   its words, or one noun, most overlap first.
 - **A term that makes an old card redundant** — all the old card's words and expressions are in it
   (*Sverige* when you capture *Jag kommer från Sverige*) — shows that card on its own line with a
-  **Replace it on approve** switch, off by default. Switched on, approving deletes the old card and
-  moves its note to the new one; its review progress and links go with it.
+  **Replace it on approve** switch, on by default — this is how you update a card with a longer
+  version of its term. Approving deletes the old card and moves its note to the new one; its review
+  progress and links go with it. Switch it off to keep the old card.
 - **A term that adds nothing** — all its words and expressions are already on one of your cards
   (*book* when you have *She is reading a book*) — is refused: staging says so and links that card,
   and you can only clear it.
