@@ -19,7 +19,7 @@ Base columns from the original migration plus everything added since:
 | `context` | nullable — the learner's own context input, kept so a card can be regenerated in the sense it was captured in |
 | `level` | integer SRS box/level — see [learning-flow](learning-flow.md) "SRS algorithm" |
 | `last_studied`, `next_study_at` | SRS scheduling dates |
-| `embedding` | nullable JSON array (`array` cast) — see [search-and-linking](search-and-linking.md) |
+| `embedding` | nullable JSON array (`array` cast) — no longer written (generation is off in v1.0); see [search-and-linking](search-and-linking.md) |
 
 Dropped by the vocabulary-base redesign (migration
 `2026_09_27_000001_redesign_cards_for_vocabulary_base`, which also renamed `phrase` → `term`):
@@ -529,12 +529,11 @@ There are still **two** ways a card gets created — one AI-assisted, one manual
   `CardController::save()`, via `StoreCardRequest`): the user types every field themselves
   (`term`, optional `translation`/`note`/`theme_id`). This path
   never goes through staging — there's nothing to approve that the learner didn't already type.
-  Still dispatches `GenerateEmbeddingJob` so the card participates in linking/search the same way.
   This entry point has no nav link (reach it directly at `/add`) but is a real, working path.
 
 `Card::generateContent()` is CALL 2 without a write (`AI::generateCard`, plus the native-language
-resolution and `WordDetails`), and `Card::persist()` maps its answer onto the columns and dispatches
-`GenerateEmbeddingJob` (see [search-and-linking](search-and-linking.md)), leaving `theme_id` null
+resolution and `WordDetails`), and `Card::persist()` maps its answer onto the columns (no embedding
+— generation is off, see [search-and-linking](search-and-linking.md)), leaving `theme_id` null
 (the AI no longer assigns a theme at capture time — see
 [wordboxes-themes-tags](wordboxes-themes-tags.md)). Both are public because `Proposal::approve()`
 is the caller; nothing else in the app writes a generated card.
@@ -562,8 +561,7 @@ put: it `update()`s only the AI-written columns — `level`, `last_studied`, `ne
 `note`, the base-word links and every manual link are never touched. It carries
 the caller's `context` if one is given, and otherwise falls back to the card's stored `context`, so
 a regeneration keeps the sense the card was originally captured in. A `null` from the call returns
-`false` and leaves the card exactly as it was; the embedding is re-dispatched, since the content it
-described has changed (see [search-and-linking](search-and-linking.md)).
+`false` and leaves the card exactly as it was.
 
 **It runs CALL 2 only.** The Term is already settled on the card, so CALL 1 has nothing left to
 decide — re-running it would pay for language detection and

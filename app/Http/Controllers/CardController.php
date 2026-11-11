@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreCardRequest;
 use App\Http\Requests\UpdateCardRequest;
-use App\Jobs\GenerateEmbeddingJob;
 use App\Models\Card;
 use App\Models\Theme;
 use Carbon\Carbon;
@@ -311,7 +310,6 @@ class CardController extends Controller
             'next_study_at' => now(),
         ]);
 
-        GenerateEmbeddingJob::dispatch($card);
         logger('Card has been created for '.$card->term);
 
         return redirect('/cards/'.$card->id);

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Jobs\GenerateEmbeddingJob;
 use App\Support\LanguageGuideline;
 use App\Support\Lexicon;
 use App\Support\WordDetails;
@@ -174,17 +173,14 @@ class Card extends Model
 
         $this->update(self::contentColumns($this->term, $context, $content));
 
-        // The content it was built from has changed, so the old embedding no longer
-        // describes this card — see docs/search-and-linking.md.
-        GenerateEmbeddingJob::dispatch($this);
-
         logger('Card '.$this->id.' has been regenerated for '.$this->term);
 
         return true;
     }
 
     /**
-     * Write one generated card and queue its embedding.
+     * Write one generated card. No embedding is generated (switched off in v1.0, see
+     * docs/search-and-linking.md).
      */
     public static function persist(User $user, Language $language, string $term, ?string $context, array $content): self
     {
@@ -197,8 +193,6 @@ class Card extends Model
                 'next_study_at' => now(),
             ]
         );
-
-        GenerateEmbeddingJob::dispatch($card);
 
         logger('Card has been created for '.$term);
 

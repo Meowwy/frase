@@ -12,7 +12,8 @@ controller code that assembles arguments and interprets the result.
   Latency-sensitive calls — every conversation/challenge/game **turn** (not the opening or the
   recap) — pass `reasoning_effort: low` explicitly instead, trading some instruction-following
   for a snappier chat.
-- **Embeddings**: `text-embedding-3-small` via `/v1/embeddings` (`AI::getEmbedding`).
+- **Embeddings**: `text-embedding-3-small` via `/v1/embeddings` (`AI::getEmbedding`) — no longer
+  called by the app in v1.0 (see [search-and-linking](search-and-linking.md)).
 - **Realtime (voice)**: `gpt-realtime-2.1-mini` — see [conversation-voice](conversation-voice.md).
 - Reasoning models reject the `temperature` param, so it is never sent anywhere in this file.
 - Every structured response uses a strict `json_schema` response format
@@ -272,7 +273,8 @@ cap.
   Frammenti batch, and **`AI::evaluateSentence()`** — one
   Frammenti tier III verdict; see "Frammenti" below.
 - **`AI::getEmbedding($text)`** / **`AI::cosineSimilarity($a, $b)`** — embedding + similarity
-  helpers used for (currently paused) automatic card linking. See [search-and-linking](search-and-linking.md).
+  helpers kept for the paused automatic card linking; nothing calls them in v1.0. See
+  [search-and-linking](search-and-linking.md).
 
 ### Gap-fill — `AI::generateTextWithGaps()`
 

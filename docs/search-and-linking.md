@@ -3,8 +3,8 @@
 Full-text-ish search over a user's cards, and the embedding-based "related terms" infrastructure
 that exists in the schema but is currently switched off in favor of manual linking. For the
 **manual** card-linking feature users actually see today, see [cards](cards.md) "Manual card linking" —
-this doc covers the two `synonyms`/`related_terms` tables' original automatic purpose and how
-embeddings still get generated. `synonyms` links cards only; synonym links between base words and
+this doc covers the two `synonyms`/`related_terms` tables' original automatic purpose and the
+(switched-off) embedding pipeline. `synonyms` links cards only; synonym links between base words and
 fixed expressions are a separate table, `entry_synonyms` (see [cards](cards.md) "Synonym links").
 
 ## Search (`SearchController`)
@@ -17,9 +17,14 @@ fixed expressions are a separate table, `entry_synonyms` (see [cards](cards.md) 
 
 ## Embeddings
 
-Every card creation dispatches **`GenerateEmbeddingJob`** (queued), which calls
-`AI::getEmbedding($card->phrase)` (`text-embedding-3-small`) and stores the result in
-`cards.embedding` (nullable, `array` cast). `AI::cosineSimilarity($a, $b)` computes the dot
+**Generation is switched off in v1.0.** Nothing in the app dispatches **`GenerateEmbeddingJob`**
+any more — not card approval, not the manual `/add` form — so no embedding request is ever made.
+Nothing reads embeddings either (search is a `LIKE`, automatic linking is paused, below), so there
+was nothing to pay for. The code is kept for when it comes back: the job calls
+`AI::getEmbedding($card->term)` (`text-embedding-3-small`) and stores the result in
+`cards.embedding` (nullable, `array` cast), existing rows keep theirs, and
+`php artisan cards:backfill-embeddings` still dispatches it when run by hand.
+`AI::cosineSimilarity($a, $b)` computes the dot
 product between two embedding vectors (OpenAI's embeddings are pre-normalized, so a plain dot
 product *is* cosine similarity — no separate magnitude division needed).
 

@@ -135,7 +135,7 @@ question: **does it depend only on source code, or on the environment it runs in
     and the OpenAI API, so JIT would add risk for no measurable gain.
 - **The queue worker** (`.fly/supervisor/conf.d/worker.conf`) runs `queue:work` beside php-fpm
   and nginx, as `www-data` like php-fpm so it can write the SQLite file. Capture depends on it
-  (`AnalyzeProposalJob`), as do gap-fill and embeddings. `--timeout=85` stays under the database
+  (`AnalyzeProposalJob`), as does gap-fill. `--timeout=85` stays under the database
   queue's 90-second `retry_after`, so a slow OpenAI call is never picked up twice. It suspends with
   the machine, which is harmless: jobs are only dispatched by requests, which wake it. Locally, run
   `php artisan queue:work` yourself.
